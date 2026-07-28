@@ -1,6 +1,6 @@
 ---
 name: reviewer-response-sci
-version: 2.25.3
+version: 2.26.0
 description: 用于SCI审稿意见逐条回复的全流程技能，适用于期刊大修/小修阶段，只出回复包（HTML），不改主稿。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：与revise-sci区分，本技能只出回复包不改主稿，需同时改主稿并出修订稿docx请用revise-sci；与reviewer-simulator区分，本技能针对已收到的意见写回复，后者是模拟生成审稿意见。
 ---
 
@@ -374,7 +374,7 @@ python3 scripts/run_pipeline.py \
 各 gate 由 `run_pipeline.py` 串行自动调用，正常运行无需手动单独跑。按执行顺序：
 - `strict_gate.py`：硬门禁，检查 `revised_excerpt_en` 非空/非占位符/与原文有实质差异、`needs_manual_revision` 状态
 - `final_content_gate.py`：内容完整性，检查所有 `待AI` / `AI_FILL_REQUIRED` 占位符是否已填（`--allow-placeholder` 仅骨架预览阶段）
-- `consistency_check.py`：① 禁用词/冲突术语检查；② **承诺↔落点一致性**：`response_en` 中承诺的动作动词（含 `we (have/now) added/performed/conducted/provide/cited/discussed...` 及被动 `changes were made`）须能在同 unit 的 `modification_actions` 或 `revised_excerpt_en` 找到对应落点。**承诺新增实质内容（新实验/分析/图表/数据/对照）却无落点 = FAIL（脚本非零退出，阻断 pipeline）**；措辞类承诺无落点 = WARN（非阻断）。③ **跨审稿人呼应豁免**：unit 的 `content.cross_ref` 非空时，其承诺落点由被指向的 canonical unit 承载，本 unit 免落点检查（避免"As noted in our response to Reviewer 2..."被误判漏落点）。④ **`--emit-table <path>`**：把逐句承诺列成面向用户的 markdown 对照表（承诺句｜类型｜落点有/无｜位置），Step 7.5 摆给用户
+- `consistency_check.py`：① 禁用词/冲突术语检查；② **承诺↔落点一致性**：`response_en` 中承诺的动作动词（含 `we (have/now) added/performed/conducted/provide/cited/discussed...` 及被动 `changes were made`）须能在同 unit 的 `modification_actions` 或 `revised_excerpt_en` 找到对应落点。**承诺新增实质内容（新实验/分析/图表/数据/对照）却无落点 = FAIL（脚本非零退出，阻断 pipeline）**；措辞类承诺无落点 = WARN（非阻断）。③ **跨审稿人呼应豁免**：unit 的 `content.cross_ref` **能解析到一个真实存在、且不是自己的 unit** 时（支持 `"u-1"` 式 unit_id 与 `"Reviewer 2, Comment 3"` 式描述，后者按 reviewer+comment_number 匹配），其承诺落点由被指向的 canonical unit 承载，本 unit 免落点检查（避免"As noted in our response to Reviewer 2..."被误判漏落点）；**指不到任何 unit（幽灵目标）或指向自己 = 不豁免**，照常按无落点判定。④ **`--emit-table <path>`**：把逐句承诺列成面向用户的 markdown 对照表（承诺句｜类型｜落点有/无｜位置），Step 7.5 摆给用户
 - `final_consistency_report.py`：生成统计报告（units 数量、链接率、缺失 excerpt 计数）
 - `html_format_check.py`：HTML 结构完整性
 - `risk_check.py`：检测虚构实验/统计、过度承诺、AI 式套话、跨 unit 结构重复

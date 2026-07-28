@@ -1,6 +1,6 @@
 ---
 name: review-writing
-version: 2.27.0
+version: 2.28.0
 description: "Universal assistant for writing high-impact academic literature reviews (Nature/Cell/Lancet level). Supports real-time Zotero integration, outline persistence, and multi-mode reference management. Use when writing a comprehensive review article requiring systematic search, synthesis, and citation management. 触发词：写综述、文献综述、综述写作、literature review、review article、改综述、完善综述、继续写综述、improve review。"
 triggers:
   - "写综述"
@@ -934,7 +934,12 @@ Write Mode has no `pending_sections` field so this gate is a no-op (no key → e
    - **Conclusion echo check:** Conclusion must directly address the Research Question(s) from `outline.md` and reference key findings from body sections. Flag conclusions that introduce new claims not supported in the body.
    - If violations found → AI fixes inline in `exports/Final_Review.md`, adds transition sentences or cross-references, and propagates changes back to source `drafts/section_XX_XX.md`.
 
-   4c. **Abbreviation consistency scan** (on compiled `exports/Final_Review.md`):
+   4c. **Abbreviation consistency scan**（先跑脚本硬门，再做脚本盖不住的人工补查）：
+   ```bash
+   python3 scripts/abbreviation_consistency.py --drafts-dir drafts
+   ```
+   > **参数别照抄 gsw**：本家这份脚本只认 `--drafts-dir`（`--help` 实测），**不认** gsw 那份的 `--root`，照抄会当场 argparse 报错。扫 `drafts/**/*.md`（重复定义要靠跨文件比对，故喂 drafts 而非编译后的单文件；merge 衍生物已自动排除）。检测 ① **重复定义** 同一缩写在多个 draft 文件首次定义；② **未定义就用** 裸用 ABBR 且全稿无内联定义、又不在通用白名单（DNA/RNA/PCR 等自动跳过）；③ **Title 出现缩写**。**阻断**：exit 非 0 → 逐条按 `ABBR_CHECK_FAIL` 修 `drafts/section_XX_XX.md`，改完重跑至 exit 0，未过不得进 4d/导出。
+   - 以下为脚本未覆盖、须人工补查的部分 (on compiled `exports/Final_Review.md`)：
    - Scan for all uppercase sequences ≥2 chars (candidate abbreviations) and parenthetical definitions like `Full Name (ABBR)` or `中文全称（英文全称, ABBR）`.
    - **Check:** Every abbreviation used bare (without parenthetical definition) in the text must have exactly ONE prior definition. Flag: (a) undefined abbreviations, (b) abbreviations re-defined in multiple sections, (c) abbreviations defined but never used again.
    - Generate `exports/abbreviation_list.md` table (see format in `references/writing_guidelines.md` §4 Abbreviation Management).

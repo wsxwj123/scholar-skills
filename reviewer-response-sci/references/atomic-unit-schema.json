@@ -98,7 +98,7 @@
           "description": "Rebuttal strategy decided in Step 1.7 strategy table; drives tone in Step 7 response authoring"
         },
         "figure_prompt": { "type": "string", "default": "", "description": "Structured figure revision prompt; empty if no figure change needed" },
-        "cross_ref": { "type": "string", "default": "", "description": "跨审稿人呼应去重：当本条意见与另一条已完整作答的意见问同一件事时，填被指向的 canonical 目标（如 'Reviewer 2, Comment 3'），response_en 用 'As noted in our response to Reviewer 2, Comment 3, ...' 交叉指过去，答一次即可；consistency_check 据此免除本 unit 的落点重复要求（落点由 canonical unit 承载）。空=非呼应条目，照常要求本 unit 自带落点。" },
+        "cross_ref": { "type": "string", "default": "", "description": "跨审稿人呼应去重：当本条意见与另一条已完整作答的意见问同一件事时，填被指向的 canonical 目标（如 'Reviewer 2, Comment 3'），response_en 用 'As noted in our response to Reviewer 2, Comment 3, ...' 交叉指过去，答一次即可；consistency_check 据此免除本 unit 的落点重复要求（落点由 canonical unit 承载）。目标必须真实存在：写 unit_id（如 'u-1'）或 'Reviewer N, Comment M'（按 reviewer+comment_number 匹配）；指不到任何 unit 或指向自己 = 不豁免，照常按无落点判 FAIL。空=非呼应条目，照常要求本 unit 自带落点。" },
         "notes_core_zh": { "type": "array", "items": { "type": "string" }, "description": "Core modification notes (marked 🔴)" },
         "notes_support_zh": { "type": "array", "items": { "type": "string" }, "description": "Support modification notes (marked 🟡)" },
         "evidence": {

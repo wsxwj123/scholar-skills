@@ -57,7 +57,7 @@
 2. 其余同问的 unit：`content.cross_ref` 填 canonical 目标（如 `"Reviewer 2, Comment 3"`），`response_en` 用交叉指引句，答案不重复展开：
    - "As we detail in our response to Reviewer 2 (Comment 3), we have added ... . In brief, ..."（指过去 + 一句摘要）
    - "This point overlaps with Reviewer 1's Comment 2; please see our full response there. Here we note that ..."（承认重叠 + 指向 + 本条补一句差异）
-3. 交叉指引的 unit **不必自带落点**——`consistency_check.py` 见 `cross_ref` 非空即免除本 unit 的落点重复要求（落点由 canonical unit 承载）。canonical unit 仍须落点齐全。
+3. 交叉指引的 unit **不必自带落点**——`consistency_check.py` 把 `cross_ref` 解析到真实存在的 canonical unit 后即免除本 unit 的落点重复要求（落点由 canonical unit 承载）。canonical unit 仍须落点齐全。**填的目标必须真实存在**（`"u-1"` 式 unit_id，或 `"Reviewer 2, Comment 3"` 式描述——按 reviewer+comment_number 对得上）：指不到任何 unit 或指向自己一律不豁免，照常按无落点判 FAIL。
 4. 若两条虽相关但诉求有细微差别，canonical 答主体，呼应 unit 补那一句差别，别硬合并成"完全一样"。
 
 ## E. 风险红线

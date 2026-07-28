@@ -303,7 +303,8 @@
         {
           "id": "N33",
           "name": "预算总额核算",
-          "check": "各项目预算求和 = profile budget_total（人工核算）"
+          "check": "各项目预算求和 = profile budget_total。脚本硬核：python3 scripts/budget_check.py --root .（exit 0=相符；exit 1=不符，输出 diff 带符号；exit 2=数据缺失/畸形，按 BUDGET_CHECK_ERROR 修 data/budget_table.json）。脚本不覆盖负数分项与重名分项，那两项人工看。",
+          "script": "python3 scripts/budget_check.py --root ."
         },
         {
           "id": "N34",

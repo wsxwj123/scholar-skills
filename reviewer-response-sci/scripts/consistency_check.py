@@ -26,6 +26,49 @@ def collect_unit_text(unit: dict) -> str:
     return "\n".join(parts)
 
 
+# 描述式 cross_ref 的审稿人号+意见号抽取："Reviewer 2, Comment 3" / "R2C3" / "reviewer 2 comment 3"。
+# 中间允许少量非数字字符（逗号、括号、空格、"'s"），但不跨太远以免把两条无关的号码粘一起。
+_CROSS_REF_RC_RE = re.compile(r"r(?:eviewer)?\s*#?\s*(\d+)\D{0,12}?c(?:omment)?\s*#?\s*(\d+)", re.IGNORECASE)
+
+
+def _numkey(value) -> str:
+    """把 'Reviewer 2' / '3' / 'Comment 3.1' 归一成纯数字键 '2' / '3' / '3.1'（无数字→''）。
+
+    保留全部数字段（而不是只取第一个），这样 comment_number='3.1' 不会被 'Comment 3' 误配上。
+    """
+    return ".".join(re.findall(r"\d+", str(value or "")))
+
+
+def resolve_cross_ref(cross_ref: str, units: list[dict], self_uid: str) -> str:
+    """把 content.cross_ref 解析成它实际指向的 unit_id；指不到 / 指向自己 → 返回 ""。
+
+    两种书写形态并存（见 references/atomic-unit-schema.json 与 decision-rules.md D 段）：
+      - unit_id 式："u-1"                → 按 unit_id 精确匹配（大小写不敏感）
+      - 描述式：   "Reviewer 2, Comment 3" → 抽审稿人号+意见号，配 reviewer + comment_number
+    顺带容忍 "R2C3"、全小写、无空格等紧凑变体：书写差异不该左右门禁结论，
+    但"指不到任何真实 unit"（幽灵目标）必须不豁免——否则任意非空串即可关掉 RR10 硬门禁。
+    自引用同样无效：落点不可能由 unit 自己承载。
+    """
+    ref = (cross_ref or "").strip()
+    if not ref:
+        return ""
+    for u in units:
+        uid = str(u.get("unit_id", "") or "")
+        if uid and uid != self_uid and uid.lower() == ref.lower():
+            return uid
+    m = _CROSS_REF_RC_RE.search(ref)
+    if not m:
+        return ""
+    r_no, c_no = m.group(1), m.group(2)
+    for u in units:
+        uid = str(u.get("unit_id", "") or "")
+        if not uid or uid == self_uid:
+            continue
+        if _numkey(u.get("reviewer", "")) == r_no and _numkey(u.get("comment_number", "")) == c_no:
+            return uid
+    return ""
+
+
 def _write_landing_table(path: Path, rows: list[tuple[str, str, str, str, str]]) -> None:
     """写面向用户的『承诺↔落点对照表』markdown（Step 7.5 摆给用户核对，真兑现监工卡承诺）。"""
     lines = [
@@ -130,11 +173,13 @@ def main() -> int:
         response_en = c.get("response_en", "")
         mod_actions = c.get("modification_actions", [])
         revised = c.get("revised_excerpt_en", "")
-        # 跨审稿人呼应去重：本 unit 若把回复交叉指向另一条已实答的 unit
-        # （content.cross_ref 非空），其承诺的落点由被指向的 canonical unit 承载，
-        # 本 unit 不再重复要求落点——否则 "As noted in our response to Reviewer 2..."
-        # 里的 we added X 会被误判为无落点 FAIL。
+        # 跨审稿人呼应去重：本 unit 若把回复交叉指向另一条已实答的 unit，其承诺的落点由
+        # 被指向的 canonical unit 承载，本 unit 不再重复要求落点——否则
+        # "As noted in our response to Reviewer 2..." 里的 we added X 会被误判为无落点 FAIL。
+        # 但必须**解析得到一个真实存在、且不是自己的 unit** 才豁免：只看 cross_ref 非空的话，
+        # 随便填一句 "Reviewer 9, Comment 99" 就能静默关掉这道硬门禁。
         cross_ref = str(c.get("cross_ref", "") or "").strip()
+        cross_target = resolve_cross_ref(cross_ref, units, uid)
 
         # Skip if unit is still a placeholder (not yet filled by AI)
         if "AI_FILL_REQUIRED" in response_en or "【待AI" in response_en:
@@ -202,12 +247,12 @@ def main() -> int:
                 found_in_actions_en
                 or found_in_revised_en
                 or zh_fallback_ok
-                or bool(cross_ref)
+                or bool(cross_target)
             )
 
             # 记一行对照表：类型(实质新增/措辞) + 落点有无 + 落点位置。
             is_substantive = bool(SUBSTANTIVE_ADD_RE.search(promise))
-            if cross_ref:
+            if cross_target:
                 where = f"交叉引用 → {cross_ref}"
             elif found_in_actions_en:
                 where = "modification_actions"
@@ -215,6 +260,8 @@ def main() -> int:
                 where = "revised_excerpt_en"
             elif zh_fallback_ok:
                 where = "中文字段(response_zh/notes/actions)"
+            elif cross_ref:
+                where = f"—（cross_ref『{cross_ref}』指不到任何 unit）"
             else:
                 where = "—（未找到）"
             table_rows.append((
