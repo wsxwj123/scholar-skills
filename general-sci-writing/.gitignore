@@ -1,0 +1,8 @@
+.state/
+backups/
+__pycache__/
+*.pyc
+data/
+style_check_report.json
+citation_guard_report.json
+verification_run_log.json

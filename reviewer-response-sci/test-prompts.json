@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "我的论文投了Advanced Materials，收到了两个审稿人的意见，Reviewer 1有3个major comment，Reviewer 2有2个minor comment。帮我准备回复包。（附审稿意见和论文）",
+    "expected": "skill应触发：询问输出路径、然后解析审稿意见、原子化论文段落、构建comment units、最终输出含双栏HTML导航+中英文对照的回复包"
+  },
+  {
+    "id": 2,
+    "prompt": "回复审稿人时，如果审稿人要求的实验我没办法做（缺乏设备），怎么写这条回复比较合适？",
+    "expected": "skill应触发：给出专业、非防御性的回复策略（承认局限→提供已有证据替代→说明未来方向），并提供英文措辞示例，语气专业不卑不亢"
+  },
+  {
+    "id": 3,
+    "prompt": "这是审稿意见：'The statistical analysis is insufficient. The authors should add sample size justification and effect size calculations.' 帮我写这条的回复",
+    "expected": "skill应触发：生成包含中文回复+英文回复的完整单条意见回复，含修改定位信息、修改说明，中文先写后附英文翻译，有复制按钮设计"
+  }
+]

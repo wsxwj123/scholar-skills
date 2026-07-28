@@ -1,0 +1,65 @@
+{
+  "field_id": "default",
+  "field_name": "通用学术论文",
+  "field_name_en": "General Academic",
+  "target_journals": [
+    "Nature",
+    "Science",
+    "Cell",
+    "PNAS",
+    "Nature Communications",
+    "Scientific Reports"
+  ],
+  "reviewer_concerns": {
+    "by_system": {},
+    "by_experiment": {
+      "Methodology": [
+        "实验方法是否详细到可重复？",
+        "样本量/统计功效是否足够？",
+        "对照组设置是否合理？"
+      ],
+      "Data_Analysis": [
+        "统计方法选择是否恰当？",
+        "数据呈现是否清晰？",
+        "误差线/置信区间是否标注？"
+      ],
+      "Interpretation": [
+        "结论是否有充分的数据支撑？",
+        "是否讨论了局限性？",
+        "是否与其他相关研究一致？"
+      ]
+    },
+    "mitigation_strategies": {
+      "methodology_reproducibility": "在Methods中详细描述实验步骤，包括试剂来源、仪器参数、操作条件等",
+      "statistical_power": "提供样本量计算依据，说明统计检验方法",
+      "limitations": "在Discussion中诚实讨论研究局限性"
+    }
+  },
+  "experiment_types": [
+    "Characterization",
+    "Experimental",
+    "Theoretical",
+    "Computational",
+    "Clinical",
+    "Observational",
+    "Review"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "当前研究领域的局限性是...",
+    "innovation_claim": "本研究首次提出...",
+    "methodology": "方法学原始文献..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": true,
+    "require_scale_bar": false,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [1000, 3000],
+    "results": [2000, 4000],
+    "discussion": [1500, 3000],
+    "conclusion": [200, 500]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "_doc": "投稿包模板集合 (Phase 4.8 /submission-pack 命令使用)。所有 {{VAR}} 占位符在写入项目目录前需替换。",
+
+  "_cover_letter_doc": "填充前必读 references/cover-letter-guide.md。四段骨架：开场+创新点强调句 / 核心总结(禁抄摘要) / 3 Innovations + 3 Contributions / 期刊 scope 契合段(强制,基于目标刊 Aims & Scope 原文,禁通用套话)。括号内 (...) 为填写指引,写入终稿时删除。",
+
+  "cover_letter": "Dear Editor of {{JOURNAL}},\n\nWe are pleased to submit our manuscript entitled \"{{TITLE}}\" for consideration as an Article in {{JOURNAL}}. {{INNOVATION_PUNCH}}\n\n(段1 结尾这句 INNOVATION_PUNCH 是编辑唯一会扫的创新点强调句,如 \"This study introduces an innovative strategy to ...\"。)\n\n**Summary.** {{BACKGROUND_ONE_LINE}} Our study addresses {{PROBLEM_SOLVED}} and demonstrates {{CORE_ADVANCE}}.\n\n(段2 禁照抄 abstract;背景一句带过,篇幅给创新与解决的问题,比摘要更尖锐。)\n\n**Key Innovations** (what is new):\n1. {{KEY_INNOVATION_1}}\n2. {{KEY_INNOVATION_2}}\n3. {{KEY_INNOVATION_3}}\n\n**Major Contributions** (what it means for the field):\n1. {{CONTRIBUTION_1}}\n2. {{CONTRIBUTION_2}}\n3. {{CONTRIBUTION_3}}\n\n(Innovation=做了什么新东西,Contribution=对领域什么用,两栏不混不重复。)\n\n**Fit with {{JOURNAL}}.** {{SCOPE_FIT_ARGUMENT}}\n\n(强制:基于目标刊 Aims & Scope 原文撰写,用该刊 scope 实际字眼 {{JOURNAL_SCOPE_KEYWORDS}} 勾连本文贡献;禁 \"will interest the broad readership\" 类通用套话;换成别的刊仍成立=套话,须重写。用户未提供 scope 原文则停下索取。详见 references/cover-letter-guide.md 第 3 节。)\n\n**Originality and authorship.** All authors have approved the manuscript and agree with its submission. The work has not been published elsewhere and is not under consideration by another journal. We have no competing interests to declare (or see attached COI statement).\n\n**Suggested reviewers** (with no recent collaboration or competing interests):\n1. {{REVIEWER_1_NAME}}, {{REVIEWER_1_AFFILIATION}} ({{REVIEWER_1_EMAIL}})\n2. {{REVIEWER_2_NAME}}, {{REVIEWER_2_AFFILIATION}} ({{REVIEWER_2_EMAIL}})\n3. {{REVIEWER_3_NAME}}, {{REVIEWER_3_AFFILIATION}} ({{REVIEWER_3_EMAIL}})\n\n**Opposed reviewers** (with justification): {{OPPOSED_REVIEWERS_OR_NONE}}\n\nThank you for considering our work.\n\nSincerely,\n{{CORRESPONDING_AUTHOR_NAME}}\n{{CORRESPONDING_AUTHOR_TITLE}}\n{{CORRESPONDING_AUTHOR_AFFILIATION}}\n{{CORRESPONDING_AUTHOR_EMAIL}}\nORCID: {{ORCID}}\n",
+
+  "data_availability_statement": "## Data Availability\n\nAll data supporting the findings of this study are available within the paper and its Supplementary Information.\n\n{{IF_SEQUENCING}}Raw and processed sequencing data have been deposited in {{REPOSITORY}} under accession number {{ACCESSION_ID}}, and are publicly accessible.{{END_IF}}\n\n{{IF_PROTEOMICS}}Mass spectrometry proteomics data have been deposited to the ProteomeXchange Consortium via the PRIDE partner repository with the dataset identifier {{PXD_ID}}.{{END_IF}}\n\n{{IF_STRUCTURAL}}Atomic coordinates have been deposited in the Protein Data Bank (PDB) under accession code {{PDB_ID}}.{{END_IF}}\n\nSource data underlying all figures and graphs are provided as Supplementary Data {{SD_NUMBER}}.\n\nAny additional data or materials required for replication are available from the corresponding author on reasonable request.\n",
+
+  "code_availability_statement": "## Code Availability\n\nAll custom code used in this study is available at {{GITHUB_URL}} under the {{LICENSE}} license, and is archived at Zenodo (DOI: {{ZENODO_DOI}}). The repository includes README with installation instructions, expected runtime, and example input data.\n",
+
+  "credit_taxonomy": "## Author Contributions (CRediT taxonomy)\n\n**Conceptualization:** {{AUTHORS_CONCEPTUALIZATION}}\n**Methodology:** {{AUTHORS_METHODOLOGY}}\n**Investigation:** {{AUTHORS_INVESTIGATION}}\n**Formal analysis:** {{AUTHORS_FORMAL_ANALYSIS}}\n**Resources:** {{AUTHORS_RESOURCES}}\n**Writing – original draft:** {{AUTHORS_DRAFT}}\n**Writing – review & editing:** {{AUTHORS_EDIT}}\n**Visualization:** {{AUTHORS_VIZ}}\n**Supervision:** {{AUTHORS_SUPERVISION}}\n**Project administration:** {{AUTHORS_PM}}\n**Funding acquisition:** {{AUTHORS_FUNDING}}\n\n(Use full author initials, e.g., \"J.S., L.W.\"; assign each role to at least one author; cover all 11 CRediT categories or explicitly note N/A.)\n",
+
+  "competing_interests": "## Competing Interests\n\nThe authors declare {{COI_STATEMENT}}.\n\n(Options: \"no competing interests\" / \"the following competing interests: [details — patents, advisory roles, equity, consulting]\")\n",
+
+  "funding": "## Funding\n\nThis work was supported by {{FUNDER_1}} (Grant No. {{GRANT_1}}) to {{PI_1}}, and {{FUNDER_2}} (Grant No. {{GRANT_2}}) to {{PI_2}}. The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript.\n",
+
+  "highlights": "## Research Highlights (3-5 bullets, ≤85 char each; Cell/Elsevier required)\n\n- {{HIGHLIGHT_1_LE85}}\n- {{HIGHLIGHT_2_LE85}}\n- {{HIGHLIGHT_3_LE85}}\n- {{HIGHLIGHT_4_LE85_OPTIONAL}}\n- {{HIGHLIGHT_5_LE85_OPTIONAL}}\n\n(Each line must be ≤85 characters including spaces; declarative and quantitative when possible.)\n",
+
+  "one_sentence_summary": "## eTOC Blurb / One-Sentence Summary ({{LE_150_CHAR_for_Nature}} / {{LE_125_CHAR_for_Cell_eTOC}})\n\n{{ONE_SENTENCE_SUMMARY}}\n\n(Nature: ~150 characters; Cell eTOC: ~125 characters; declarative; mention organism/system; avoid acronyms.)\n",
+
+  "graphical_abstract_spec": "## Graphical Abstract Specification\n\n**File**: graphical_abstract.tif (or .png at ≥300 DPI)\n**Dimensions**: 1200 × 1200 px (square) or 1200 × 800 px (Cell-style landscape)\n**Style**: BioRender / Illustrator vector; no photos of unrelated objects\n**Content rules**:\n- Single key message — what was found, not what was done\n- ≤6 visual elements + ≤4 short labels\n- No bullet text, no full sentences\n- Color palette = main figures palette (see configs/figure_palette.json)\n- All text ≥8 pt at final size; no untranslated abbreviations\n- AVOID: arrows pointing to multiple targets; before/after split unless clearly labeled\n",
+
+  "submission_checklist": [
+    {"item": "Cover letter (cover_letter.md) — addressed to current Editor-in-Chief, mentions target journal", "required_by": "all journals"},
+    {"item": "Main manuscript Full_Manuscript.docx (containing Abstract, Intro, Results, Discussion, Methods)", "required_by": "all journals"},
+    {"item": "Supplementary Information (SI) PDF with SI Figures, SI Methods, SI Tables", "required_by": "if applicable"},
+    {"item": "Source data .xlsx (one tab per main figure panel)", "required_by": "Nature/Cell — strongly preferred"},
+    {"item": "Data Availability Statement in Methods or stand-alone section", "required_by": "Nature/Cell/Science — mandatory"},
+    {"item": "Code Availability Statement (if any custom code)", "required_by": "if applicable"},
+    {"item": "CRediT author contributions — all 11 categories addressed", "required_by": "most journals"},
+    {"item": "Competing Interests / COI statement", "required_by": "all journals"},
+    {"item": "Funding statement with grant numbers", "required_by": "all journals"},
+    {"item": "Highlights (3-5 bullets ≤85 char)", "required_by": "Cell / Elsevier journals"},
+    {"item": "One-sentence summary / eTOC blurb", "required_by": "Nature / Cell"},
+    {"item": "Graphical abstract (.tif/.png ≥300 DPI)", "required_by": "Cell / JACS / Adv Mater"},
+    {"item": "Suggested reviewers (≥3) with affiliations and emails", "required_by": "most journals"},
+    {"item": "Opposed reviewers (with brief justification, if any)", "required_by": "optional"},
+    {"item": "ORCID IDs for all authors", "required_by": "all journals"},
+    {"item": "Ethics statement (IRB / IACUC) if applicable", "required_by": "if applicable"},
+    {"item": "Informed consent statement if human subjects", "required_by": "if applicable"},
+    {"item": "Reporting checklist (ARRIVE / CONSORT / MIQE) signed", "required_by": "discipline-specific"},
+    {"item": "Title page with full author list, affiliations, corresponding author info", "required_by": "all journals"},
+    {"item": "Abbreviations table from /merge auto-generated", "required_by": "most journals"}
+  ]
+}

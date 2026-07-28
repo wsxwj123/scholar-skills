@@ -1,0 +1,119 @@
+{
+  "field_id": "drug_delivery",
+  "field_name": "药物递送系统",
+  "field_name_en": "Drug Delivery System",
+  "target_journals": [
+    "Nature Nanotechnology",
+    "Nature Materials",
+    "Nature Biomedical Engineering",
+    "Advanced Materials",
+    "ACS Nano",
+    "Journal of Controlled Release"
+  ],
+  "reviewer_concerns": {
+    "by_system": {
+      "Nanocarrier": [
+        "EPR效应的临床转化争议（引用Danhier 2016 JCO, Wilhelm 2016 Nat Rev Mater）",
+        "长期蓄积毒性：纳米材料在肝脾的蓄积及潜在炎症反应",
+        "批次间稳定性：不同批次的粒径、PDI、载药率一致性",
+        "工业化放大：从实验室规模到GMP生产的CMC挑战",
+        "生物降解性：材料的体内代谢途径及排泄周期",
+        "免疫识别：MPS系统的快速清除问题"
+      ],
+      "Viral_Vector": [
+        "免疫原性：预存抗体或重复给药引发的免疫反应",
+        "基因组整合风险：特别是慢病毒和逆转录病毒",
+        "生产成本：病毒载体的高昂制备成本及规模化难题",
+        "转导效率：特定细胞类型的靶向性和转导效率",
+        "包装容量：基因序列长度的限制（如AAV<4.7kb）",
+        "长期表达安全性：转基因的持久表达或沉默"
+      ],
+      "Cell_Therapy": [
+        "离体扩增的遗传稳定性：长期培养的基因突变风险",
+        "体内归巢效率：细胞到达靶组织的比例及存活率",
+        "细胞因子释放综合征（CRS）：特别是CAR-T治疗",
+        "异质性问题：细胞产品的批次间差异",
+        "冷链运输：活细胞产品的储存和运输挑战",
+        "制备周期：从采集到回输的时间成本"
+      ],
+      "Living_Bacteria": [
+        "生物安全性：工程菌的体内扩增控制及杀伤开关",
+        "肠道定植：口服给药的定植效率及持久性",
+        "免疫耐受：宿主对工程菌的免疫清除",
+        "基因水平转移：工程基因向共生菌转移的风险",
+        "代谢产物毒性：细菌代谢的副产物安全性",
+        "监管挑战：活体生物制品的审批路径"
+      ],
+      "Exosome": [
+        "纯度和标准化：与其他细胞外囊泡的区分及质量标准",
+        "规模化生产：大规模培养细胞并提取外泌体的成本",
+        "载药效率：被动装载vs主动装载的效率低下",
+        "靶向性：天然外泌体的靶向性是否足够？",
+        "储存稳定性：外泌体的冻存复苏及长期保存",
+        "异质性：不同细胞来源外泌体的功能差异"
+      ]
+    },
+    "by_experiment": {
+      "In_vivo_efficacy": [
+        "小鼠模型是否能代表人类肿瘤微环境？",
+        "给药剂量是否在临床可行范围？（通常需要换算为人体等效剂量）",
+        "为何选择皮下瘤模型而非原位瘤？原位瘤更能模拟真实TME",
+        "生存期实验的终点设置是否合理？是否符合IACUC伦理标准？"
+      ],
+      "In_vitro_assays": [
+        "细胞系的passage数是否记录？高passage可能改变细胞特性",
+        "2D培养 vs 3D spheroid：2D模型的生理相关性有限",
+        "血清浓度：体外实验的血清浓度是否接近体内（10% FBS vs 人体40-50 mg/mL白蛋白）？",
+        "孵育时间：是否模拟了体内的实际暴露时间？"
+      ],
+      "Characterization": [
+        "DLS测定是否在生理条件下（PBS, 37°C）？",
+        "TEM样品制备是否引入了干燥伪影？",
+        "Zeta电位：测定介质的离子强度是否影响结果？",
+        "载药率：是否区分了表面吸附 vs 内部包封？"
+      ]
+    },
+    "mitigation_strategies": {
+      "EPR_controversy": "在Discussion中引用最新临床试验数据（如MM-302, BIND-014失败案例），承认EPR效应的局限性，并提出与免疫检查点抑制剂联用或主动靶向修饰的解决方案",
+      "batch_variability": "在Methods中详细说明进行了至少3个独立批次的制备及表征，所有关键参数（粒径、PDI、载药率）的CV<10%",
+      "long_term_toxicity": "在SI中补充28天毒性评估数据：H&E染色（主要器官）、血生化指标（ALT/AST、肌酐、尿素氮）、体重曲线",
+      "mouse_human_difference": "在Limitation中承认物种差异，引用相关文献说明小鼠模型的预测价值及局限性，提出未来在人源化小鼠或患者来源异种移植（PDX）模型中验证",
+      "mechanism_causality": "补充机制验证实验：使用抑制剂阻断关键通路，证明效应的消失；或使用非响应性对照组排除其他因素"
+    }
+  },
+  "experiment_types": [
+    "Characterization",
+    "In_vitro",
+    "In_vivo",
+    "Pharmacokinetics",
+    "Biodistribution",
+    "Toxicology"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "纳米药物肿瘤渗透性受限的问题...",
+    "innovation_claim": "pH响应性电荷反转纳米粒子的创新设计...",
+    "methodology": "动态光散射测量纳米粒径的标准协议..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": true,
+    "require_scale_bar": true,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [1500, 3000],
+    "results": [3000, 5000],
+    "discussion": [2000, 4000],
+    "conclusion": [200, 500]
+  },
+  "writing_style": {
+    "voice": "third_person_passive_mixed",
+    "passive_ratio_max": 0.30,
+    "preferred_verbs": ["exhibited", "demonstrated", "yielded", "attenuated", "facilitated", "abrogated"],
+    "avoid_verbs": ["showed", "found", "got", "did"],
+    "transition_patterns": ["Collectively,", "In parallel,", "Mechanistically,", "From a translational standpoint,"],
+    "typical_sentence_length_range": [12, 35],
+    "field_specific_notes": "生物医药领域偏好被动语态但需混合主动；数据描述段用主动（We observed/measured），机制讨论段用被动（was attributed to）；避免过度使用significantly，用具体倍数或P值替代"
+  }
+}

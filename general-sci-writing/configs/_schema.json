@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Article Writing Field Configuration",
+  "description": "Schema for article writing skill field configuration",
+  "type": "object",
+  "required": ["field_id", "field_name", "reviewer_concerns", "experiment_types"],
+  "properties": {
+    "field_id": {
+      "type": "string",
+      "description": "Unique identifier for the research field",
+      "pattern": "^[a-z_]+$"
+    },
+    "field_name": {
+      "type": "string",
+      "description": "Display name in Chinese"
+    },
+    "field_name_en": {
+      "type": "string",
+      "description": "Display name in English"
+    },
+    "target_journals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of target journals for this field"
+    },
+    "reviewer_concerns": {
+      "type": "object",
+      "properties": {
+        "by_system": {
+          "type": "object",
+          "description": "Reviewer concerns by system/type",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "by_experiment": {
+          "type": "object",
+          "description": "Reviewer concerns by experiment type",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "mitigation_strategies": {
+          "type": "object",
+          "description": "Mitigation strategies for common concerns",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["by_system", "by_experiment", "mitigation_strategies"]
+    },
+    "experiment_types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Supported experiment types for this field"
+    },
+    "literature_search_examples": {
+      "type": "object",
+      "properties": {
+        "gap_statement": {
+          "type": "string",
+          "description": "Example query for gap statement literature"
+        },
+        "innovation_claim": {
+          "type": "string",
+          "description": "Example query for innovation claim literature"
+        },
+        "methodology": {
+          "type": "string",
+          "description": "Example query for methodology literature"
+        }
+      }
+    },
+    "default_figure_requirements": {
+      "type": "object",
+      "properties": {
+        "require_n_value": {
+          "type": "boolean",
+          "description": "Whether n value is required in figures"
+        },
+        "require_scale_bar": {
+          "type": "boolean",
+          "description": "Whether scale bar is required in microscopy images"
+        },
+        "require_statistical_test": {
+          "type": "boolean",
+          "description": "Whether statistical test information is required"
+        }
+      }
+    },
+    "word_limits": {
+      "type": "object",
+      "properties": {
+        "abstract": {
+          "type": "integer",
+          "description": "Word limit for abstract"
+        },
+        "introduction": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Word limit range for introduction [min, max]"
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Word limit range for methods [min, max]"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Word limit range for results [min, max]"
+        },
+        "discussion": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Word limit range for discussion [min, max]"
+        },
+        "conclusion": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Word limit range for conclusion [min, max]"
+        }
+      }
+    }
+  }
+}

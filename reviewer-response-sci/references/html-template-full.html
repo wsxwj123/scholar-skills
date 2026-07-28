@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reviewer Response Full Package</title>
+  <style>
+    :root { --bg:#f4f7fb; --panel:#fff; --text:#1f2937; --line:#d9e2ec; --accent:#0f4c81; --core:#b42318; --support:#b54708; --muted:#667085; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); }
+    .layout { display:grid; grid-template-columns:340px 1fr; min-height:100vh; }
+    .sidebar { border-right:1px solid var(--line); background:#fff; position:sticky; top:0; height:100vh; overflow:auto; padding:14px; }
+    .sidebar h1 { margin:0 0 8px; font-size:1.05rem; color:var(--accent); }
+    .toc-level-1, .toc-level-2, .toc-level-3 { list-style:none; margin:0; padding-left:0; }
+    .toc-level-2 { padding-left:12px; margin-top:4px; }
+    .toc-level-3 { padding-left:14px; margin-top:4px; }
+    .toc-btn { width:100%; text-align:left; border:1px solid var(--line); background:#fff; padding:7px 9px; border-radius:8px; cursor:pointer; font-size:.88rem; margin-bottom:6px; }
+    .toc-btn.active { background:#eaf3ff; border-color:#7ea3c8; color:#0b3f68; font-weight:600; }
+    .content { padding:18px 22px; }
+    .page { display:none; }
+    .page.active { display:block; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin:0 0 12px; }
+    h2 { color:var(--accent); margin:0 0 10px; }
+    h3 { margin:0 0 8px; }
+    p { white-space:pre-wrap; line-height:1.6; }
+    .tag { display:inline-block; padding:1px 8px; border-radius:999px; color:#fff; font-size:.8rem; font-weight:600; margin-right:6px; }
+    .core { background:var(--core); }
+    .support { background:var(--support); }
+    figure { margin:8px 0; border:1px dashed var(--line); padding:10px; border-radius:8px; background:#fafcff; }
+    img { max-width:100%; height:auto; min-height:80px; background:#fff; border:1px solid var(--line); border-radius:6px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border:1px solid var(--line); padding:7px 9px; text-align:left; vertical-align:top; }
+    th { background:#eff5fb; }
+    @media (max-width:980px) {
+      .layout { grid-template-columns:1fr; }
+      .sidebar { position:relative; height:auto; border-right:none; border-bottom:1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>审稿回复目录</h1>
+      <ul id="toc-root" class="toc-level-1">
+        <!-- hierarchical toc inserted here -->
+      </ul>
+    </aside>
+    <main id="content-root" class="content">
+      <!-- pages inserted here -->
+    </main>
+  </div>
+
+  <script>
+    const btns = document.querySelectorAll('.toc-btn');
+    const pages = document.querySelectorAll('.page');
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        btns.forEach(b => b.classList.remove('active'));
+        pages.forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        const target = document.getElementById(btn.dataset.target);
+        if (target) target.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "primary": "#2E86AB",
+  "secondary": "#A23B72",
+  "accent": "#F18F01",
+  "neutral": "#4A4A4A",
+  "background": "#FFFFFF",
+  "colorblind_safe": true,
+  "notes": "No pure red-green contrast. Override per-project by editing [Project_Root]/configs/figure_palette.json after /init."
+}

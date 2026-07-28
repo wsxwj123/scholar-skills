@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""学术门禁 hook 安装器 + 心跳探测。各技能 env_preflight/init_project 调它一次。
+
+Phase B 架构:"N 份安装能力,装出 1 个钩子"。本脚本被 vendored 进每个技能的
+scripts/(与 _shared/ 真源同一份代码),运行时做两件事:
+  1) 把门禁四件套(signoff_gate/hook/installer/registry)部署到技能目录之外的
+     稳定位置 ~/.claude/academic-gate/(带 bundle 版本比较,旧不覆盖新);
+  2) 往 ~/.claude/settings.json 的 hooks.PreToolUse 写一条指向 academic-gate
+     副本的 hook entry(精确命令比对:旧 _shared 路径的 entry 会被迁移替换,
+     重复 entry 收敛为一条;绝不留悬空路径)。
+这样 settings.json 永远只指稳定位置,删任何技能目录都不会产生悬空 entry;
+钩子文件若丢失,下次任一技能 preflight 会从自带副本重新部署(自愈)。
+
+安全三重保险不变:改 settings.json 前备份(.bak-gatehook)、写前写后 JSON 校验、
+失败即从备份回滚。部署四件套按 signoff→hook→installer→registry 顺序复制,
+registry(hook 的开关+版本提交点)最后落盘:中途被杀只造成暂时 fail-open 放行,
+不会半新半旧误拦。
+
+输出:一行 JSON {status, action, message}。status ∈ installed|active|degraded|error。
+参数:--force 同版重刷部署(修复损坏的 academic-gate)。stdlib-only、跨平台。
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HOOK_TAG = "academic_gate_hook.py"  # 识别我们的 hook entry(新旧路径都含此子串)
+HEARTBEAT_NAME = "hook_heartbeat.json"
+HEARTBEAT_FRESH_SEC = 24 * 3600  # 24h 内 fire 过算新鲜
+
+# 部署四件套,顺序要紧:registry 是 hook 的开关(读不到→fail-open),放最后落盘。
+# 心跳是运行时产物,绝不复制(把旧机器的心跳拷过去会把 degraded 伪装成 active)。
+BUNDLE = (
+    "structure_signoff_gate.py",
+    "academic_gate_hook.py",
+    "install_gate_hook.py",
+    # 2026-07-28 起 academic_gate_hook.py 的判定全走 context_guard_core.py(三个钩子
+    # 共用的唯一判定实现)。不一起部署的话,legacy 装法的 hook 一 import 就炸 → 拦层
+    # 静默失效。这是"legacy 装法仍保留拦层"这条设计意图的必要条件。
+    "context_guard_core.py",
+    "gate_registry.json",
+)
+
+
+def _self_dir() -> Path:
+    """本脚本所在目录(可能是 _shared/ 真源,也可能是某技能 scripts/ 的 vendored 副本)。"""
+    return Path(__file__).resolve().parent
+
+
+def _gate_dir() -> Path:
+    """钩子的稳定部署位:在 skills/ 之外,不随任何技能目录的增删而动。"""
+    return Path.home() / ".claude" / "academic-gate"
+
+
+def _plugin_dir() -> Path:
+    """academic-gate @skills-dir 插件目录:Claude Code 启动时自动加载其 hooks,
+    不经过本安装器。它在场时本安装器让位(不写 settings、摘掉自己写过的 entry),
+    否则同一次写入会被两条钩子各拦一次(不误放行,但噪音)。"""
+    return Path.home() / ".claude" / "skills" / "academic-gate"
+
+
+def _plugin_present() -> bool:
+    d = _plugin_dir()
+    return ((d / ".claude-plugin" / "plugin.json").is_file()
+            and (d / "scripts" / "academic_gate_hook.py").is_file())
+
+
+def _settings_path() -> Path:
+    return Path.home() / ".claude" / "settings.json"
+
+
+def _interpreter() -> str:
+    """挑 hook 命令用的解释器:探测 PATH 上真实存在的裸名(fire 时再由 PATH 解析)。
+    全新 macOS 只有 python3 没有 python(裸写 python → exit 127,Claude Code 对非 2
+    退出码不阻断,物理锁会静默失效);老 Windows 反之只有 python。按探测不按平台猜,
+    还能覆盖'Windows 装了 python3 别名'等平台规则会猜错的组合。两个裸名都不在
+    PATH(极罕见,毕竟本脚本正在被某个 Python 跑)时退回 sys.executable 绝对路径
+    兜底——绝对路径有 venv 删了跟着死的风险,故只作最后手段。
+    每次安装/自检都重新探测:解释器环境变了(如 pyenv 卸载),_reconcile_entries
+    的精确命令比对会自动把旧 entry 迁移成新命令,自愈。"""
+    for name in ("python3", "python"):
+        if shutil.which(name):
+            return name
+    return sys.executable or "python3"
+
+
+def _target_command() -> str:
+    hook = _gate_dir() / "academic_gate_hook.py"
+    interp = _interpreter()
+    if " " in interp or os.sep in interp or (os.altsep and os.altsep in interp):
+        interp = f'"{interp}"'  # 绝对路径兜底时可能含空格/分隔符,加引号
+    # hook 路径引号包以容纳空格
+    return f'{interp} "{hook}"'
+
+
+def _hook_command_runs() -> bool:
+    """双保险:把写进 settings 的那条命令原样经 shell 真跑一遍(灌良性 {} 输入,
+    hook 无 file_path 会静默 exit 0)。跑不起来(127 解释器缺失/126 不可执行/超时)
+    即物理锁实际失效,必须报 degraded 告警,不许假装 installed。
+    shell=True 是刻意的:Claude Code 执行 hook 命令就是经 shell(PATH 解析/引号
+    语义都走 shell),用列表形式测不到真实执行路径;命令串全部来自自控路径
+    (探测的裸解释器名 + 本脚本拼的 hook 路径),无用户输入,无注入面。"""
+    try:
+        p = subprocess.run(_target_command(), shell=True, input="{}",
+                           capture_output=True, text=True, timeout=15)
+        return p.returncode == 0
+    except Exception:
+        return False
+
+
+def _bundle_version(d: Path) -> int:
+    """bundle 整包单版本 = 该目录 gate_registry.json 的 version(缺/坏=0)。"""
+    try:
+        return int(json.loads((d / "gate_registry.json").read_text(encoding="utf-8")).get("version", 0))
+    except Exception:
+        return 0
+
+
+def _gate_complete() -> bool:
+    return all((_gate_dir() / n).is_file() for n in BUNDLE)
+
+
+def _deploy(force: bool) -> tuple[bool, str]:
+    """把四件套从本目录部署到 academic-gate/。返回 (ok, action)。
+    版本比较:目标 >= 自带 且完整 → 跳过;更旧/缺/不完整 → 覆盖;--force → 强制重刷。"""
+    src = _self_dir()
+    missing = [n for n in BUNDLE if not (src / n).is_file()]
+    if missing:
+        return False, f"部署源缺文件({', '.join(missing)})"
+    sv, tv = _bundle_version(src), _bundle_version(_gate_dir())
+    if not force and tv >= sv and _gate_complete():
+        return True, "deploy-current"
+    _gate_dir().mkdir(parents=True, exist_ok=True)
+    for name in BUNDLE:  # 按 BUNDLE 顺序,registry 最后
+        shutil.copyfile(src / name, _gate_dir() / name)
+    return True, f"deployed-v{sv}"
+
+
+def _heartbeat_status(hb_dir: Path | None = None) -> str:
+    """心跳读钩子运行目录(缺省=部署位 academic-gate/;插件模式传插件 scripts/),
+    不是本脚本目录——vendored 副本的同目录永远不会有心跳,读错位置会恒报 degraded。"""
+    hb = (hb_dir or _gate_dir()) / HEARTBEAT_NAME
+    if not hb.is_file():
+        return "none"
+    try:
+        data = json.loads(hb.read_text(encoding="utf-8"))
+        age = time.time() - int(data.get("last_fire_epoch", 0))
+        return "fresh" if age <= HEARTBEAT_FRESH_SEC else "stale"
+    except Exception:
+        return "none"
+
+
+def _reconcile_entries(settings: dict, remove: bool = False) -> tuple[bool, bool]:
+    """把 settings 里我们的 hook entry 收敛为恰好一条、指向 academic-gate。
+    返回 (changed, migrated)。migrated=True 表示删过旧路径/重复 entry。
+    只动含 HOOK_TAG 的 hook 项;同 entry 里用户自己的其它 hook 原样保留。
+    remove=True(插件在场):所有我们的 entry 一律摘除、不再补写——门禁由插件钩子承担。"""
+    target_cmd = _target_command()
+    # hooks/PreToolUse 可能被其它工具写成显式 null:coerce 成空容器,别抛异常退化成含糊 error
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        hooks = {}
+        settings["hooks"] = hooks
+    pretool = hooks.get("PreToolUse")
+    if not isinstance(pretool, list):
+        pretool = []
+        hooks["PreToolUse"] = pretool
+    kept_target = False
+    migrated = False
+    new_pretool = []
+    for entry in pretool:
+        if not isinstance(entry, dict):
+            new_pretool.append(entry)
+            continue
+        hlist = entry.get("hooks", []) or []
+        new_hlist = []
+        for h in hlist:
+            cmd = str(h.get("command", ""))
+            if HOOK_TAG in cmd:
+                if not remove and cmd == target_cmd and not kept_target:
+                    kept_target = True
+                    new_hlist.append(h)
+                else:
+                    migrated = True  # 旧路径(如 _shared)/重复条目/插件在场,删
+            else:
+                new_hlist.append(h)
+        if new_hlist:
+            if len(new_hlist) != len(hlist):
+                entry = {**entry, "hooks": new_hlist}
+            new_pretool.append(entry)
+    if not remove and not kept_target:
+        new_pretool.append({
+            "matcher": "Write|Edit",
+            "hooks": [{"type": "command", "command": target_cmd, "timeout": 60}],
+        })
+    changed = migrated or (not remove and not kept_target)
+    if changed:
+        hooks["PreToolUse"] = new_pretool
+    return changed, migrated
+
+
+def _install(settings_path: Path, remove: bool = False) -> tuple[bool, str]:
+    """确保 settings.json 里恰有一条指向 academic-gate 的门禁 entry。
+    返回 (ok, action):already-present | installed | migrated | 失败原因。
+    remove=True:反向——摘光我们的 entry(returns removed | already-present)。"""
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    original = settings_path.read_text(encoding="utf-8") if settings_path.is_file() else None
+    backup = None
+    if original is not None:
+        try:
+            settings = json.loads(original)
+            if not isinstance(settings, dict):
+                return False, "settings.json 不是对象，跳过自动安装（请手动配置 hook）"
+        except Exception:
+            return False, "settings.json 解析失败（可能手动编辑出错），跳过自动安装，未改动"
+        backup = settings_path.with_suffix(".json.bak-gatehook")
+        shutil.copyfile(settings_path, backup)
+    else:
+        settings = {}
+
+    changed, migrated = _reconcile_entries(settings, remove)
+    if not changed:
+        return True, "already-present"
+
+    new_text = json.dumps(settings, ensure_ascii=False, indent=2)
+    try:
+        json.loads(new_text)  # 写前自校验
+    except Exception:
+        return False, "生成的 settings.json 非法，已放弃安装（原文件未动）"
+
+    settings_path.write_text(new_text, encoding="utf-8")
+    # 写后再校验一次,坏了立即从备份回滚
+    try:
+        json.loads(settings_path.read_text(encoding="utf-8"))
+    except Exception:
+        if backup and backup.is_file():
+            shutil.copyfile(backup, settings_path)
+        return False, "写入后校验失败，已从备份回滚，settings.json 未被破坏"
+    if remove:
+        return True, "removed"
+    return True, ("migrated" if migrated else "installed")
+
+
+def main() -> None:
+    result = {"status": "error", "action": "none", "message": ""}
+    force = "--force" in sys.argv[1:]
+    try:
+        if _plugin_present():
+            # 插件模式:钩子由 Claude Code 启动时自动加载,本安装器只负责"别再重复装一条"。
+            # 不部署 ~/.claude/academic-gate/(插件自带三件套),并摘掉本安装器曾写过的 entry。
+            ok, action = _install(_settings_path(), remove=True)
+            hb = _heartbeat_status(_plugin_dir() / "scripts")
+            if hb == "fresh":
+                result.update(status="active", action="plugin", message=(
+                    "门禁由 academic-gate 插件承担，已在岗（近期触发过）。跳步会被物理拦截。"
+                    + ("已摘掉旧的自装 hook 条目（避免重复拦截）。" if action == "removed" else "")))
+            else:
+                result.update(status="degraded", action="plugin", message=(
+                    "已装 academic-gate 插件，但未探测到它触发过——可能是刚放进 skills/ "
+                    "还没重启（钩子在启动时加载，无法热生效），或当前运行端不透传 hook"
+                    "（opencode / codex 从不读 Claude Code 钩子配置）。重启一次再看；"
+                    "在此之前当作【未受保护】，按开场监工卡人工盯防。"
+                    + ("已摘掉旧的自装 hook 条目。" if action == "removed" else "")))
+            if not ok:
+                result.update(status="degraded", action="plugin", message=(
+                    "已装 academic-gate 插件；但清理旧的自装 hook 条目失败：" + action +
+                    "。功能不受影响（可能被拦两次，噪音而已）。"))
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(0)
+
+        dok, daction = _deploy(force)
+        if not _gate_complete():
+            # 部署失败且目标也不完整:不写 entry(写了就是悬空路径,会拦死一切写入)
+            result.update(status="degraded", action="deploy-failed", message=(
+                f"门禁部署失败({daction})且 ~/.claude/academic-gate/ 不完整，"
+                "未写入 settings.json（避免悬空 hook 路径）。请当作未受保护，按监工卡人工盯防。"))
+            print(json.dumps(result, ensure_ascii=False))
+            sys.exit(0)
+
+        ok, action = _install(_settings_path())
+        if not ok:
+            result.update(status="degraded", action="install-skipped", message=(
+                "未能自动安装门禁 hook：" + action + "。请当作未受保护，按监工卡人工盯防。"))
+        elif not _hook_command_runs():
+            # 双保险:entry 写对了但命令本身跑不起来(如解释器缺失)=物理锁静默失效
+            result.update(status="degraded", action=action, message=(
+                "门禁 hook 已写入 settings.json，但该命令在本机跑不起来"
+                "（未找到 python3/python 解释器？）——物理拦截未生效。"
+                "请安装 Python3 后重新运行本技能（会自动修复 hook 命令）；"
+                "在此之前当作未受保护，按监工卡人工盯防。"))
+        elif action == "already-present":
+            hb = _heartbeat_status()
+            if hb == "fresh":
+                result.update(status="active", action="none",
+                              message="强制门禁 hook 已在岗（近期触发过）。跳步会被物理拦截。")
+            else:
+                result.update(status="degraded", action="none", message=(
+                    "门禁 hook 已写入 settings.json，但从未探测到它触发过——"
+                    "说明当前运行环境可能不透传 hook，或安装后尚未重启会话。请把它当作【未受保护】："
+                    "按开场监工卡逐项人工盯防，别信任'门禁会自动拦'。"))
+        else:  # installed / migrated
+            extra = ("（已把旧路径的 hook 条目迁移到稳定位置 ~/.claude/academic-gate/）"
+                     if action == "migrated" else "")
+            result.update(status="installed", action=action, message=(
+                "已安装强制门禁保护到 settings.json（原文件已备份）" + extra +
+                "。⚠️ 需【重启一次本会话/客户端】后生效——hook 在启动时加载，无法热生效。"
+                "重启后再来用即受保护。注意：升级前就写到一半的旧项目，重启后再写正文可能被"
+                "'结构签字缺失'拦一次——按提示补跑一次 structure_signoff confirm 即可继续，属正常迁移。"))
+    except Exception as e:  # 安装器绝不能反过来卡住技能
+        result.update(status="error", action="none",
+                      message=f"门禁自检异常（不影响技能继续）：{e}")
+
+    print(json.dumps(result, ensure_ascii=False))
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

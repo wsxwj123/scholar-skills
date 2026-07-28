@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "我想写一篇关于「大语言模型在临床诊断决策支持中的应用」的综述，目标期刊是 Lancet Digital Health，使用 Zotero 管理文献。",
+    "expected": "触发 Mode Handshake Gate 询问 Write/Polish Mode → 进入 Phase 0：收集参数（title, journal, language, discipline, word count, citations）→ Phase 0.2 环境检测（Python, curl, git, Zotero, edirect, proxy, MCP）→ Phase 0.5 初始化项目目录 + git init → 写 state.json + outline.md。不应直接开始写作或检索。"
+  },
+  {
+    "id": 2,
+    "prompt": "我有一篇写了一半的综述草稿（PDF格式），想导入进来诊断并改进。",
+    "expected": "触发 Mode Handshake Gate → 用户选 Polish Mode → Phase 0 参数收集 + 环境检测 → Phase 0-P Step 0 验证参数 + PDF 依赖探测 → Step 1 接受草稿（pdfplumber > pypdf > pdftotext 优先级）→ Step 2 原子拆分（HALT 等用户确认 split map）→ Step 3 诊断报告（words/citations/AI-flags per section，分类标签 keep/polish/rewrite/missing 四类）→ Step 4 用户标注 keep/polish/rewrite/missing（每节必须有明确标签，Hard Block）→ Step 5 引用导入 → Step 6 state.json 初始化 + Git Checkpoint。"
+  },
+  {
+    "id": 3,
+    "prompt": "继续写综述。现在写第 2.1 节「Delivery Systems」，要求 Nature Reviews 风格，不用 AI 常见词。",
+    "expected": "读取 outline.md + state.json → 检查 2.1 是否已在 completed_sections → Phase 3 per-section cycle: load context (Zotero/matrix_manager) → 评估是否需要 Round 2 search (citations/500w < 2) → figure_index.md 读+写 → 按段落体写作（无 bullet points, Anti-AI ban words）→ citation spot-check (validate_citations) → Reviewer Simulator 5维度16项 Y/N checklist（优先委托独立 subagent 盲评，任何维度失败则修订最多2轮后 HALT）→ word_counter → 更新 state.json + Git Checkpoint → HALT 等待 Continue。"
+  }
+]

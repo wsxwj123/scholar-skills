@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "我有一组关于纳米颗粒靶向递送化疗药物治疗三阴性乳腺癌的实验数据，体内外都有，想投Nature Biomedical Engineering。帮我写这篇SCI论文，先从哪里开始？",
+    "expected": "skill应触发：询问研究方向/领域配置、要求提供实验数据细节、说明写作流程分段进行（Abstract→Intro→Results→Discussion→Methods），并给出初始化命令"
+  },
+  {
+    "id": 2,
+    "prompt": "帮我润色一下这段Discussion，让它更符合Cell大子刊的风格：'In conclusion, our results suggest that the nanoparticles can effectively kill cancer cells. The mechanism may be related to apoptosis. Future studies are needed to confirm these findings.'",
+    "expected": "skill应触发：识别文本弱点（过度模糊/缺乏机制深度/被动措辞），按P/B节奏规则改写，避免AI写作特征（去掉'In conclusion'开头、强化机制声索、增加证据锚点）"
+  },
+  {
+    "id": 3,
+    "prompt": "我的论文被Biomaterials退稿了，审稿人说我的机制研究不够深入，数据量不足以支撑结论。帮我分析这篇论文并提出修改方案",
+    "expected": "skill应触发：要求看审稿意见全文+论文，然后做gap analysis（哪些数据缺失），提供补实验策略建议，避免只做文字修饰"
+  }
+]

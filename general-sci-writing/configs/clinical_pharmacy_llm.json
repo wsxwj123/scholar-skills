@@ -1,0 +1,91 @@
+{
+  "field_id": "clinical_pharmacy_llm",
+  "field_name": "临床药学和大模型交叉学科",
+  "field_name_en": "Clinical Pharmacy & LLM",
+  "target_journals": [
+    "Clinical Pharmacology & Therapeutics",
+    "Journal of Clinical Pharmacology",
+    "Drug Discovery Today",
+    "npj Digital Medicine",
+    "Journal of the American Medical Informatics Association",
+    "Artificial Intelligence in Medicine"
+  ],
+  "reviewer_concerns": {
+    "by_system": {
+      "Pharmacokinetics": [
+        "PK/PD模型的临床适用性验证",
+        "种族差异对药物代谢的影响",
+        "特殊人群（肝肾功能受损）的剂量调整依据",
+        "药物相互作用预测的准确性"
+      ],
+      "LLM_Application": [
+        "模型幻觉问题：生成内容的真实性验证",
+        "训练数据偏见：是否代表目标人群",
+        "可解释性：临床决策依据的透明度",
+        "隐私保护：患者数据安全性",
+        "推理延迟：临床场景下的响应时间",
+        "领域适配：通用LLM vs 专业医学LLM的性能差异"
+      ],
+      "Clinical_Trial": [
+        "随机对照试验的样本量计算",
+        "终点指标选择的临床意义",
+        "亚组分析的预先规划",
+        "盲法实施的可行性"
+      ]
+    },
+    "by_experiment": {
+      "Retrospective_Analysis": [
+        "混杂因素控制是否充分？",
+        "缺失数据处理方法是否合理？",
+        "因果推断方法是否恰当？",
+        "多中心数据的一致性"
+      ],
+      "Prospective_Study": [
+        "干预措施是否标准化？",
+        "盲法实施是否可行？",
+        "随访脱落率是否在预期范围内？",
+        "伦理审批是否完整？"
+      ],
+      "LLM_Evaluation": [
+        "基准测试是否覆盖真实临床场景？",
+        "人工评估的可靠性？",
+        "与现有方法的比较是否公平？",
+        "错误案例分析是否充分？"
+      ]
+    },
+    "mitigation_strategies": {
+      "model_hallucination": "提供多源证据链，引用原始文献PMID或临床指南，必要时提供溯源链接",
+      "data_bias": "在Discussion中明确承认数据来源局限性，提供敏感性分析，报告不同亚组的表现",
+      "privacy_compliance": "使用脱敏数据，明确声明IRB批准编号，遵循HIPAA/GDPR要求",
+      "fair_comparison": "使用相同测试集、相同评估指标进行对比，报告统计显著性",
+      "clinical_validation": "在真实临床环境中进行前瞻性验证，报告临床可行性评估"
+    }
+  },
+  "experiment_types": [
+    "Pharmacokinetic",
+    "Pharmacodynamic",
+    "Clinical_Trial",
+    "Retrospective_Analysis",
+    "LLM_Evaluation",
+    "NLP_Analysis",
+    "Decision_Support"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "当前LLM在临床决策支持中的局限性...",
+    "innovation_claim": "首次将大模型应用于个体化用药剂量预测...",
+    "methodology": "群体药代动力学模型构建的标准流程..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": true,
+    "require_scale_bar": false,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [1500, 3000],
+    "results": [2000, 4000],
+    "discussion": [2000, 3500],
+    "conclusion": [200, 500]
+  }
+}

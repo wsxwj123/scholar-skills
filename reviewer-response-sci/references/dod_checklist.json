@@ -1,0 +1,101 @@
+{
+  "skill": "reviewer-response-sci",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "response-dod": {
+      "title": "回复包收口自检（落盘前委托独立子代理盲检）",
+      "applies_when": "run_pipeline.py 退出码 0 后、向用户声明回复包完成前",
+      "items": [
+        {
+          "id": "RR1",
+          "name": "引文对应",
+          "check": "引文 [N] 与参考列表一一对应（无孤儿、无缺号、编号连续）",
+          "script": "python scripts/citation_ref_tracker.py --project-root ."
+        },
+        {
+          "id": "RR2",
+          "name": "citation_guard",
+          "check": "本次有新增引用时：(a) citation_guard.py 带 --fail-on-unverified 核验真实性(DOI/PMID/撤稿全验,验不过=FAIL,不再是 WARN)；(b) 对『新引↔它支撑的回复论点句』用真实 abstract 跑 citation_claim_check.py,承重句 contradict/unknown/无摘要=fail-closed 且须人工确认。无新增引用则 entries 为空数组即 pass。",
+          "script": "python scripts/citation_guard.py --project-root . --fail-on-unverified   # 有新引则再跑 _shared/citation_claim_check.py --root . 核支撑度(承重句 contradict/unknown=fail-closed)"
+        },
+        {
+          "id": "RR3",
+          "name": "主线对齐",
+          "check": "全部回复内容符合投稿论文主线，无跑题、无与原稿结论矛盾的表述"
+        },
+        {
+          "id": "RR4",
+          "name": "占位清零",
+          "check": "无 '待AI' / 'AI_FILL_REQUIRED' / '[PENDING Step 7]' 占位符残留",
+          "script": "python scripts/final_content_gate.py --project-root ."
+        },
+        {
+          "id": "RR5",
+          "name": "去AI",
+          "check": "硬项：无 AI 套话禁词（空致谢/对冲/填充/模板重复）、去AI必禁三项 无 scare quotes/无解释性冒号/无破折号（—/——，禁止使用，risk_check.py 命中即 FAIL/pipeline-blocking）。软项(WARN 非阻断,别机械削平)：英文长句/-ing 分词、中文长句/嵌套按语感处理,明显堆砌才改",
+          "script": "python scripts/risk_check.py --project-root ."
+        },
+        {
+          "id": "RR6",
+          "name": "字数达标",
+          "check": "每条 response_en ≥3 句且 ≤300 词；response_zh 信息等价"
+        },
+        {
+          "id": "RR7",
+          "name": "逐条覆盖",
+          "check": "每条审稿意见（含 Editor 意见）均有对应 unit，无遗漏（对照 Step 1.5 解析表）"
+        },
+        {
+          "id": "RR8",
+          "name": "Editor层独立",
+          "check": "Editor 意见为独立顶层节点，未并入任何 Reviewer（HTML TOC 核对）"
+        },
+        {
+          "id": "RR9",
+          "name": "Strategy基调",
+          "check": "每个 comment unit 的 content.strategy 字段均非空"
+        },
+        {
+          "id": "RR10",
+          "name": "承诺↔落点一致性",
+          "check": "response_en 里承诺的动作（含 we have added/performed/conducted/now provide/cited/discussed 及被动 changes were made 等）能在 modification_actions 或 revised_excerpt_en 找到对应落点。承诺新增实质内容（新实验/分析/图表/数据/对照）却无落点=FAIL（脚本非零退出）；措辞类承诺无落点=WARN 需清零",
+          "script": "python scripts/consistency_check.py --project-root ."
+        },
+        {
+          "id": "RR11",
+          "name": "edit_plan回填",
+          "check": "manuscript_edit_plan.md 无 '[PENDING Step 7]' 行（aggregate-edit-plan 退出码 0）",
+          "script": "python scripts/state_manager.py aggregate-edit-plan --project-root ."
+        },
+        {
+          "id": "RR12",
+          "name": "反驳有据",
+          "check": "所有 'Push back' 策略的 unit 均有至少一条具体证据（引文 / 数据 / 方法学依据）"
+        },
+        {
+          "id": "RR13",
+          "name": "各gate全通",
+          "check": "各独立 gate 退出码均为 0（strict_gate / final_content_gate / consistency_check / risk_check / citation_guard / citation_ref_tracker 全通）",
+          "script": "python scripts/strict_gate.py --project-root . && python scripts/final_content_gate.py --project-root . && python scripts/consistency_check.py --project-root . && python scripts/risk_check.py --project-root . && python scripts/citation_guard.py --project-root . --offline && python scripts/citation_ref_tracker.py --project-root ."
+        },
+        {
+          "id": "RR14",
+          "name": "结构完整性",
+          "check": "每个 response unit 结构完整（审稿意见原文+回复正文+修改证据/落点定位 三要素齐全），无空 unit；letter 整体覆盖每条意见无遗漏"
+        },
+        {
+          "id": "RR15",
+          "name": "逐条实质回应",
+          "check": "盲检（超出 RR7/RR14 的 unit 计数对齐）：每条审稿意见（含一条意见中的多个子问点）是否被实质性回应——直接针对其关切作答，而非答非所问、避重就轻或只承诺不落实。存在任一意见的某子问点未被实际回应、或回复与意见所问错位=fail，列出该意见与对应回复原文为证。"
+        },
+        {
+          "id": "RR16",
+          "name": "字符级硬门禁(proofread)",
+          "severity": "hard",
+          "check": "回复信『作者亲自写的 Response 正文』(仅 content.response_en/response_zh，不扫审稿人原话)过 proofread.py 字符级扫描，高置信类别 misspelling/chinese_punct/subsup_bare 零容忍(fail_on_hits 为空、ok=true)；英美混用/术语不一致等低置信项仅报告不阻断",
+          "script": "python scripts/proofread_response.py --project-root ."
+        }
+      ]
+    }
+  }
+}

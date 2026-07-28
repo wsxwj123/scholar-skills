@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "我想申请2026年国自然青年基金，研究方向是肠道菌群与结直肠癌化疗耐药的关系，我有初步实验数据，没有写过基金。帮我写申请书。",
+    "expected": "skill应触发Mode Handshake Gate（询问Write Mode/Polish Mode），然后收集项目基本信息（项目类型/学科代码/经费/周期），完成后进入Phase 0初始化"
+  },
+  {
+    "id": 2,
+    "prompt": "我已有一份基金申请书草稿，帮我看看立项依据部分写得怎么样，有没有大问题",
+    "expected": "skill应触发Mode Handshake Gate（识别为Polish Mode），要求用户提供草稿文件，然后运行diagnosis_engine做全面诊断报告，等待用户确认优先级再修改"
+  },
+  {
+    "id": 3,
+    "prompt": "国自然申请中，H/O/RC/KSQ这几个概念是什么意思？怎么建立映射关系？",
+    "expected": "skill应触发：解释H（科学假说）/O（研究目标）/RC（研究内容）/KSQ（关键科学问题）的定义和一一映射逻辑，提供示例，说明consistency_map.json的结构"
+  }
+]

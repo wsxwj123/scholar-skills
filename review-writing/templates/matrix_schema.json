@@ -1,0 +1,42 @@
+{
+  "_instruction": "Use this matrix as the writing workspace. One row = one paper-section evidence unit. Keep it claim-oriented and section-scoped.",
+  "fields": [
+    "global_id",
+    "section_id",
+    "claim_id",
+    "evidence_round",
+    "source_tier",
+    "study_type",
+    "year",
+    "journal",
+    "title",
+    "key_finding",
+    "effect_size",
+    "limitation",
+    "relevance_score",
+    "confidence",
+    "updated_in_round3"
+  ],
+  "rounds": {
+    "round1": "Build broad evidence pool (150+ search -> dedupe -> index -> matrix bootstrap)",
+    "round2": "Bind evidence to section claims and resolve contradictions",
+    "round3": "Refresh critical claims with newest papers and mark updated_in_round3=true"
+  },
+  "example_entry": {
+    "global_id": 128,
+    "section_id": "methods",
+    "claim_id": "C2",
+    "evidence_round": 2,
+    "source_tier": "core",
+    "study_type": "prospective cohort",
+    "year": 2024,
+    "journal": "Lancet Digital Health",
+    "title": "External validation of multimodal prediction",
+    "key_finding": "Model retained calibration in external cohort",
+    "effect_size": "AUROC 0.84 (95% CI 0.80-0.88)",
+    "limitation": "Single-region dataset",
+    "relevance_score": 0.9,
+    "confidence": 0.78,
+    "updated_in_round3": false
+  }
+}

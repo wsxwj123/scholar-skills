@@ -1,0 +1,77 @@
+{
+  "project_config_template": {
+    "project_name": "",
+    "research_field": "",
+    "authors": [],
+    "target_journal": "Nature",
+    "model_system": "",
+    "word_limits": {
+      "abstract": 250,
+      "introduction": [800, 1500],
+      "main_text": [5000, 7000]
+    },
+    "created_date": "",
+    "last_modified": "",
+    "smart_snapshot_enabled": true,
+    "field_config": "default"
+  },
+
+  "storyline_template": {
+    "innovation_core": "",
+    "main_hypothesis": "",
+    "sections": [
+      {
+        "id": "introduction",
+        "title": "Introduction",
+        "type": "supporting",
+        "figures": [],
+        "hypothesis": "",
+        "key_points": []
+      },
+      {
+        "id": "results_3.1",
+        "title": "",
+        "type": "key",
+        "figures": [],
+        "hypothesis": "",
+        "key_points": []
+      },
+      {
+        "id": "conclusion",
+        "title": "Conclusion",
+        "type": "supporting",
+        "figures": [],
+        "hypothesis": "",
+        "key_points": []
+      }
+    ]
+  },
+
+  "writing_progress_template": {
+    "current_phase": "initialization",
+    "completed_sections": [],
+    "pending_sections": [],
+    "word_count": {},
+    "pending_issues": [],
+    "last_user_input": "",
+    "next_action": "Run /preview to start"
+  },
+
+  "context_memory_template": "# 写作上下文记忆 (v2.0) - 最后更新：YYYY-MM-DD HH:MM\n\n## 当前状态\n- 正在撰写：[章节名]\n- 已完成字数：X/7000 words\n- 研究方向：[field_config]\n\n## 最近讨论要点\n1. [决策内容]\n\n## 待办事项\n- [ ] [待办1]\n\n## 关键决策记录\n- YYYY-MM-DD：[决策内容]\n",
+
+  "literature_index_template": [],
+
+  "figures_database_template": [],
+
+  "literature_matrix_template": {},
+
+  "version_history_template": {
+    "snapshots": [],
+    "current_version": "v0_initialized",
+    "max_snapshots": 10
+  },
+
+  "si_database_template": [],
+
+  "abbreviations_template": []
+}

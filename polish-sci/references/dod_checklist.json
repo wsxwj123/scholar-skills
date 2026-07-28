@@ -1,0 +1,97 @@
+{
+  "skill": "polish-sci",
+  "note": "DoD 润色收口清单机器可读真源。delegate_review.py pack/verify 读此文件;SKILL.md 散文与各 item 逐项对应。改清单先改这里,再同步 SKILL.md 散文。",
+  "gates": {
+    "polish-dod": {
+      "title": "润色收口 DoD(strict_gate 运行前委托独立子代理盲检)",
+      "applies_when": "polish_units verify 完成后、strict_gate.py 运行前",
+      "items": [
+        {
+          "id": "PL-G1",
+          "name": "数值保留",
+          "check": "每段 polished_text 的数值/统计量/p值/CI/n=N/百分比/单位集合与原文一字不差,无增删",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G2",
+          "name": "无语气升级",
+          "check": "不确定性动词未被升级(hedge->strong),保守证据立场不变",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G3",
+          "name": "引用保留",
+          "check": "引用标记 [n] 与 DOI 集合在润色前后完全一致,无丢失、无新增、无错位",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G4",
+          "name": "去AI(硬拦主干)",
+          "check": "散文单元 AI 套话禁词表无残留(delve into/pivotal role/值得注意的是/综上所述 等,find_ai_style_markers 的套话 marker)+ 去AI必禁三项(破折号 —/—— 、scare quotes、解释性冒号)无残留——套话禁词与这三项均硬拦、阻断交付(禁止使用)。英文单句>30词/中文>50字、-ing 拖尾从句、not only...but also、修辞问句为学术散文正当修辞,软提示(记 polish_risk_flags/报告,不阻断,由人工取舍),分级见 strict_gate.is_soft_ai_marker;非散文单元豁免",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G5",
+          "name": "meaning 未变",
+          "check": "每段 meaning_changed=false,只改语言表达,不改内容/数据/结论;基因/蛋白/试剂名一字未动。此项部分机器核(数值/引用),语义层须人工逐段对照原文",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G6",
+          "name": "逐段全覆盖",
+          "check": "每段都已被润色(无 PLACEHOLDER 残留),无遗漏段落;units_index 中每个 idx 都有对应 polished 单元",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "PL-G7",
+          "name": "被动语态合区间",
+          "severity": "soft",
+          "check": "各段被动语态比例落在 section_type 目标区间附近(区间为软目标,methods/results 可较高,intro/discussion 偏低);明显超界的段落已复核",
+          "script": "python scripts/polish_units.py verify --project-root ."
+        },
+        {
+          "id": "PL-G8",
+          "name": "术语一致",
+          "check": "人工确认同一概念/缩写/术语全文用词前后一致,润色未引入同义替换造成的术语漂移"
+        },
+        {
+          "id": "PL-G9",
+          "name": "结构完整性",
+          "check": "纯人工核:合并后 polished_manuscript.md 段落顺序与小节结构与原稿一致,无段落丢失/错位/重复,引用编号连续(strict_gate 只逐 unit 核红线,不验证段落顺序/段数/引用连续,本项无脚本背书)",
+          "script": ""
+        },
+        {
+          "id": "PL-G10",
+          "name": "缩略语首展一致性(软报告)",
+          "severity": "soft",
+          "check": "abbreviation_index.json 的 undefined_use / duplicate_definition / title_abbreviation 已列出供人工取舍;润色未破坏既有首展、未新增缩略语问题,首展格式 Full Name (ABBR) / 中文全称（English Full Name, ABBR）。纯润色不主动改缩略语定义,原稿固有问题只报告不阻断交付(与 revise-sci 硬门禁 RV-G7 区分);启发式索引,可疑项人工复核",
+          "script": "python -c \"import json; H={'undefined_use','duplicate_definition','title_abbreviation'}; d=json.load(open('abbreviation_index.json')); bad=[(a['abbr'],a['orphan_type']) for a in d if a['orphan_type'] in H]; print('ABBR_HARD_ORPHANS(report-only):', bad or 'none')\""
+        },
+        {
+          "id": "PL-G11",
+          "name": "科学内容零改动(语义等价唯一权威)",
+          "check": "盲检（补脚本逐 unit 红线之外的语义盲区）：润色是否仅改语言表达，未改动任何科学实质——科学事实/机制陈述、方法描述、因果方向（A致B不被改成相关或反向）、限定条件与适用范围、结论的确切含义均与原文等价。任一处科学内容被实质改写或含义偏移=fail，列出原文与润色后对应句为证。⑥ 判定 meaning 未变的唯一权威即本项独立裁决：改写方自填 meaning_changed=false 不足信，strict_gate 会读本盲检写回的 .review_return_polish-dod.json 要求 PL-G11 verdict==pass+证据非空，缺独立裁决=未核=fail-closed。"
+        },
+        {
+          "id": "PL-G12",
+          "name": "常识合理性",
+          "check": "盲检子代理顺带扫是否有明显常识/事实硬伤(单位量级离谱、生理/机制常识错误、前后数值逻辑矛盾)；软项仅报告不阻断、绝不自动改内容，与数值/引用核验区分",
+          "severity": "soft"
+        },
+        {
+          "id": "PL-G13",
+          "name": "润色后语法拼写与字符级格式自检",
+          "check": "对润色输出(polished/<idx>.json 的 polished_text)扫 misspelling/chinese_punct/subsup_bare,命中任一则阻断交付并列出问题供用户处理,绝不自动改稿(纯读+报告,不写回任何 json/docx/原稿)",
+          "severity": "hard",
+          "script": "python scripts/proofread_polished.py --project-root ."
+        },
+        {
+          "id": "PL-G14",
+          "name": "拉丁短语斜体软提醒",
+          "check": "proofread.py 的 latin_italic_missing 软提醒:in vitro/in vivo/ex vivo/in situ/de novo/post hoc/per se 等公认须斜体的拉丁短语,若润色输出裸写(未被 *...* 斜体标记包裹)则报告。仅提示,不阻断、不进 --fail-on、不扣分,由人工确认是否补斜体",
+          "severity": "soft"
+        }
+      ]
+    }
+  }
+}

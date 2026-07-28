@@ -1,0 +1,83 @@
+{
+  "skill": "reviewer-simulator",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "report-dod": {
+      "title": "审稿报告收口 DoD 盲检（报告交付前委托独立子代理盲检）",
+      "applies_when": "第六步生成审稿报告后、向用户交付前；validate_report_html.py 已通过是前提",
+      "items": [
+        {
+          "id": "A1",
+          "name": "21占位符全替换",
+          "check": "validate_report_html.py 返回 VALIDATION_OK，无残留 {{...}}",
+          "script": "python ~/.claude/skills/reviewer-simulator/scripts/validate_report_html.py <报告HTML路径>"
+        },
+        {
+          "id": "A2",
+          "name": "verdict 枚举合规",
+          "check": "decisionVerdict ∈ {拒稿/大修/小修/接收}，且与 finalRecommendationText 完全一致；VERDICT_CLASS 与 verdict 一一对应",
+          "script": "python ~/.claude/skills/reviewer-simulator/scripts/validate_report_html.py <报告HTML路径>"
+        },
+        {
+          "id": "B1",
+          "name": "CRITICAL 阻断逻辑",
+          "check": "若第五步半魔鬼代言人发现任一 CRITICAL 级问题，verdict ≠ '接收'（降为大修或拒稿），且 RECOMMENDATION_RATIONALE 中已显式说明触发原因与证据锚点"
+        },
+        {
+          "id": "B2",
+          "name": "合规审计完整",
+          "check": "第四步技术合规审计（references/review_rubric.md 第五节）7项已逐项核查，缺项已写入第七节核心问题"
+        },
+        {
+          "id": "B3",
+          "name": "统计子清单",
+          "check": "原创研究或 Meta 分析已执行统计审查子清单（rubric 第六节）6项；非原创研究此项标记'不适用（稿件类型：X）'"
+        },
+        {
+          "id": "B4",
+          "name": "魔鬼代言人复查已执行",
+          "check": "第五步半五类对抗性审查（rubric 第八节）已完整执行，发现问题已合并至 CRITICAL_ISSUES_HTML 或 FORENSIC_ANALYSIS_HTML"
+        },
+        {
+          "id": "B5",
+          "name": "给编辑保密意见",
+          "check": "CONFIDENTIAL_EDITOR_HTML 四项（直接拒稿建议/数据造假怀疑/私评新颖性/利益冲突提示）均有内容或明确写'无'，无项目遗漏"
+        },
+        {
+          "id": "B6",
+          "name": "引文真实性",
+          "check": "报告正文中主动引据的外部文献（非稿件自带引用）已过 citation_guard，ok=true 或已标注'待核验'；未引外部文献时此项标记'无外部引文'"
+        },
+        {
+          "id": "B7",
+          "name": "审稿意见本身去AI",
+          "check": "硬核'禁套话主干'+去AI必禁三项：报告正文（含各 *_HTML 填充内容）无 rubric 第七节 BANNED 模板句/套话/修辞残留、无破折号/scare quotes/解释性冒号（HTML 结构引号豁免：报告以 HTML 输出，标签/属性/内联样式/代码里 id=、class=、href= 等后的结构性双引号是代码语法、非 scare quotes，一律不得删除/改写/转全角或转弯引号；去 scare quotes 只针对散文里包裹词短语的引号）——先跑脚本硬核（exit 0=HUMANIZE_OK 即通过；四类命中即 ERROR、HUMANIZE_FAILED）。中文句长≤50字/从句≤2层为软提示，脚本列出但不阻断，人工酌情修润即可",
+          "script": "python ~/.claude/skills/reviewer-simulator/scripts/scan_report_humanize.py <报告HTML路径>"
+        },
+        {
+          "id": "B8",
+          "name": "报告结构完整性",
+          "check": "审稿报告含全部规定区块（稿件概要/合规审计/契合度/18点分析/魔鬼代言人/核心问题/给编辑保密意见/回复草案区），无缺块、无空区块（回复草案区默认为一句指路说明、非逐条回复，不算空块）；且多视角并发盲评的所有视角发现均已汇入，无遗漏视角"
+        },
+        {
+          "id": "B9",
+          "name": "科学事实正确性核查",
+          "check": "盲检（补 rubric 未单列的维度，区别于统计/逻辑/合规已覆盖项）：审稿人是否核查了稿件中科学事实、定律、公式、单位、剂量/浓度等硬数值的正确性，对明显违背领域公认知识的硬错误是否在报告中指出并锚定证据。稿件存在明确科学错误而报告漏检=fail，需补出该错误与正确表述为证。"
+        },
+        {
+          "id": "B11",
+          "name": "检索证据门",
+          "check": "盲检（⑥）：报告中每条'不新颖/已有高度相似研究/与已发表文献矛盾'批评，是否都附了检索确已发生的证据——检索工具+检索式+命中日期，以及具名的相似/矛盾文献（标题+DOI/PMID，已写入 literature_index.json 过 citation_guard）。凡无检索举证的此类断言=空口批评，须已改写为'要求作者举证'的中性表述。空 index（status=empty）不豁免此项。软项：只报告不阻断退出码，但检出空口断言应退回改写。",
+          "severity": "soft"
+        },
+        {
+          "id": "B10",
+          "name": "审稿报告正文字符级软体检",
+          "check": "审稿报告正文过 proofread 软体检：抽报告可见正文喂 proofread.py（不传 --fail-on），只报告拼写错误/中文标点漏进英文/上下标裸写等字符级问题，不阻断交付。软项——发现问题仅汇报供人工修，score 低/有 issue 都不影响退出码。",
+          "script": "python ~/.claude/skills/reviewer-simulator/scripts/proofread_report.py <报告HTML路径>",
+          "severity": "soft"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同行评审报告 - 严苛审稿人模拟器</title>
+    <style>
+        :root {
+            --font-display: "Avenir Next", "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif;
+            --font-body: "Iowan Old Style", "Noto Serif SC", "Songti SC", serif;
+            --font-mono: "SF Mono", "Menlo", monospace;
+
+            --bg-page: #f3f4f2;
+            --bg-card: #fcfcfa;
+            --bg-soft: #f6f7f4;
+            --text-strong: #1d231f;
+            --text-main: #2d342f;
+            --text-muted: #66706a;
+            --line: #dde1dc;
+            --line-strong: #b7beb7;
+            --accent: #365348;
+            --accent-soft: #e8efea;
+
+            --space-2: 8px;
+            --space-3: 12px;
+            --space-4: 16px;
+            --space-5: 20px;
+            --space-6: 24px;
+            --space-8: 32px;
+            --space-10: 40px;
+            --space-12: 48px;
+            --space-14: 56px;
+            --radius-s: 10px;
+            --radius-m: 14px;
+            --radius-l: 18px;
+            --shadow-soft: 0 10px 30px rgba(18, 27, 22, 0.06);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: clamp(16px, 3vw, 28px);
+            background: radial-gradient(circle at top left, #fafbf9 0%, var(--bg-page) 42%, #eef1ed 100%);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.72;
+        }
+
+        .skip-link {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            z-index: 1000;
+            padding: 8px 12px;
+            background: #1d231f;
+            color: #fff;
+            border-radius: 8px;
+            font-family: var(--font-display);
+            text-decoration: none;
+        }
+
+        .skip-link:focus {
+            left: 16px;
+            top: 12px;
+        }
+
+        .report-container {
+            max-width: 1080px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-l);
+            box-shadow: var(--shadow-soft);
+            padding: clamp(20px, 4vw, 56px);
+        }
+
+        header {
+            border-bottom: 1px solid var(--line-strong);
+            padding-bottom: var(--space-6);
+            margin-bottom: var(--space-8);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: var(--space-4);
+        }
+
+        .journal-meta {
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-weight: 600;
+        }
+
+        h1 {
+            margin: var(--space-3) 0;
+            font-family: var(--font-display);
+            font-size: clamp(1.35rem, 2.5vw, 2rem);
+            line-height: 1.35;
+            letter-spacing: 0.01em;
+            color: var(--text-strong);
+            font-weight: 700;
+        }
+
+        .manuscript-id {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-2);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            background: var(--bg-soft);
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 6px 12px;
+            max-width: 100%;
+            word-break: break-word;
+        }
+
+        .decision-section {
+            margin-bottom: var(--space-10);
+            padding: var(--space-5) var(--space-6);
+            border: 1px solid var(--line-strong);
+            background: linear-gradient(180deg, #fafcf9 0%, #f3f6f2 100%);
+            border-radius: var(--radius-m);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-4);
+        }
+
+        .decision-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.88rem;
+            letter-spacing: 0.12em;
+            color: var(--text-muted);
+        }
+
+        .decision-label .icon-seal {
+            width: 18px;
+            height: 18px;
+            border: 1.5px solid var(--accent);
+            border-radius: 6px;
+            transform: rotate(45deg);
+            display: inline-block;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .decision-label .icon-seal::after {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+
+        .decision-verdict {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: clamp(1rem, 2.2vw, 1.25rem);
+            letter-spacing: 0.08em;
+            padding: 7px 16px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            border: 1.5px solid currentColor;
+            background: #fff;
+        }
+
+        .verdict-reject { color: #6f2c2f; }
+        .verdict-major { color: #6a4e20; }
+        .verdict-minor { color: #4f5f2e; }
+        .verdict-accept { color: #264f3f; }
+
+        .hidden-fallback { display: none; }
+
+        section.critique-section {
+            margin-bottom: var(--space-10);
+        }
+
+        h2 {
+            margin: 0 0 var(--space-4);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-display);
+            font-size: clamp(1rem, 1.7vw, 1.2rem);
+            color: var(--text-strong);
+            letter-spacing: 0.03em;
+            line-height: 1.45;
+        }
+
+        h2::before {
+            content: "";
+            width: 18px;
+            height: 18px;
+            border: 1px solid var(--line-strong);
+            background: linear-gradient(145deg, #ffffff 0%, #eef3ef 100%);
+            border-radius: 5px;
+            flex-shrink: 0;
+        }
+
+        h3 {
+            margin: var(--space-4) 0 var(--space-2);
+            font-family: var(--font-display);
+            font-size: 0.98rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        p, li {
+            font-size: 0.97rem;
+            color: var(--text-main);
+        }
+
+        .critique-section p {
+            margin: 0 0 var(--space-4);
+            text-align: justify;
+        }
+
+        .deep-analysis {
+            background: var(--bg-soft);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+            border-radius: var(--radius-s);
+            padding: var(--space-5);
+        }
+
+        .deep-analysis.forensic {
+            border-left-color: #6f2c2f;
+        }
+
+        .deep-analysis.rebuttal {
+            border-left-color: #2f4a60;
+        }
+
+        .analysis-point { margin-bottom: var(--space-4); }
+
+        .analysis-point strong {
+            display: block;
+            margin-bottom: 6px;
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--text-strong);
+        }
+
+        .strength-list,
+        .reference-list {
+            margin: 0;
+            padding-left: 20px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .strength-list li,
+        .reference-list li {
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .critique-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: grid;
+            gap: var(--space-4);
+        }
+
+        .critique-list li {
+            margin: 0;
+            padding: var(--space-4);
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-s);
+        }
+
+        .critique-title {
+            display: block;
+            margin-bottom: 10px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.98rem;
+            color: var(--text-strong);
+        }
+
+        .critique-content {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .evidence-anchor {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 2px 10px;
+            border-radius: 999px;
+            border: 1px solid #cfd8d2;
+            background: #f5f8f6;
+            color: #415248;
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .evidence-link {
+            color: #2e4b40;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            margin-right: 8px;
+            font-weight: 600;
+        }
+
+        .evidence-link:hover,
+        .evidence-link:focus-visible {
+            color: #1f352d;
+        }
+
+        .root-cause,
+        .response-strategy,
+        .tech-report-item,
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-s);
+            background: #fff;
+            padding: var(--space-4);
+        }
+
+        .root-cause {
+            margin-top: 8px;
+            background: #faf7f1;
+            border-left: 3px solid #8b6b37;
+            color: #59482a;
+        }
+
+        .root-cause strong,
+        .response-strategy strong {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+            font-family: var(--font-display);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .response-strategy {
+            margin-top: 10px;
+            background: #f3f7f4;
+            border-left: 3px solid #496356;
+            color: #2f4038;
+        }
+
+        .tech-report-item {
+            margin-bottom: 10px;
+            border-left: 3px solid #596962;
+        }
+
+        .tech-report-label {
+            display: block;
+            margin-bottom: 4px;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.86rem;
+            color: #3f4d45;
+        }
+
+        .panel {
+            background: var(--bg-soft);
+        }
+
+        .panel-audit { border-left: 3px solid #5b4b2f; }
+        .panel-fit { border-left: 3px solid #335059; }
+        .panel-summary { border-left: 3px solid #4d564b; }
+
+        .template-meta {
+            color: #4f5b55;
+            font-size: 0.76rem;
+            font-family: var(--font-mono);
+        }
+
+        .gate-error {
+            margin-bottom: var(--space-6);
+            border: 1px solid #8a2b2b;
+            border-left: 4px solid #8a2b2b;
+            background: #fff5f5;
+            color: #5f2222;
+            border-radius: var(--radius-s);
+            padding: var(--space-4);
+            font-family: var(--font-display);
+        }
+
+        .gate-error h3 {
+            margin: 0 0 6px;
+            color: #5f2222;
+            font-size: 0.96rem;
+        }
+
+        .preview-notice {
+            margin-bottom: var(--space-6);
+            border: 1px solid #6b7a73;
+            border-left: 4px solid #4f5f58;
+            background: #f3f6f4;
+            color: #34413b;
+            border-radius: var(--radius-s);
+            padding: var(--space-4);
+            font-family: var(--font-display);
+        }
+
+        .preview-notice h3 {
+            margin: 0 0 6px;
+            color: #34413b;
+            font-size: 0.96rem;
+        }
+
+        footer {
+            margin-top: var(--space-12);
+            padding-top: var(--space-5);
+            border-top: 1px solid var(--line);
+            text-align: center;
+            font-family: var(--font-display);
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            display: grid;
+            gap: 6px;
+        }
+
+        .ip-notice {
+            letter-spacing: 0.02em;
+            color: #4a5650;
+        }
+
+        .timestamp {
+            font-family: var(--font-mono);
+        }
+
+        @media (max-width: 900px) {
+            .report-container {
+                padding: var(--space-6);
+            }
+
+            header {
+                flex-direction: column;
+                gap: var(--space-3);
+            }
+
+            .decision-section {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .decision-verdict {
+                width: 100%;
+                text-align: center;
+            }
+
+            .critique-section p {
+                text-align: left;
+            }
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 12px;
+            }
+
+            .report-container {
+                border-radius: 12px;
+                padding: 16px;
+            }
+
+            h2 {
+                font-size: 1.02rem;
+            }
+
+            .deep-analysis,
+            .root-cause,
+            .response-strategy,
+            .panel,
+            .gate-error,
+            .critique-list li {
+                padding: 14px;
+            }
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 14mm;
+            }
+
+            body {
+                background: #fff !important;
+                padding: 0;
+                color: #000;
+            }
+
+            .report-container {
+                box-shadow: none;
+                border: none;
+                max-width: none;
+                padding: 0;
+            }
+
+            .skip-link,
+            .gate-error {
+                display: none !important;
+            }
+
+            .decision-section,
+            .panel,
+            .deep-analysis,
+            .critique-list li {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            section.critique-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 22px;
+            }
+
+            h2,
+            h3 {
+                break-after: avoid;
+                page-break-after: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">跳转到报告正文</a>
+
+<main id="main-content" class="report-container" role="main" aria-label="同行评审报告">
+    <header>
+        <div>
+            <div class="journal-meta">机密同行评审报告</div>
+            <h1>{{MANUSCRIPT_TITLE}}</h1>
+            <div class="manuscript-id">目标期刊: {{TARGET_JOURNAL}} | 稿件编号: {{MANUSCRIPT_ID}}</div>
+        </div>
+        <div class="journal-meta timestamp">{{DATE}}</div>
+    </header>
+
+    <div class="decision-section" role="status" aria-live="polite">
+        <span class="decision-label"><span class="icon-seal" aria-hidden="true"></span>最终建议</span>
+        <span id="decisionVerdict" class="decision-verdict {{VERDICT_CLASS}}">{{VERDICT_TEXT}}</span>
+        <span id="decisionFallback" class="hidden-fallback" aria-hidden="true">{{FINAL_RECOMMENDATION}}</span>
+    </div>
+
+    <section id="sec-1" class="critique-section">
+        <h2>一、稿件概要</h2>
+        <p>{{SYNOPSIS}}</p>
+    </section>
+    
+    <section id="sec-2" class="critique-section">
+         <h2>二、技术合规性审计结果</h2>
+         <div class="panel panel-audit">
+            {{TECHNICAL_AUDIT_HTML}}
+         </div>
+    </section>
+    
+    <section id="sec-3" class="critique-section">
+         <h2>三、目标期刊契合度评估</h2>
+         <div class="panel panel-fit">
+            {{TARGET_FIT_HTML}}
+         </div>
+    </section>
+
+    <section id="sec-4" class="critique-section">
+        <h2>四、18点深度分析</h2>
+        <div class="deep-analysis">
+            {{DEEP_ANALYSIS_HTML}}
+        </div>
+    </section>
+    
+    <section id="sec-5" class="critique-section">
+        <h2>五、审稿总体评估</h2>
+        <p>{{OVERALL_ASSESSMENT}}</p>
+    </section>
+    
+    <section id="sec-6" class="critique-section">
+        <h2>六、优势分析</h2>
+        <ul class="strength-list">
+            {{STRENGTHS_HTML}}
+        </ul>
+    </section>
+
+    <section id="sec-7" class="critique-section">
+        <h2>七、必须解决的核心问题</h2>
+        <p><em>以下问题均为关键缺陷，必须逐项响应并修正。</em></p>
+        <ul class="critique-list">
+            <!-- 格式:
+            <li>
+                <div class="critique-title">【问题X】问题标题</div>
+                <div class="critique-content"><strong>问题描述:</strong> 具体内容...</div>
+                <span class="evidence-anchor"><strong>证据锚点:</strong> 具体位置...</span>
+                <div class="root-cause"><strong>根源质询:</strong> 追问内容...</div>
+                <div class="response-strategy"><strong>作者应对方案:</strong> 改进方案...</div>
+            </li> 
+            -->
+            {{CRITICAL_ISSUES_HTML}}
+        </ul>
+    </section>
+
+    <section id="sec-8" class="critique-section">
+        <h2>八、其他改进建议</h2>
+        <ul class="critique-list">
+             <!-- 同上格式 -->
+            {{OTHER_SUGGESTIONS_HTML}}
+        </ul>
+    </section>
+    
+    <section id="sec-9" class="critique-section">
+        <h2>九、具体问题详细解剖</h2>
+        <div class="deep-analysis forensic">
+            {{FORENSIC_ANALYSIS_HTML}}
+        </div>
+    </section>
+    
+    <section id="sec-10" class="critique-section">
+        <h2>十、推荐意见与判定依据</h2>
+        <div class="panel panel-summary">
+             <p><strong>最终推荐:</strong> <span id="finalRecommendationText">{{FINAL_RECOMMENDATION}}</span></p>
+             <p><strong>判定依据:</strong></p>
+             <p>{{RECOMMENDATION_RATIONALE}}</p>
+        </div>
+    </section>
+
+    <section id="sec-11" class="critique-section">
+        <h2>十一、引用文献</h2>
+        <ul class="reference-list">
+            {{REFERENCES_HTML}}
+        </ul>
+    </section>
+
+    <section id="sec-12" class="critique-section">
+        <h2>十二、给编辑的保密意见</h2>
+        <p><em>以下内容仅供编辑参考，不转达作者。</em></p>
+        <div class="deep-analysis forensic">
+            {{CONFIDENTIAL_EDITOR_HTML}}
+        </div>
+    </section>
+
+    <section id="sec-13" class="critique-section">
+        <h2>十三、作者逐条回复审稿意见草案</h2>
+        <p><em>以下回复草案必须覆盖第七部分与第八部分的全部意见，确保真实投稿场景可逐条应答。</em></p>
+        <div class="deep-analysis rebuttal">
+            {{REBUTTAL_DRAFT_HTML}}
+        </div>
+    </section>
+
+    <footer>
+        <div>由严苛审稿人模拟器生成 • {{GENERATION_TIMESTAMP}}</div>
+        <div class="ip-notice">知识产权声明：本报告由 Reviewer Simulator 审稿模拟技能生成。</div>
+        <div class="template-meta">模板版本：RS-1.2.0 | 构建日期：2026-03-08</div>
+    </footer>
+</main>
+
+
+<script>
+(function () {
+    var VALID = ['拒稿', '大修', '小修', '接收'];
+    var SECTION_MAP = {
+        '一': 'sec-1', '二': 'sec-2', '三': 'sec-3', '四': 'sec-4', '五': 'sec-5', '六': 'sec-6',
+        '七': 'sec-7', '八': 'sec-8', '九': 'sec-9', '十': 'sec-10', '十一': 'sec-11', '十二': 'sec-12', '十三': 'sec-13'
+    };
+
+    function normalize(v) {
+        return (v || '').replace(/[{}]/g, '').trim();
+    }
+
+    function classFor(v) {
+        if (v === '拒稿') return 'verdict-reject';
+        if (v === '大修') return 'verdict-major';
+        if (v === '小修') return 'verdict-minor';
+        if (v === '接收') return 'verdict-accept';
+        return '';
+    }
+
+    function showGateError(messages) {
+        var main = document.getElementById('main-content');
+        if (!main) return;
+        var box = document.createElement('div');
+        box.className = 'gate-error';
+        box.setAttribute('role', 'alert');
+        box.innerHTML = '<h3>发布门禁未通过</h3><ul>' + messages.map(function (m) {
+            return '<li>' + m + '</li>';
+        }).join('') + '</ul>';
+        main.insertBefore(box, main.firstChild);
+    }
+
+    function wireEvidenceAnchors() {
+        var titles = document.querySelectorAll('.critique-title');
+        titles.forEach(function (t) {
+            var text = normalize(t.textContent);
+            var m = text.match(/^【(问题|建议)(\d+)】/);
+            if (!m) return;
+            var prefix = m[1] === '问题' ? 'issue-' : 'suggestion-';
+            t.id = prefix + m[2];
+        });
+
+        var anchors = document.querySelectorAll('.evidence-anchor');
+        anchors.forEach(function (el) {
+            var raw = normalize(el.textContent);
+            if (!raw) return;
+            var text = raw.replace(/^证据锚点\s*[:：]?\s*/, '');
+            var tokens = text.split(/[，,；;、]/).map(function (x) { return normalize(x); }).filter(Boolean);
+            if (!tokens.length) return;
+
+            el.innerHTML = '';
+            tokens.forEach(function (token, idx) {
+                var link = null;
+                var sec = token.match(/^第(一|二|三|四|五|六|七|八|九|十|十一|十二)部分/);
+                var issue = token.match(/问题\s*(\d+)/);
+                var sug = token.match(/建议\s*(\d+)/);
+                if (sec && SECTION_MAP[sec[1]]) link = '#' + SECTION_MAP[sec[1]];
+                else if (issue) link = '#issue-' + issue[1];
+                else if (sug) link = '#suggestion-' + sug[1];
+
+                if (link) {
+                    var a = document.createElement('a');
+                    a.href = link;
+                    a.className = 'evidence-link';
+                    a.textContent = token;
+                    el.appendChild(a);
+                } else {
+                    var span = document.createElement('span');
+                    span.textContent = token;
+                    el.appendChild(span);
+                }
+                if (idx < tokens.length - 1) {
+                    el.appendChild(document.createTextNode(' '));
+                }
+            });
+        });
+    }
+
+    function showPreviewNotice(messages) {
+        var main = document.getElementById('main-content');
+        if (!main) return;
+        var box = document.createElement('div');
+        box.className = 'preview-notice';
+        box.setAttribute('role', 'status');
+        box.innerHTML = '<h3>当前是未填充预览</h3><ul>' + messages.map(function (m) {
+            return '<li>' + m + '</li>';
+        }).join('') + '</ul>';
+        main.insertBefore(box, main.firstChild);
+    }
+
+    function unresolvedPlaceholders() {
+        var clone = document.documentElement.cloneNode(true);
+        clone.querySelectorAll('script, style').forEach(function (n) { n.remove(); });
+        var html = clone.innerHTML;
+        var matched = html.match(/{{\s*[A-Z0-9_]+\s*}}/g) || [];
+        var uniq = [];
+        matched.forEach(function (m) {
+            if (uniq.indexOf(m) === -1) uniq.push(m);
+        });
+        return uniq;
+    }
+
+    function isTemplatePreview(unresolved, primary, finalRecommendation) {
+        var required = [
+            '{{MANUSCRIPT_TITLE}}', '{{TARGET_JOURNAL}}', '{{MANUSCRIPT_ID}}', '{{DATE}}',
+            '{{FINAL_RECOMMENDATION}}', '{{SYNOPSIS}}', '{{TECHNICAL_AUDIT_HTML}}'
+        ];
+        var hit = 0;
+        required.forEach(function (k) {
+            if (unresolved.indexOf(k) >= 0) hit += 1;
+        });
+        var looksUnfilledVerdict = (primary.indexOf('{{') >= 0 || finalRecommendation.indexOf('{{') >= 0);
+        return hit >= 4 || (looksUnfilledVerdict && unresolved.length >= 6);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var verdictEl = document.getElementById('decisionVerdict');
+        var fallbackEl = document.getElementById('decisionFallback');
+        var finalEl = document.getElementById('finalRecommendationText');
+        if (!verdictEl || !fallbackEl || !finalEl) return;
+
+        var primary = normalize(verdictEl.textContent);
+        var fallback = normalize(fallbackEl.textContent);
+        var resolved = VALID.indexOf(primary) >= 0 ? primary : (VALID.indexOf(fallback) >= 0 ? fallback : '待判定');
+
+        verdictEl.textContent = resolved;
+        verdictEl.classList.remove('verdict-reject', 'verdict-major', 'verdict-minor', 'verdict-accept');
+        var mapped = classFor(resolved);
+        if (mapped) verdictEl.classList.add(mapped);
+
+        var finalRecommendation = normalize(finalEl.textContent);
+        if (VALID.indexOf(finalRecommendation) === -1 && VALID.indexOf(resolved) >= 0) {
+            finalEl.textContent = resolved;
+            finalRecommendation = resolved;
+        }
+
+        var errors = [];
+        if (VALID.indexOf(resolved) === -1) {
+            errors.push('头部最终建议无有效值，仅允许：拒稿/大修/小修/接收。');
+        }
+        if (VALID.indexOf(finalRecommendation) === -1) {
+            errors.push('第十部分最终推荐无有效值，仅允许：拒稿/大修/小修/接收。');
+        }
+        if (VALID.indexOf(resolved) >= 0 && VALID.indexOf(finalRecommendation) >= 0 && resolved !== finalRecommendation) {
+            errors.push('头部最终建议与第十部分最终推荐不一致。');
+        }
+
+        var unresolved = unresolvedPlaceholders();
+        if (unresolved.length) {
+            errors.push('检测到未替换模板占位符：' + unresolved.slice(0, 8).join('、') + (unresolved.length > 8 ? ' 等' : '') + '。');
+        }
+
+        wireEvidenceAnchors();
+
+        if (errors.length) {
+            if (isTemplatePreview(unresolved, primary, finalRecommendation)) {
+                showPreviewNotice([
+                    '当前页面是模板预览，尚未填充业务数据。',
+                    '预览模式不会阻断查看样式；正式交付前请先进行模板变量填充并运行校验脚本。'
+                ]);
+                return;
+            }
+            showGateError(errors);
+            throw new Error('Reviewer template gate failed: ' + errors.join(' | '));
+        }
+    });
+})();
+</script>
+
+</body>
+</html>

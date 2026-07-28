@@ -1,0 +1,90 @@
+{
+  "literature_search_intensity": {
+    "background_statement": {
+      "max_results": 2,
+      "source_preference": ["review", "statistics_report"],
+      "time_window": "<=2 years",
+      "impact_factor_min": null,
+      "example_query": "Global Cancer Statistics 2022 OR cancer burden worldwide",
+      "notes": "背景型文献要求最新统计数据，优先选择WHO、ACS等权威机构报告或Nature/Lancet综述"
+    },
+    "gap_statement": {
+      "max_results": 5,
+      "source_preference": ["recent_articles", "high_impact"],
+      "time_window": "2021-2024",
+      "impact_factor_min": null,
+      "example_query": "nanoparticle tumor penetration limitation EPR",
+      "notes": "Gap陈述需要近期文献支撑现有策略的局限性"
+    },
+    "innovation_claim": {
+      "max_results": 5,
+      "source_preference": ["high_impact_articles"],
+      "time_window": "<=5 years",
+      "impact_factor_min": 10,
+      "example_query": "pH-responsive charge-reversal nanoparticle",
+      "notes": "创新点支撑必须高IF（>10）且近5年，用于对比和凸显差异化"
+    },
+    "mechanism_explanation": {
+      "max_results": 4,
+      "source_preference": ["mechanistic_studies"],
+      "time_window": "<=10 years",
+      "impact_factor_min": null,
+      "example_query": "acidic tumor microenvironment charge-reversal mechanism",
+      "notes": "机制讨论可引用经典文献（10年内），用于解释观察到的现象"
+    },
+    "methodology": {
+      "max_results": 1,
+      "source_preference": ["original_method"],
+      "time_window": "unlimited",
+      "impact_factor_min": null,
+      "example_query": "dynamic light scattering protocol nanoparticle",
+      "notes": "方法学引用原始论文，不限年份，用于Methods部分"
+    }
+  },
+  "search_tools_priority": {
+    "life_sciences": "PubMed CLI (~/edirect/esearch) → paper-search MCP (fallback)",
+    "cs_ai_engineering": "paper-search MCP (arXiv/Google Scholar) → PubMed CLI (fallback)",
+    "preprints": "paper-search MCP (arXiv/bioRxiv)",
+    "forbidden": "tavily (检索阶段), websearch, openalex-cli"
+  },
+  "doi_validation_rules": {
+    "method": "交叉验证DOI与标题",
+    "acceptable_title_similarity": 0.9,
+    "action_if_mismatch": "标记为validation_failed，不添加到索引"
+  },
+  "citation_density_standards": {
+    "Abstract": {
+      "min": 0,
+      "max": 0,
+      "notes": "摘要不引用文献"
+    },
+    "Introduction": {
+      "论点提出": {
+        "citations_per_claim": "1-2篇 + 自我发现"
+      },
+      "讨论发散": {
+        "citations_per_paragraph": "3-4篇"
+      }
+    },
+    "Methods": {
+      "min": 0,
+      "max": 5,
+      "per_1000_words": "0-5",
+      "notes": "仅引用方法学原始论文"
+    },
+    "Results": {
+      "min": 0,
+      "max": 5,
+      "per_1000_words": "0-5",
+      "notes": "纯数据描述，不需要引用"
+    },
+    "Discussion": {
+      "论点提出": {
+        "citations_per_claim": "1-2篇"
+      },
+      "展望部分": {
+        "citations": "3-4篇"
+      }
+    }
+  }
+}

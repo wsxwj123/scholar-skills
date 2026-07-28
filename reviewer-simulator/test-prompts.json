@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "帮我模拟审稿一下这篇准备投Nature Medicine的稿件，重点看新颖性和方法是否足够严谨。（附全文PDF）",
+    "expected": "skill应触发：声明证据边界、读取report_template.html模板（assets只读）、按18点框架逐项分析、输出含目标期刊评估的完整中文HTML审稿报告，文件写到用户当前工作目录(CWD)，命名为report_YYYYMMDD_*.html"
+  },
+  {
+    "id": 2,
+    "prompt": "帮我审一下这篇文章的统计方法和数据可信度，这是我要投Science子刊的稿件",
+    "expected": "skill应触发：聚焦技术审计部分（统计审计、数据完整性检查、图表核查），输出针对统计方法的深度批评，包含具体问题和改进建议，非模糊评语"
+  },
+  {
+    "id": 3,
+    "prompt": "我写了篇综述，想投JAMA，帮我预审一下，看看有什么明显问题",
+    "expected": "skill应触发：识别文章类型为综述，调整评审框架（PRISMA合规性/文献覆盖完整性/结论平衡性），与original article评审维度有所不同，输出结构化HTML报告"
+  }
+]

@@ -1,0 +1,102 @@
+{
+  "field_id": "quantitative_pharmacology",
+  "field_name": "定量药理学",
+  "field_name_en": "Quantitative Pharmacology",
+  "target_journals": [
+    "Clinical Pharmacology & Therapeutics",
+    "Journal of Pharmacokinetics and Pharmacodynamics",
+    "CPT: Pharmacometrics & Systems Pharmacology",
+    "Drug Metabolism and Pharmacokinetics",
+    "British Journal of Clinical Pharmacology",
+    "European Journal of Pharmaceutical Sciences",
+    "Journal of Clinical Pharmacology"
+  ],
+  "reviewer_concerns": {
+    "by_system": {
+      "PK_Model": [
+        "房室模型选择的依据是否充分？",
+        "参数估计的可靠性（基于RSE）",
+        "模型诊断是否充分（残差、vpc）？",
+        "协变量筛选方法的合理性",
+        "模型稳定性是否验证？"
+      ],
+      "PD_Model": [
+        "药效学模型与疾病自然史的一致性",
+        "生物标志物与临床终点的关联性",
+        "效应室模型假设的合理性",
+        "时间依赖性药效学的处理"
+      ],
+      "PBPK": [
+        "器官清除率估算方法的依据",
+        "组织分布假设的验证",
+        "种属外推的科学性",
+        "生理参数来源是否可靠？"
+      ],
+      "ER_Model": [
+        "E-R关系建模方法是否恰当？",
+        "暴露量指标选择是否合理？",
+        "临床意义阈值确定的依据"
+      ]
+    },
+    "by_experiment": {
+      "Population_Analysis": [
+        "协变量筛选方法的合理性",
+        "Bootstrap/CI的稳定性",
+        "模型验证策略是否充分？",
+        "收敛诊断是否报告？"
+      ],
+      "Simulation": [
+        "模拟场景的临床相关性",
+        "不确定性传播分析",
+        "敏感性分析",
+        "模拟次数和随机种子"
+      ],
+      "Dose_Finding": [
+        "剂量选择依据的充分性",
+        "目标暴露量定义的合理性",
+        "疗效/安全性平衡的考量",
+        "特殊人群剂量调整建议"
+      ],
+      "IVIVE": [
+        "体外-体内外推方法的依据",
+        "代谢酶/转运体数据的可靠性",
+        "种属差异的考量"
+      ]
+    },
+    "mitigation_strategies": {
+      "model_diagnostics": "提供完整的诊断图（DV vs IPRED, CWRES, VPC, BVPC），说明模型拟合优度",
+      "parameter_precision": "报告RSE%，RSE>30%的参数需讨论其临床意义",
+      "clinical_relevance": "所有模拟需基于临床相关场景，剂量建议需有数据支撑",
+      "uncertainty_quantification": "提供参数不确定性的量化（CI/PI），报告预测区间而非仅点估计",
+      "external_validation": "尽可能使用外部数据进行模型验证，报告预测性能"
+    }
+  },
+  "experiment_types": [
+    "Population_PKPD",
+    "PBPK_Modeling",
+    "Exposure_Response",
+    "Dose_Finding",
+    "Simulation_Study",
+    "IVIVE",
+    "Physiological_Modeling"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "当前群体药代动力学模型在[药物]中的局限性...",
+    "innovation_claim": "首次建立[新模型]预测[临床结局]...",
+    "methodology": "NONMEM/Monolix/Merlion 建模标准流程...",
+    "parameter_reference": "[药物]的典型PK参数..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": true,
+    "require_scale_bar": false,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [2000, 4000],
+    "results": [2500, 4500],
+    "discussion": [2000, 3500],
+    "conclusion": [200, 500]
+  }
+}

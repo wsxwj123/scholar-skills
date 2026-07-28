@@ -1,0 +1,477 @@
+{
+  "skill": "nsfc-proposal",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "p1-dod": {
+      "title": "Phase 1 P1 立项依据收口盲检",
+      "applies_when": "P1_立项依据.md 落盘前",
+      "items": [
+        {
+          "id": "N1",
+          "name": "引文对应",
+          "check": "[n] 与节末 REF 列表一一对应，编号连续无孤儿引用",
+          "script": "python scripts/citation_validator.py matrix-check --p1 sections/P1_立项依据.md --index data/literature_index.json --ref sections/REF_参考文献.md"
+        },
+        {
+          "id": "N2",
+          "name": "citation_guard",
+          "check": "本节新增引用已过 citation_validator.py verify-all（ok=true）；provider 白名单已脚本级强制，search_source 属 tavily/websearch/openalex(pyalex) 的条目触发 source_provider_forbidden 硬失败",
+          "script": "python scripts/citation_validator.py verify-all --index data/literature_index.json --p1 sections/P1_立项依据.md"
+        },
+        {
+          "id": "N3",
+          "name": "SQ/H/KSQ 主线对齐",
+          "check": "论述符合 SQ/H/KSQ 主线，未出现与 consistency_map 矛盾的表述",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01"
+        },
+        {
+          "id": "N4",
+          "name": "占位符清零",
+          "check": "grep CITE_PENDING|DATA_PENDING|【待 sections/P1_立项依据.md 返回空",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/P1_立项依据.md || echo CLEAN"
+        },
+        {
+          "id": "N5",
+          "name": "去AI-人文化",
+          "check": "humanizer_zh.py scan 无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "script": "python scripts/humanizer_zh.py scan sections/P1_立项依据.md"
+        },
+        {
+          "id": "N6",
+          "name": "字数达标",
+          "check": "字数在目标范围内",
+          "script": "python scripts/word_counter.py count sections/P1_立项依据.md"
+        },
+        {
+          "id": "N7",
+          "name": "H/O/RC/KSQ 一致性",
+          "check": "H/O/RC/KSQ 与 P1 中 SQ 表述一致（V-01；consistency_mapper validate --rules V-01 无 ERROR）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01"
+        },
+        {
+          "id": "N8",
+          "name": "科学问题属性写入",
+          "check": "科学问题属性四选一已在 project profile 中写入且与 P1 论述对应（人工确认）"
+        },
+        {
+          "id": "N9",
+          "name": "撤稿检测",
+          "check": "所有 PMID 已过撤稿核查（撤稿检测已内置于 verify-all，无需额外 flag）",
+          "script": "python scripts/citation_validator.py verify-all --index data/literature_index.json --p1 sections/P1_立项依据.md"
+        },
+        {
+          "id": "N52",
+          "name": "结构完整性",
+          "check": "P1 立项依据包含全部要素：研究意义、国内外研究现状与分析、科学问题（SQ）表述、拟解决的关键科学问题（KSQ）"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        },
+        {
+          "id": "N59",
+          "name": "科学事实正确",
+          "check": "盲检：立项依据中科学事实、机制、领域现状描述是否正确，对所引文献结论的转述有无曲解或夸大。发现任一明确科学错误或文献曲解=fail，列出本节原文与正确表述为证。"
+        },
+        {
+          "id": "N60",
+          "name": "立项论证逻辑",
+          "check": "盲检：从研究现状→研究缺口→科学问题（SQ）→假说（H）的论证链是否成立、有无逻辑跳跃或先射箭后画靶；缺口是否真实存在而非人为制造。论证链断裂或缺口不实=fail，需引原文为证。"
+        },
+        {
+          "id": "N61",
+          "name": "创新性质量",
+          "check": "盲检：创新点是否为实质性科学创新（新机制/新视角/新方法），而非仅换体系、堆数量或重复已有工作；与国内外现状相比的增量是否清晰。创新空泛或实为重复=fail，指出具体创新表述与其不足为证。"
+        },
+        {
+          "id": "N62",
+          "name": "科学问题凝练质量",
+          "check": "盲检：科学问题（SQ）是否凝练为真正的科学问题（可证伪、有理论深度），而非工程任务或宽泛主题；KSQ 是否聚焦、属性归类是否恰当。SQ 表述为任务化/空泛/不可证伪=fail，引原文为证。"
+        },
+        {
+          "id": "N63",
+          "name": "承重论点引文核证",
+          "check": "立项依据的承重论点（决定成败的关键因果/机制/研究缺口论断，非背景陈述）已在项目根 claim_evidence.json 建成「观点↔引文」矩阵，每条承重句用该引文检索到的真实 abstract（非 AI 自填的 key_finding）判 verdict∈support/weak/contradict/unknown 并摘 evidence_quote；跑 CITATION_CHECK_CMD（scripts/citation_claim_check.py --root .）须 exit 0。任一承重句被判 contradict/unknown、缺 retrieved_abstract、或 user_confirmed≠true = fail，引 claim_evidence.json 对应行与阻断原因为证。"
+        }
+      ]
+    },
+    "p2-dod": {
+      "title": "Phase 2 P2 研究内容收口盲检",
+      "applies_when": "P2_研究内容.md 落盘前",
+      "items": [
+        {
+          "id": "N10",
+          "name": "H/O/RC/KSQ 1:1 映射",
+          "check": "H/O/RC/KSQ 1:1 映射无交叉（consistency_mapper validate --phase 2 V-01~V-05 全 PASS）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2"
+        },
+        {
+          "id": "N11",
+          "name": "M/IN 可追溯性",
+          "check": "每个 M 可追溯到具体 RC，每个 IN 可追溯到 RC 和 M（--phase 2 输出中的 V-08）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2"
+        },
+        {
+          "id": "N12",
+          "name": "P2 无文献编号",
+          "check": "P2 全文无文献编号引用 [n]（grep \\[[0-9] P2 返回空）",
+          "script": "grep -nE '\\[[0-9]+\\]' sections/P2_研究内容.md || echo CLEAN"
+        },
+        {
+          "id": "N13",
+          "name": "占位符清零-P2",
+          "check": "占位符清零（CITE_PENDING/DATA_PENDING/【待AI】）",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/P2_研究内容.md || echo CLEAN"
+        },
+        {
+          "id": "N14",
+          "name": "去AI-P2",
+          "check": "humanizer_zh.py scan 无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "script": "python scripts/humanizer_zh.py scan sections/P2_研究内容.md"
+        },
+        {
+          "id": "N15",
+          "name": "字数/页数达标-P2",
+          "check": "字数/页数在目标范围内",
+          "script": "python scripts/word_counter.py count sections/P2_研究内容.md"
+        },
+        {
+          "id": "N16",
+          "name": "V-06/V-07/V-09/V-11 延迟标注，V-12 归 Phase 3",
+          "check": "V-06（M→F）/V-07（F来源）/V-09（预算追溯）/V-11（代表作匹配）依赖 F/预算字段，本阶段用 validate --phase 2 即不输出其结论，强制点在 Phase 7 gate-check；V-12（备选路线）只依赖 M.alternative_plan，自 Phase 3 起进入 --phase 3 集合为 ERROR 硬门控，不属于 Phase 7 才首验之列"
+        },
+        {
+          "id": "N17",
+          "name": "预期成果小节",
+          "check": "P2 末尾含独立'预期成果'小节，论文/专利/人才培养目标三类均有明确数字目标（人工确认）"
+        },
+        {
+          "id": "N18",
+          "name": "figure_prompts 已生成",
+          "check": "figure_prompts.md 已生成，技术路线图提示词映射到 ≥1 个 RC",
+          "script": "grep -c 'RC' sections/figure_prompts.md || echo MISSING"
+        },
+        {
+          "id": "N53",
+          "name": "结构完整性",
+          "check": "P2 研究内容包含全部要素：研究假说（H）、研究目标（O）、研究内容（RC）、H/O/RC/KSQ 1:1 映射说明、拟解决的关键科学问题（KSQ）、预期成果小节"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        },
+        {
+          "id": "N67",
+          "name": "四要素一致性质量",
+          "check": "盲检（超出脚本形式映射）：H/O/RC/KSQ 四要素在语义上是否真正一致、环环相扣——目标能回答科学问题、内容能验证假说、各 RC 不重叠不遗漏。出现要素貌合神离、内容无法支撑假说、或 RC 拼凑=fail，指出不一致的具体要素对为证。"
+        },
+        {
+          "id": "N65",
+          "name": "常识合理性",
+          "check": "盲检子代理顺带扫本节是否有明显常识/事实硬伤(单位量级离谱、生理/机制常识错误、科学逻辑断裂、前后数值矛盾)；软项仅报告不阻断、不改内容，与 citation_validator 文献核验区分",
+          "severity": "soft"
+        }
+      ]
+    },
+    "p3-dod": {
+      "title": "Phase 3 P3 研究基础收口盲检",
+      "applies_when": "P3_1~P3_4 全部落盘前",
+      "items": [
+        {
+          "id": "N19",
+          "name": "四子文件齐全",
+          "check": "P3_1/P3_2/P3_3/P3_4 四个子文件均已生成",
+          "script": "ls sections/P3_1_研究基础与可行性分析.md sections/P3_2_工作条件.md sections/P3_3_正在承担的相关项目.md sections/P3_4_完成基金项目情况.md 2>&1"
+        },
+        {
+          "id": "N20",
+          "name": "M 可行性覆盖",
+          "check": "consistency_map 中每个 M 至少有一条 F（可行性条目）来自 P3_1 或 P3_2（V-06）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-06"
+        },
+        {
+          "id": "N21",
+          "name": "P3_4 字数上限",
+          "check": "P3_4 总结字数 ≤500 字",
+          "script": "python scripts/word_counter.py count sections/P3_4_完成基金项目情况.md"
+        },
+        {
+          "id": "N22",
+          "name": "伦理审查说明",
+          "check": "涉及人类受试者/动物/生物安全/遗传资源时，P3_1 含伦理审查说明或送审计划（不涉及则标 na）"
+        },
+        {
+          "id": "N23",
+          "name": "占位符清零-P3",
+          "check": "P3_1/P3_2 占位符清零",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/P3_1_研究基础与可行性分析.md sections/P3_2_工作条件.md || echo CLEAN"
+        },
+        {
+          "id": "N24",
+          "name": "去AI-P3",
+          "check": "P3_1/P3_2 已过 humanizer_zh.py scan，无 ERROR；rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "script": "python scripts/humanizer_zh.py scan sections/P3_1_研究基础与可行性分析.md"
+        },
+        {
+          "id": "N25",
+          "name": "P3 一致性未引入新矛盾",
+          "check": "H/O/RC/KSQ 与 P1/P2 一致性未因 P3 新增内容产生新矛盾，且 V-12 备选路线已就位（consistency_mapper validate --phase 3 仍 PASS）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 3"
+        },
+        {
+          "id": "N26",
+          "name": "代表作匹配 V-11",
+          "check": "代表作与 H/RC 方向匹配（V-11 人工确认：每篇代表作能对应至少一条 H 或 RC）"
+        },
+        {
+          "id": "N54",
+          "name": "结构完整性",
+          "check": "P3 包含全部要素：研究基础（P3_1）、工作条件（P3_2）、研究队伍情况、代表作列表、可行性分析（每条 M 有 ≥1 条 F）、备选路线或风险应对"
+        },
+        {
+          "id": "N64",
+          "name": "可行性实质",
+          "check": "盲检（超出脚本'每条 M 有 F'的形式覆盖）：可行性论证是否实质站得住——已有基础/条件/预实验数据是否真能支撑所提方法，技术难点是否被正视并有应对，而非空洞表态。可行性论证空泛、与方法不匹配、或回避真实难点=fail，指出具体 M 与其薄弱依据为证。"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        }
+      ]
+    },
+    "p4-dod": {
+      "title": "Phase 4 P4 其他需要说明收口盲检",
+      "applies_when": "P4_其他需要说明的情况.md 落盘前",
+      "items": [
+        {
+          "id": "N27",
+          "name": "P4 字数上限",
+          "check": "总字数 ≤500 字",
+          "script": "python scripts/word_counter.py count sections/P4_其他需要说明的情况.md"
+        },
+        {
+          "id": "N28",
+          "name": "伦理说明呼应",
+          "check": "涉及伦理/生物安全/遗传资源的说明与 P3_1 无矛盾（人工核查呼应关系）"
+        },
+        {
+          "id": "N29",
+          "name": "AI使用声明",
+          "check": "AI 使用声明已包含（若使用了 AI 辅助写作；不涉及则标 na）"
+        },
+        {
+          "id": "N30",
+          "name": "占位符清零-P4",
+          "check": "占位符清零",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/P4_其他需要说明的情况.md || echo CLEAN"
+        },
+        {
+          "id": "N31",
+          "name": "去AI-P4",
+          "check": "humanizer_zh.py scan 无 ERROR；rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "script": "python scripts/humanizer_zh.py scan sections/P4_其他需要说明的情况.md"
+        },
+        {
+          "id": "N55",
+          "name": "结构完整性",
+          "check": "P4 包含全部需要说明事项（涉及的项须有明确说明，不涉及则标 na）：并行申请情况、高级职称人员已结题项目、博士后说明、AI 使用声明、伦理/生物安全/遗传资源审批情况"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        }
+      ]
+    },
+    "p5-dod": {
+      "title": "Phase 5 预算说明收口盲检",
+      "applies_when": "B1/B2/B3 预算说明文件落盘前",
+      "items": [
+        {
+          "id": "N32",
+          "name": "三子文件齐全",
+          "check": "B1/B2/B3 三个子文件均已生成",
+          "script": "ls sections/B1_预算说明_直接费用.md sections/B2_预算说明_合作外拨.md sections/B3_预算说明_其他来源.md 2>&1"
+        },
+        {
+          "id": "N33",
+          "name": "预算总额核算",
+          "check": "各项目预算求和 = profile budget_total（人工核算）"
+        },
+        {
+          "id": "N34",
+          "name": "预算条目可追溯 V-09",
+          "check": "每个主要预算条目可追溯到至少一条 M 条目（V-09 人工确认）"
+        },
+        {
+          "id": "N35",
+          "name": "直接费用类别完整",
+          "check": "直接费用各类别说明完整（设备/材料/测试/差旅/出版/劳务/咨询）（人工确认）"
+        },
+        {
+          "id": "N36",
+          "name": "占位符清零-预算",
+          "check": "占位符清零",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/B1_预算说明_直接费用.md sections/B2_预算说明_合作外拨.md sections/B3_预算说明_其他来源.md || echo CLEAN"
+        },
+        {
+          "id": "N56",
+          "name": "结构完整性",
+          "check": "预算说明包含全部必要子文件和内容：B1 直接费用（设备/材料/测试/差旅/出版/劳务/咨询各类均有说明）、B2 合作外拨（有或标无）、B3 其他来源（有或标无）；总额与 profile budget_total 一致"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        }
+      ]
+    },
+    "p6-dod": {
+      "title": "Phase 6 摘要收口盲检",
+      "applies_when": "00_摘要_中文.md / 00_摘要_英文.md 落盘前",
+      "items": [
+        {
+          "id": "N37",
+          "name": "中文摘要字数",
+          "check": "中文摘要 ≤400 汉字",
+          "script": "python scripts/word_counter.py count sections/00_摘要_中文.md"
+        },
+        {
+          "id": "N38",
+          "name": "英文摘要字数",
+          "check": "英文摘要 ≤300 英文词",
+          "script": "python scripts/word_counter.py count sections/00_摘要_英文.md"
+        },
+        {
+          "id": "N39",
+          "name": "关键词吻合",
+          "check": "摘要关键词与 consistency_map.keywords_trace 吻合（人工核查）"
+        },
+        {
+          "id": "N40",
+          "name": "摘要 H/O/RC/KSQ 一致",
+          "check": "摘要中的 H/O/RC/KSQ 表述与正文各 Phase 一致（V-01~V-05 范围内，人工核查）"
+        },
+        {
+          "id": "N41",
+          "name": "占位符清零-摘要",
+          "check": "占位符清零",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待' sections/00_摘要_中文.md sections/00_摘要_英文.md || echo CLEAN"
+        },
+        {
+          "id": "N42",
+          "name": "去AI-摘要",
+          "check": "humanizer_zh.py scan sections/00_摘要_中文.md 无 ERROR；rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "script": "python scripts/humanizer_zh.py scan sections/00_摘要_中文.md"
+        },
+        {
+          "id": "N57",
+          "name": "结构完整性",
+          "check": "摘要包含全部必要要素：研究背景与科学问题、研究假说（H）、研究目标（O）、研究内容（RC）简述、预期成果；中英文双语摘要均已生成；关键词列表存在"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        }
+      ]
+    },
+    "p7-dod": {
+      "title": "Phase 7 全文终稿收口盲检",
+      "applies_when": "output/申请书_合并.md merge 前",
+      "items": [
+        {
+          "id": "N43",
+          "name": "diagnosis_engine 无 ERROR",
+          "check": "diagnosis_engine.py full-review 无 ERROR 级问题",
+          "script": "python scripts/diagnosis_engine.py full-review --sections-dir sections --consistency data/consistency_map.json --index data/literature_index.json --p1 sections/P1_立项依据.md --ref sections/REF_参考文献.md --output data/diagnosis_report.json"
+        },
+        {
+          "id": "N44",
+          "name": "V-01~V-12 全量验证",
+          "check": "consistency_mapper.py validate V-01~V-12 全量验证 PASS（V-06/V-07/V-09/V-11 首次强制执行；V-12 自 Phase 3 起已强制，此处复验）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate"
+        },
+        {
+          "id": "N45",
+          "name": "gate-check MCP PASS",
+          "check": "gate-check --require-mcp PASS（引文矩阵/MCP缓存/撤稿检测/科学问题属性）",
+          "script": "python scripts/state_manager.py --root . gate-check --sections-dir sections --index data/literature_index.json --p1 sections/P1_立项依据.md --ref sections/REF_参考文献.md --mcp-cache data/mcp_literature_cache.json --mcp-ttl-days 30 --require-mcp"
+        },
+        {
+          "id": "N46",
+          "name": "页数上限",
+          "check": "页数 ≤30 页（page-estimate 核验；超出则已按报告定位修剪）",
+          "script": "python scripts/state_manager.py --root . page-estimate --sections-dir sections"
+        },
+        {
+          "id": "N47",
+          "name": "去AI-全文 scan-all",
+          "check": "humanizer_zh.py scan-all 无 ERROR，WARNING 已逐条处理或标注豁免理由；cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断。脚本 ERROR 级硬阻断项(必须清零)：halfwidth_punct_in_cn(中文句内紧邻汉字的半角标点，如 细胞,然后/清洗:结果，正文应全角，1,000 千分位与全角标点不误报)、english_misspelling(英文铁错拼如 occured/recieve/seperate，固定错拼表误报率≈0，规范缩写/基因符号不在表内)、装饰破折号、scare quotes；subsup_bare 上下标裸写为 WARNING 软提醒(见 N66)。",
+          "script": "python scripts/humanizer_zh.py scan-all sections"
+        },
+        {
+          "id": "N66",
+          "name": "上下标裸写提醒",
+          "check": "scan-all 输出中的 subsup_bare 项已逐条核对：含化学式/离子/半数效应浓度/单位指数的标书（如 H2O、CO2、Ca2+、IC50、cm2）应改用 ^..^/~..~ 上下标或 sup/sub；不含化学式的标书天然无命中。软项仅报告不阻断、不改内容；最终经 section_merger/make_reference_docx 产出 docx 时上下标才能正确呈现",
+          "severity": "soft",
+          "script": "python scripts/humanizer_zh.py scan-all sections"
+        },
+        {
+          "id": "N48",
+          "name": "全文占位符清零",
+          "check": "全文占位符清零（CITE_PENDING/DATA_PENDING/【待AI】/【待翻译】）",
+          "script": "grep -rnE 'CITE_PENDING|DATA_PENDING|【待AI】|【待翻译】' sections/ || echo CLEAN"
+        },
+        {
+          "id": "N49",
+          "name": "V-11 代表作匹配",
+          "check": "每篇代表作能对应 ≥1 条 H 或 RC（consistency_mapper validate + 人工确认）",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate"
+        },
+        {
+          "id": "N50",
+          "name": "V-12 备选路线",
+          "check": "每条主研究路线（M）含 ≥1 条备选方案或风险应对措施",
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate"
+        },
+        {
+          "id": "N51",
+          "name": "合并顺序正确",
+          "check": "合并顺序正确（00摘要→B1-B3→P1→P2→P3_1~P3_4→P4→REF），输出文件存在且可读（人工确认）"
+        },
+        {
+          "id": "N58",
+          "name": "结构完整性",
+          "check": "全文各部分齐全：00摘要（中英文）、B1-B3预算说明、P1立项依据、P2研究内容（含预期成果）、P3_1~P3_4研究基础四子文件、P4其他说明、REF参考文献；合并输出文件存在且无断节"
+        },
+        {
+          "id": "N-GIT",
+          "name": "检查点已落",
+          "check": "本 Phase 已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随 Phase 递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        }
+      ]
+    },
+    "split_boundary": {
+      "title": "拆分分节结构核验（功能② Layer 2 · LLM 反向核验）",
+      "applies_when": "每次拆分后必跑（split_audit exit 0 之后），不论有标题/无标题路。输入 = tmp/split_verify_ctx.md（标题树 + 各 atom 锚定行，不含全文正文）。",
+      "items": [
+        {
+          "id": "SB1",
+          "name": "每个原子文件对应正确的最细一级标题、边界无越界",
+          "check": "据标题树+各 atom 锚定行逐个核：该 atom 是否正好对应它标称的那一节？边界是否切在对的最细标题上（无把正文误当标题、无漏标题、无跨节串入）？逐条给判定+证据，evidence 必须用 verdict 标签开头：[OK]→verdict pass（前进）；[WRONG]→verdict fail（回退重切，有标题路先修 extract_headings 真值）；[UNCERTAIN]→verdict fail（交用户裁决，勿自动动）。uncertain 映射 fail 而非 na（na 会被放过）。不逐字读全文正文（正文逐字级由 split_audit 兜）。"
+        }
+      ]
+    }
+  }
+}

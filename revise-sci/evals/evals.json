@@ -1,0 +1,23 @@
+{
+  "skill_name": "revise-sci",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "请根据 comments.docx、manuscript.docx 和补充附件生成修订主稿与 Response to Reviewers，必须保留逐条评论结构，并把所有缺失信息标成需作者确认。",
+      "expected_output": "输出 response_to_reviewers.md/docx、修订主稿 md/docx、issue_matrix.md 和 final_consistency_report.md。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "审稿意见要求补充参考文献，但我没有给新增文献，请用 revise-sci 处理并保证外部 provider 只允许 paper-search。",
+      "expected_output": "相关 comment 应标记为 needs_author_confirmation，并在 evidence_sources 中只出现 user-provided 或 paper-search。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "comments 是 html，里面已经有原子化 comment_id。请直接继承这些 comment_id，不要重复拆分，再输出 Word 版本的 Response to Reviewers。",
+      "expected_output": "保留现有 comment_id，生成结构化 response_to_reviewers.md/docx。",
+      "files": []
+    }
+  ]
+}

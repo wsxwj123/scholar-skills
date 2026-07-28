@@ -1,0 +1,101 @@
+{
+  "field_id": "biomedical_pharma",
+  "field_name": "医药领域研究",
+  "field_name_en": "Biomedical & Pharmaceutical Research",
+  "target_journals": [
+    "Nature Medicine",
+    "Nature Nanotechnology",
+    "Nature Biomedical Engineering",
+    "Nature Materials",
+    "Science Translational Medicine",
+    "Advanced Materials",
+    "Clinical Pharmacology & Therapeutics",
+    "Journal of Controlled Release"
+  ],
+  "reviewer_concerns": {
+    "by_system": {
+      "Drug_Delivery": [
+        "递送系统的临床可转化性是否被真实讨论，而非只停留在小鼠有效性？",
+        "材料批次稳定性、载药率一致性和长期储存稳定性是否有独立批次证据？",
+        "体内分布和主要清除路径是否清楚，是否存在肝脾蓄积或免疫清除风险？"
+      ],
+      "Biomaterials": [
+        "材料组成、降解路径和潜在代谢产物是否被充分表征？",
+        "关键理化参数是否在生理条件下而非理想缓冲液中测定？",
+        "结构设计与生物功能之间是否建立了因果联系而非相关性描述？"
+      ],
+      "Pharmacology": [
+        "剂量选择依据、暴露量区间和给药频率是否具有药理学合理性？",
+        "疗效与毒性是否同步评估，而不是只报告正向终点？",
+        "药代/药效结论是否由充分采样和适当模型支撑？"
+      ],
+      "Mechanism_Study": [
+        "机制链条是否通过阻断、救援或遗传学干预完成闭环验证？",
+        "观察到的分子变化是因果机制还是伴随现象？",
+        "是否存在更简单的替代解释尚未被排除？"
+      ],
+      "Clinical_Research": [
+        "临床队列来源、纳排标准和终点定义是否足够清楚？",
+        "混杂因素控制、亚组分析和缺失数据处理是否合理？",
+        "统计显著性之外，结论是否具备真实临床意义？"
+      ]
+    },
+    "by_experiment": {
+      "Characterization": [
+        "核心表征是否覆盖粒径/形貌/组成/稳定性等关键维度？",
+        "关键表征是否在与实际应用一致的介质和温度下进行？"
+      ],
+      "In_vitro_Assays": [
+        "细胞模型、培养条件和暴露时间是否足够代表真实生理场景？",
+        "是否区分了毒性、摄取、转运和机制信号这几类不同读出？"
+      ],
+      "In_vivo_Efficacy": [
+        "动物模型是否与疾病场景匹配，剂量是否具有人体可比性？",
+        "是否同时提供疗效、毒性和体内分布证据，而不是只报抑瘤结果？"
+      ],
+      "Mechanistic_Validation": [
+        "是否使用抑制剂、敲降/敲除、救援实验进行机制确认？",
+        "关键机制结论是否至少有两条独立证据链支持？"
+      ],
+      "Clinical_Study": [
+        "样本量、终点、随访长度和统计计划是否在研究开始前定义？",
+        "是否报告了患者异质性、基线不平衡和潜在偏倚来源？"
+      ]
+    },
+    "mitigation_strategies": {
+      "translation_gap": "在 Discussion 中主动区分实验室有效性与临床可转化性，明确指出需要补充的 PK、安全性、CMC 或前瞻性验证。",
+      "mechanism_rigor": "对核心机制至少提供阻断或救援实验；若做不到，必须降级措辞为相关性而非因果性。",
+      "pharmacology_support": "补充剂量依据、暴露量数据和安全窗讨论，避免只用终点现象支撑药理结论。",
+      "clinical_bias_control": "说明纳排标准、混杂因素处理、缺失值策略和敏感性分析，避免过度外推。",
+      "material_reproducibility": "提供独立批次重复和关键理化参数的方差，确保材料和制剂层面的可重复性。"
+    }
+  },
+  "experiment_types": [
+    "Characterization",
+    "In_vitro",
+    "In_vivo",
+    "Pharmacokinetics",
+    "Pharmacodynamics",
+    "Mechanistic_Validation",
+    "Biomaterials",
+    "Clinical_Study"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "当前医药与机制研究领域在转化、剂量、安全性或机制闭环上的局限性...",
+    "innovation_claim": "本研究提出新的医药/材料/药理策略并在机制或转化层面建立差异化优势...",
+    "methodology": "药代、机制验证、材料表征或临床分析所需的原始方法学文献..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": true,
+    "require_scale_bar": false,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [1500, 3500],
+    "results": [2500, 5000],
+    "discussion": [1800, 3500],
+    "conclusion": [200, 500]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "拒稿": {
+    "decision": "<div class=\"decision-section\" role=\"status\" aria-live=\"polite\">\n        <span class=\"decision-label\"><span class=\"icon-seal\" aria-hidden=\"true\"></span>最终建议</span>\n        <span id=\"decisionVerdict\" class=\"decision-verdict verdict-reject\">拒稿</span>\n        <span id=\"decisionFallback\" class=\"hidden-fallback\" aria-hidden=\"true\">拒稿</span>\n    </div>",
+    "footer": "<footer>\n        <div>由严苛审稿人模拟器生成 • 2026-03-08T10:00:00+08:00</div>\n        <div class=\"ip-notice\">知识产权声明：本报告由 Reviewer Simulator 审稿模拟技能生成。</div>\n        <div class=\"template-meta\">模板版本：RS-1.2.0 | 构建日期：2026-03-08</div>\n    </footer>",
+    "has_placeholder": false,
+    "has_ip_notice": true,
+    "has_print_css": true
+  },
+  "大修": {
+    "decision": "<div class=\"decision-section\" role=\"status\" aria-live=\"polite\">\n        <span class=\"decision-label\"><span class=\"icon-seal\" aria-hidden=\"true\"></span>最终建议</span>\n        <span id=\"decisionVerdict\" class=\"decision-verdict verdict-major\">大修</span>\n        <span id=\"decisionFallback\" class=\"hidden-fallback\" aria-hidden=\"true\">大修</span>\n    </div>",
+    "footer": "<footer>\n        <div>由严苛审稿人模拟器生成 • 2026-03-08T10:00:00+08:00</div>\n        <div class=\"ip-notice\">知识产权声明：本报告由 Reviewer Simulator 审稿模拟技能生成。</div>\n        <div class=\"template-meta\">模板版本：RS-1.2.0 | 构建日期：2026-03-08</div>\n    </footer>",
+    "has_placeholder": false,
+    "has_ip_notice": true,
+    "has_print_css": true
+  },
+  "小修": {
+    "decision": "<div class=\"decision-section\" role=\"status\" aria-live=\"polite\">\n        <span class=\"decision-label\"><span class=\"icon-seal\" aria-hidden=\"true\"></span>最终建议</span>\n        <span id=\"decisionVerdict\" class=\"decision-verdict verdict-minor\">小修</span>\n        <span id=\"decisionFallback\" class=\"hidden-fallback\" aria-hidden=\"true\">小修</span>\n    </div>",
+    "footer": "<footer>\n        <div>由严苛审稿人模拟器生成 • 2026-03-08T10:00:00+08:00</div>\n        <div class=\"ip-notice\">知识产权声明：本报告由 Reviewer Simulator 审稿模拟技能生成。</div>\n        <div class=\"template-meta\">模板版本：RS-1.2.0 | 构建日期：2026-03-08</div>\n    </footer>",
+    "has_placeholder": false,
+    "has_ip_notice": true,
+    "has_print_css": true
+  },
+  "接收": {
+    "decision": "<div class=\"decision-section\" role=\"status\" aria-live=\"polite\">\n        <span class=\"decision-label\"><span class=\"icon-seal\" aria-hidden=\"true\"></span>最终建议</span>\n        <span id=\"decisionVerdict\" class=\"decision-verdict verdict-accept\">接收</span>\n        <span id=\"decisionFallback\" class=\"hidden-fallback\" aria-hidden=\"true\">接收</span>\n    </div>",
+    "footer": "<footer>\n        <div>由严苛审稿人模拟器生成 • 2026-03-08T10:00:00+08:00</div>\n        <div class=\"ip-notice\">知识产权声明：本报告由 Reviewer Simulator 审稿模拟技能生成。</div>\n        <div class=\"template-meta\">模板版本：RS-1.2.0 | 构建日期：2026-03-08</div>\n    </footer>",
+    "has_placeholder": false,
+    "has_ip_notice": true,
+    "has_print_css": true
+  }
+}

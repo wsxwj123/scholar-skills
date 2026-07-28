@@ -1,0 +1,129 @@
+{
+  "skill": "revise-sci",
+  "note": "DoD 改稿收口清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里，再同步 SKILL.md 散文。",
+  "gates": {
+    "revision-dod": {
+      "title": "改稿收口 DoD（strict_gate 运行前委托独立子代理盲检）",
+      "applies_when": "polish 完成后、strict_gate.py 运行前",
+      "items": [
+        {
+          "id": "RV-G1",
+          "name": "引文对应",
+          "check": "引文 [n] 与参考列表一一对应，无孤儿引用、无缺号，编号连续",
+          "script": "python scripts/build_reference_registry.py && python -c \"import json,sys; d=json.load(open('data/reference_coverage_audit.json')); sys.exit(0 if d.get('ok') else 1)\""
+        },
+        {
+          "id": "RV-G2",
+          "name": "citation_guard 双重核验",
+          "check": "本轮新增引用已过 citation_guard 双重核验（provider trace + identifier/title 一致性），ok=true 且无 manual_review 条目",
+          "script": "python scripts/citation_guard.py"
+        },
+        {
+          "id": "RV-G3",
+          "name": "主线对齐",
+          "check": "人工对照 issue_matrix.md 确认改动符合原文 storyline / 主线，不跑题，不与原文主线矛盾；此项无法机器核验，必须人工逐段对照"
+        },
+        {
+          "id": "RV-G4",
+          "name": "占位符清零",
+          "check": "无 CITE_PENDING / DATA_PENDING / 【待AI】 / {{ 残留",
+          "script": "grep -rn 'CITE_PENDING\\|DATA_PENDING\\|待AI\\|{{' . --include='*.md' --include='*.txt' && echo FOUND || echo CLEAN"
+        },
+        {
+          "id": "RV-G5",
+          "name": "去AI五项",
+          "check": "无修辞性破折号 / scare quotes / 解释性冒号 / 英文单句≤30词 / -ing从句；中文≤50字≤2层从句；polished 片段 ai_style_flags_removed 无残留",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-G6",
+          "name": "字数达标",
+          "check": "改动前后正文字数在期刊要求范围内"
+        },
+        {
+          "id": "RV-G7",
+          "name": "缩略语首展一致性",
+          "check": "abbreviation_index.json 无 undefined_use / duplicate_definition / title_abbreviation 硬错(defined_unused 为软警告,可人工豁免);改稿未破坏既有首展,新引入缩略语已按 Full Name (ABBR) / 中文全称（English Full Name, ABBR）首展,Title 不含缩写。启发式索引,人工复核可疑项",
+          "script": "python -c \"import json,sys; H={'undefined_use','duplicate_definition','title_abbreviation'}; d=json.load(open('abbreviation_index.json')); bad=[(a['abbr'],a['orphan_type']) for a in d if a['orphan_type'] in H]; print('ABBR_HARD_ORPHANS:', bad or 'none'); sys.exit(1 if bad else 0)\""
+        },
+        {
+          "id": "RV-R1",
+          "name": "strict_gate 通过",
+          "check": "strict_gate.py exit code 0，输出 STRICT_GATE: PASS",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R2",
+          "name": "Reference coverage 无缺口",
+          "check": "data/reference_coverage_audit.json 中 ok=true，无 unresolved numeric/author-year gap",
+          "script": "python scripts/build_reference_registry.py && python -c \"import json,sys; d=json.load(open('data/reference_coverage_audit.json')); sys.exit(0 if d.get('ok') else 1)\""
+        },
+        {
+          "id": "RV-R3",
+          "name": "Patch 哈希一致",
+          "check": "若使用 Patch 修订协议：apply_revision_patch.py 未报告任何 hash mismatch，所有未触及 block 字节不变（fail-closed，哈希不符则整批拒绝，不得静默部分应用）；未使用 Patch 协议则标 na 并注明",
+          "script": "python scripts/apply_revision_patch.py --manifest <block_manifest.json> --patch <patch.json> --output <revised.md>"
+        },
+        {
+          "id": "RV-R4",
+          "name": "退稿信意见落点完整",
+          "check": "issue_matrix.md 每个 comment_id 在 manuscript_edit_plan.md 中都有对应 revised_excerpt；所有审稿意见有明确落点，无遗漏。strict_gate.py 内含 comment_id not found in edit plan 检查，此项由 RV-R1 strict_gate 覆盖；若 strict_gate 通过，本项视为通过",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R5",
+          "name": "审稿意见原子化",
+          "check": "人工确认每条审稿意见已由 atomize_comments.py 拆为原子单元（severity 字段存在，comment_id 唯一，无混合意见），无跨意见合并改动。atomize_comments.py 须在正式 pipeline 中已运行并产出 state/comment_registry.json；此验证项通过检查该产物是否存在且 comment_id 唯一来判断"
+        },
+        {
+          "id": "RV-R6",
+          "name": "polish 状态完整",
+          "check": "人工或借助 strict_gate 确认所有含非空 revision_plan.scope 的片段已有 polish state，polish_driver_mode 有效，无 meaning_changed=true 或 scope_respected=false。strict_gate.py 已内含此项校验，本项由 RV-R1 覆盖；若 strict_gate 通过，本项视为通过",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R7",
+          "name": "response_to_reviewers.docx 结构完整",
+          "check": "人工打开 response_to_reviewers.docx 确认每个 comment block 都有 comment heading / response-section heading / evidence-section heading。strict_gate.py 已通过解析 docx 做此核验，本项由 RV-R1 覆盖；若 strict_gate 通过，本项视为通过",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R8",
+          "name": "结构完整性",
+          "check": "改后稿件结构完整：原结构无破坏、参考文献编号连续、response 各 unit 三要素（审稿意见与中文理解 / Response / Evidence Attachments）齐全；退稿信每条意见在 edit_plan 中有落点无遗漏",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R9",
+          "name": "polish 片段级守卫",
+          "check": "每个 polished 片段 polish_numbers_ok=true（无数值漂移/丢失）、polish_certainty_ok=true（谨慎动词未被升级为强断言）、无套话禁词残留；polish_risk_flags 已落盘到 unit / revision_polish_execution.json / comment_records/<id>.md。strict_gate.py 内含 A/B/MID 三项检查，本项由 RV-R1 覆盖；若 strict_gate 通过，本项视为通过",
+          "script": "python scripts/strict_gate.py --project-root ."
+        },
+        {
+          "id": "RV-R10",
+          "name": "跨摘要正文一致与无新过度声称",
+          "check": "盲检（全局层，超出片段内 RV-R9）：改稿后关键数值、样本量、效应量、主要结论在摘要、正文、图表、结论间是否仍一一对应、无新引入的矛盾；改动是否未把原谨慎表述升级为新的过度声称（因果化、普适化、夸大疗效）。出现跨节数值/结论不一致或新增过度声称=fail，列出冲突的两处原文为证。辅助客观信号：cross_section_consistency.py 列出同标签数值在跨段间的漂移嫌疑（WARN 级 exit 0，不硬拦），子代理据此逐条核实真伪——它不替代盲检，仅提供客观线索，同名不同对象的数值差异属合法，须人工排除误报。",
+          "script": "python scripts/cross_section_consistency.py --project-root ."
+        },
+        {
+          "id": "RV-G8",
+          "name": "常识合理性",
+          "check": "盲检扫重写片段的明显常识/事实硬伤（单位量级/机制/数值矛盾），软项仅报告不阻断、不改内容，区别于引用核验（RV-G1/RV-G2）与 reviewer-simulator 完整审计",
+          "severity": "soft"
+        },
+        {
+          "id": "RV-R11",
+          "name": "语法拼写与字符级格式",
+          "check": "对原子化正文（manuscript_sections/）跑 proofread.py 字符级体检：高置信类别 misspelling（常见英文拼写错）/ chinese_punct（中文标点漏入英文句）/ subsup_bare（H2O、IC50、cm2 等应上下标却裸写，含 CJK 安全边界）零容忍——命中任一即 fail_on_hits 非空、ok=false、退出码非 0；其余类别（学术错拼/中文错字/单位/英美混用/数字格式/术语不一致/时态/断链等）仅报告不阻断。本项只报告供用户决断，绝不自动改正文（fragment-only 保真），命中后由用户人工决定是否回片段修订。",
+          "script": "python scripts/proofread.py --manuscript-dir manuscript_sections --report proofread_report.json --fail-on misspelling,chinese_punct,subsup_bare"
+        },
+        {
+          "id": "RV-R12",
+          "name": "拉丁短语斜体软提醒",
+          "check": "proofread.py 的 latin_italic_missing 软提醒：in vitro/in vivo/ex vivo/in situ/de novo/post hoc/per se 等公认须斜体的拉丁短语，若正文裸写（未被 *...* 斜体标记包裹）则报告。仅提示，不阻断、不进 --fail-on、不扣分，由人工确认是否补斜体。",
+          "severity": "soft"
+        }
+      ]
+    }
+  }
+}

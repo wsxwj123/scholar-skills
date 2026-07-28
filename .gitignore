@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+academic-gate/scripts/hook_heartbeat.json
+.review_pkg_*.json
+.review_return_*.json

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Minimal Mono · 审稿回复演示</title>
+  <link rel="stylesheet" href="https://lf26-cdn-tos.bytecdntp.com/cdn/expire-1-M/reveal.js/4.3.0/reveal.css">
+  <link rel="stylesheet" href="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/reveal.js/4.3.0/theme/white.min.css">
+  <link rel="stylesheet" href="https://lf6-cdn-tos.bytecdntp.com/cdn/expire-100-M/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/tailwindcss/2.2.19/tailwind.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap">
+  <style>
+:root{--bg:#f4f4f3;--text:#1e1f21;--muted:#60646a;--accent:#31363d;--card:#ffffff;--line:#d8dadd}
+.reveal{font-family:Tahoma,Arial,Roboto,"Heiti SC","Hiragino Sans GB",Simsun,sans-serif;color:var(--text)}
+.reveal .slides{background:linear-gradient(180deg,#f6f6f5,#f0f1f2)}
+.reveal section{padding:48px 54px;height:100%;box-sizing:border-box}
+h1{font-family:"Noto Serif SC",serif;font-size:clamp(2rem,3.8vw,3rem);line-height:1.2;margin:.2em 0}
+h2{font-size:clamp(1.4rem,2.5vw,2rem);color:var(--accent);margin:.1em 0 .6em}
+h3{font-size:clamp(1rem,1.7vw,1.16rem)}.subtitle{font-size:clamp(.98rem,1.65vw,1.25rem);color:var(--muted)}.meta{font-size:.9rem;color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .75rem;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:.8rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px 16px}
+.focus-list li,.checklist li{margin:.45em 0;font-size:clamp(.95rem,1.38vw,1.1rem)}
+.cover,.closing{display:flex;flex-direction:column;justify-content:center}
+.mermaid{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px}
+@media (max-width:900px){.grid2{grid-template-columns:1fr}.reveal section{padding:26px 20px}}
+</style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+<section class="cover">
+  <div class="badge"><i class="fa-solid fa-sparkles"></i> SCI Reply Strategy</div>
+  <h1>审稿意见回复与修稿<br/>一体化工作流</h1>
+  <p class="subtitle">从评论解析到可提交回复稿的“一步到位”演示方案</p>
+  <p class="meta">汇报人：科研作者团队 · 版本：v1.0</p>
+</section>
+
+<section>
+  <h2><i class="fa-solid fa-list-check"></i> 本次演示结构</h2>
+  <div class="grid2">
+    <div class="card"><h3>01</h3><p>输入材料与风险控制</p></div>
+    <div class="card"><h3>02</h3><p>审稿意见原子化与分级</p></div>
+    <div class="card"><h3>03</h3><p>回复文本与修稿位点联动</p></div>
+    <div class="card"><h3>04</h3><p>HTML 成品与层级目录交互</p></div>
+  </div>
+</section>
+
+<section>
+  <h2><i class="fa-solid fa-diagram-project"></i> 工作流总览</h2>
+  <div class="mermaid">
+flowchart LR
+A[读取 Comments.docx] --> B[按 Reviewer / Major / Minor 切分]
+B --> C[每条 comment 原子化 JSON]
+C --> D[关联 manuscript / SI 位点]
+D --> E[生成中英回复与修稿建议]
+E --> F[渲染层级 HTML 成品]
+F --> G[质量门控与一致性检查]
+  </div>
+</section>
+
+<section>
+  <h2><i class="fa-solid fa-layer-group"></i> 每条 Comment 页面结构</h2>
+  <ol class="focus-list">
+    <li><b>审稿人意图理解：</b>原始意见 + 中英文解读</li>
+    <li><b>Response to Reviewer：</b>中英双框上下排布，支持一键“复制”</li>
+    <li><b>修稿建议块：</b>定位 section/句子、原文、改后英文、中文对照</li>
+    <li><b>修改说明：</b>明确“添加 / 删除 / 修改”及理由</li>
+    <li><b>证据附件：</b>文本 / 表格 / 图片（仅在需要时显示占位）</li>
+  </ol>
+</section>
+
+<section>
+  <h2><i class="fa-solid fa-folder-tree"></i> 目录交互与阅读效率</h2>
+  <div class="grid2">
+    <div class="panel">
+      <h3>层级目录</h3>
+      <p>邮件总回复 → Reviewer → Major/Minor → Comment</p>
+      <p>支持 Reviewer 与 Section 折叠，聚焦当前评审人。</p>
+    </div>
+    <div class="panel">
+      <h3>优先级视觉</h3>
+      <p>目录叶子节点通过背景色区分重要级别。</p>
+      <p>避免符号噪音，提升快速扫描效率。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><i class="fa-solid fa-shield-check"></i> 质量门控清单</h2>
+  <ul class="checklist">
+    <li>不编造数据，不超范围承诺</li>
+    <li>回复语气礼貌、建设性、可审计</li>
+    <li>修稿文本定位明确，可直接回填 Word</li>
+    <li>目录、复制、折叠与响应式显示全部可用</li>
+  </ul>
+</section>
+
+<section class="closing">
+  <h2>谢谢</h2>
+  <p>下一步：选定视觉主题后，作为默认模板固化到 skill 生成器。</p>
+</section>
+
+    </div>
+  </div>
+  <script src="https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/reveal.js/4.3.0/reveal.min.js"></script>
+  <script src="https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/mermaid/8.14.0/mermaid.min.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: true,
+      progress: true,
+      center: false,
+      transition: 'fade',
+      width: 1366,
+      height: 768,
+      margin: 0.04
+    });
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    }
+  </script>
+</body>
+</html>

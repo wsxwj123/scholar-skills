@@ -1,0 +1,95 @@
+{
+  "_comment": "共享门禁 hook 的技能注册表。academic_gate_hook.py 据此判断一次 Write/Edit 该不该拦。加新技能=加一个条目。managed_globs 是相对项目根的产物路径模式(fnmatch, * 跨 / 也匹配)，只有命中才跑门禁；其余路径一律放行。多个技能共用同名 state 文件时(如 project_state.json)，分发器靠'被写文件命中谁的 managed_globs'来定技能，允许重叠(如 manuscript_edit_plan.md 由 revise-sci 与 reviewer-response-sci 双方脚本产出、两家都登记),重叠时分发器靠 state 文件里的 skill 字段消歧(_identify_skill 的多命中分支)。设计原则：hook 只强制'从文件状态可靠判定'的粗粒度不变量(结构签字/token)；逐节时序留给 AI 调门禁+token 链。占位符：{python}/{project_root}/{file_path}/{shared_dir}。",
+  "version": 8,
+  "signoff_gate": {
+    "name": "structure_signoff",
+    "command": [
+      "{python}",
+      "{shared_dir}/structure_signoff_gate.py",
+      "check",
+      "--root",
+      "{project_root}"
+    ],
+    "when": "always"
+  },
+  "skills": {
+    "general-sci-writing": {
+      "state_files": [
+        "writing_progress.json",
+        "project_config.json"
+      ],
+      "managed_globs": [
+        "manuscripts/*.md"
+      ],
+      "signoff": true
+    },
+    "review-writing": {
+      "state_files": [
+        "state.json"
+      ],
+      "managed_globs": [
+        "drafts/section_*.md"
+      ],
+      "signoff": true
+    },
+    "nsfc-proposal": {
+      "state_files": [
+        "project_state.json"
+      ],
+      "managed_globs": [
+        "sections/*.md"
+      ],
+      "signoff": true
+    },
+    "sci2doc": {
+      "state_files": [
+        "project_state.json"
+      ],
+      "managed_globs": [
+        "atomic_md/*/*.md"
+      ],
+      "signoff": true
+    },
+    "revise-sci": {
+      "state_files": [
+        "project_state.json"
+      ],
+      "managed_globs": [
+        "response_to_reviewers.md",
+        "response_to_reviewers.docx",
+        "manuscript_edit_plan.md",
+        "manuscript_sections/*.md",
+        "si_sections/*.md"
+      ],
+      "signoff": false
+    },
+    "reviewer-response-sci": {
+      "state_files": [
+        "project_state.json"
+      ],
+      "managed_globs": [
+        "units/*.json",
+        "manuscript_edit_plan.md"
+      ],
+      "signoff": false
+    },
+    "reviewer-simulator": {
+      "state_files": [
+        ".reviewer_sim_project.json"
+      ],
+      "managed_globs": [
+        "report_*.html"
+      ],
+      "signoff": false
+    },
+    "polish-sci": {
+      "state_files": [
+        "units_index.json"
+      ],
+      "managed_globs": [
+        "polished_manuscript.md"
+      ],
+      "signoff": false
+    }
+  }
+}

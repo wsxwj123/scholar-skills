@@ -1,0 +1,6 @@
+{
+  "project_config": {
+    "authors": []
+  },
+  "_note": "复制到项目根作为 project_config.json。authors 为学位论文作者署名列表（如 [\"张三\"]），供引用门禁 J5 自引检测使用；留空时 J5 自动 skip。"
+}

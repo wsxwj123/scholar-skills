@@ -1,0 +1,109 @@
+{
+  "field_id": "computer_science",
+  "field_name": "计算机科学",
+  "field_name_en": "Computer Science",
+  "target_journals": [
+    "Nature Machine Intelligence",
+    "Science Advances",
+    "Nature Communications",
+    "Proceedings of the National Academy of Sciences (PNAS)",
+    "IEEE Transactions on Pattern Analysis and Machine Intelligence",
+    "International Conference on Machine Learning (ICML)",
+    "Neural Information Processing Systems (NeurIPS)",
+    "Computer Vision and Pattern Recognition (CVPR)",
+    "Association for Computational Linguistics (ACL)"
+  ],
+  "reviewer_concerns": {
+    "by_system": {
+      "Algorithm": [
+        "时间/空间复杂度分析是否充分？",
+        "与现有SOTA方法的比较是否公平？",
+        "理论保证与实际性能的一致性",
+        "算法的可扩展性论证"
+      ],
+      "Dataset": [
+        "数据来源和预处理流程是否可复现？",
+        "训练/验证/测试集划分是否合理？",
+        "数据偏见是否被充分讨论？",
+        "数据许可证是否合规？"
+      ],
+      "Reproducibility": [
+        "代码是否开源？",
+        "超参数设置是否详细？",
+        "随机种子是否固定？",
+        "计算资源是否明确？"
+      ],
+      "Model": [
+        "模型架构选择依据是否充分？",
+        "训练策略是否合理？",
+        "超参数敏感性是否分析？"
+      ]
+    },
+    "by_experiment": {
+      "Benchmark_Evaluation": [
+        "基准测试是否覆盖主要任务？",
+        "评估指标选择是否合理？",
+        "统计显著性是否验证？",
+        "是否与足够多的基线方法比较？"
+      ],
+      "Ablation_Study": [
+        "各组件贡献是否被清晰分离？",
+        "消融实验是否充分？",
+        "关键设计决策是否被验证？"
+      ],
+      "Generalization": [
+        "跨领域泛化能力是否验证？",
+        "分布外数据表现如何？",
+        "鲁棒性测试是否充分？"
+      ],
+      "Human_Evaluation": [
+        "人类评估指标是什么？",
+        "评估人员数量和资质？",
+        "评估一致性如何？"
+      ]
+    },
+    "mitigation_strategies": {
+      "reproducibility": "提供完整代码仓库链接（GitHub/GitLab），包含README、环境配置（requirements.txt/Dockerfile）、运行脚本和随机种子",
+      "fair_comparison": "使用相同硬件、相同评估协议进行对比，报告统计显著性（p值），提供基线方法的复现细节",
+      "limitations": "诚实讨论方法的局限性和适用场景，包括计算成本、数据依赖、泛化边界等",
+      "theoretical_guarantee": "提供理论分析（收敛性、复杂度、泛化界），或说明纯经验性方法"
+    }
+  },
+  "experiment_types": [
+    "Algorithm_Design",
+    "Benchmark_Evaluation",
+    "Ablation_Study",
+    "Theoretical_Analysis",
+    "System_Implementation",
+    "Human_Evaluation",
+    "Cross_Domain_Generalization"
+  ],
+  "literature_search_examples": {
+    "gap_statement": "当前深度学习模型在[任务]上的局限性...",
+    "innovation_claim": "首次提出[新方法]解决[问题]...",
+    "methodology": "标准训练流程和评估协议...",
+    "baseline_comparison": "[主流方法]在[数据集]上的性能..."
+  },
+  "default_figure_requirements": {
+    "require_n_value": false,
+    "require_scale_bar": false,
+    "require_statistical_test": true
+  },
+  "word_limits": {
+    "abstract": 250,
+    "introduction": [800, 1500],
+    "methods": [2000, 4000],
+    "results": [2500, 5000],
+    "discussion": [1500, 3000],
+    "conclusion": [150, 400]
+  },
+  "writing_style": {
+    "voice": "first_person_plural_active",
+    "passive_ratio_max": 0.20,
+    "preferred_verbs": ["propose", "introduce", "evaluate", "outperform", "leverage", "ablate"],
+    "avoid_verbs": ["utilize", "employ"],
+    "transition_patterns": ["To this end,", "Specifically,", "In contrast,", "Empirically,"],
+    "typical_sentence_length_range": [10, 30],
+    "field_specific_notes": "CS领域偏好主动语态和第一人称复数(We propose/We evaluate)；方法描述简洁直接；实验段重视baseline对比和ablation study；避免生物医药式的被动堆砌"
+  }
+}

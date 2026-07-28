@@ -1,0 +1,252 @@
+{
+  "skill": "review-writing",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "manuscript-dod": {
+      "title": "节末 DoD 自检（落盘前委托独立子代理盲检）",
+      "applies_when": "每个正文章节落盘前；⑫⑬⑭仅 Review type = systematic 时检查，其余类型标 na 并注明",
+      "items": [
+        {
+          "id": "R1",
+          "name": "引文一一对应",
+          "check": "本节所有 [N] 均在 literature_index.json（或 Zotero gid 池）中有对应条目，无孤儿引用、无缺号",
+          "script": "python3 scripts/validate_citations.py --drafts-dir drafts --index-path data/literature_index.json --fail-on-orphan"
+        },
+        {
+          "id": "R2",
+          "name": "citation_guard 已通过",
+          "check": "本节新增引用已过 citation_guard.py（白名单 pubmed-cli / paper-search，禁 websearch / tavily），guard 返回 exit 0；可对照 data/citation_guard_report.json 确认",
+          "script": "python3 scripts/citation_guard.py --offline --index data/literature_index.json"
+        },
+        {
+          "id": "R3",
+          "name": "符合 storyline / 主线",
+          "check": "本节内容对应 outline.md 中该节 RQ/PICO（或 PCC），无跑题、无与主线矛盾段落"
+        },
+        {
+          "id": "R4",
+          "name": "占位符清零",
+          "check": "全文 grep -n 'CITE_PENDING|DATA_PENDING|【待AI|待AI翻译|[TODO]' drafts/section_*.md 返回空",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待AI|待AI翻译|\\[TODO\\]' drafts/section_*.md || echo CLEAN"
+        },
+        {
+          "id": "R5",
+          "name": "去 AI 合规",
+          "check": "硬要求（命中即判不通过）：零禁用词/AI 套话 + 无生僻词/造词 + 无 scare quotes + 无解释性冒号 + 无 trailing -ing 从句 + 同概念同段一致称谓。软建议（只提示、不作为 R5 判不通过依据）：单句 ≤30 词、被动 ≤30%、装饰性破折号——这些在 style_checker 里已降级为 info、不阻断、不扣分，命中时提醒作者按节奏酌情调整即可（见 references/writing_guidelines.md §4）。先跑 style_checker.py 量化兜底：high/medium 项须改掉，info 软项择优即可。",
+          "script": "python3 scripts/style_checker.py --file <本节文件> --passive-max 0.30"
+        },
+        {
+          "id": "R6",
+          "name": "字数达标",
+          "check": "关键节 >500 words / >1500 chars；支撑节 >200 words / >600 chars",
+          "script": "python3 scripts/word_counter.py --file <本节文件> --language en"
+        },
+        {
+          "id": "R7",
+          "name": "综合非罗列",
+          "check": "段落为综合论证，无\"A did X, B did Y\"式逐篇列举"
+        },
+        {
+          "id": "R8",
+          "name": "矛盾仲裁",
+          "check": "若本节文献存在矛盾发现，已分析为何矛盾并给出立场或调和，不骑墙"
+        },
+        {
+          "id": "R9",
+          "name": "引用类型匹配",
+          "check": "机制/实验声明 → 原著（不得以综述代替）；疗效声明 → 临床试验；新兴声明 → 预印本（标 [Preprint]）"
+        },
+        {
+          "id": "R10",
+          "name": "检索日志已记录",
+          "check": "本节检索日志条目已写入 data/search_log.json（state_manager.py append-search-log 已执行）；子代理核验：python3 -c \"import json,pathlib; log=json.loads(pathlib.Path('data/search_log.json').read_text(encoding='utf-8')); print('entries:', len(log))\" 确认条目数非 0"
+        },
+        {
+          "id": "R11",
+          "name": "概念框架图一致",
+          "check": "本节引用了 figures/figure_index.md 中的框架图（Figure 0），内容与图的 Node Mapping 不冲突"
+        },
+        {
+          "id": "R12",
+          "name": "PRISMA 计数自洽",
+          "check": "[仅 systematic] 本节新筛文献已更新 PRISMA 计数（state_manager.py set-screening-counts），identified / deduplicated / screened / excluded / included 数字一致，排除原因表已补",
+          "script": "python3 scripts/state_manager.py get-screening-counts"
+        },
+        {
+          "id": "R13",
+          "name": "RoB 已评级",
+          "check": "[仅 systematic] 本节涉及的 RCT 已做 RoB 2，观察性研究已做 ROBINS-I，逐研究 RoB 表已更新（见 references/systematic_review_methodology.md）"
+        },
+        {
+          "id": "R14",
+          "name": "GRADE 已分级",
+          "check": "[仅 systematic，Phase 4 前完成即可] 若本节有临床结局声明，GRADE 分级（high/moderate/low/very low + 升降级因素）已登记"
+        },
+        {
+          "id": "R15",
+          "name": "结构完整性",
+          "check": "本节包含其文体/storyline 规定的全部结构组件，无缺段/空标题/未填骨架；综述各节符合规定结构（引言漏斗、主体主题段有论点-证据-小结、结论有展望）。子代理对照 outline.md 对应 section 逐组件核对"
+        },
+        {
+          "id": "R16",
+          "name": "覆盖全面性",
+          "check": "盲检：本节对其主题的覆盖是否全面，有无明显遗漏该子领域的主流学派、关键机制或重要分支，是否过度偏重某一视角而忽略其它。覆盖明显失衡或漏掉公认重要内容=fail，指出缺失的具体方向为证。"
+        },
+        {
+          "id": "R17",
+          "name": "关键文献遗漏与引用偏倚",
+          "check": "盲检：本节论点所依赖的奠基性/里程碑/反方文献有无明显遗漏；是否存在只引支持性证据、回避矛盾或阴性结果、过度引用某团队的引用偏倚。发现关键遗漏或选择性引用=fail，指出缺哪类文献或偏在何处为证。"
+        },
+        {
+          "id": "R18",
+          "name": "论证 arc 连贯",
+          "check": "盲检：本节是否有清晰的论证主线（arc）——从问题到证据到判断层层推进，而非主题段落松散并列；各小节之间过渡是否服务于一个总体论点。论证散乱、无递进、读完不知作者立场=fail，指出断裂处为证。"
+        },
+        {
+          "id": "R19",
+          "name": "学术合规披露",
+          "check": "盲检：COI、Funding、数据可得性、AI 使用是否按目标刊要求披露；如涉及原始数据再分析是否注明来源。应披露而缺失=fail，列出缺失项为证。"
+        },
+        {
+          "id": "R20",
+          "name": "常识合理性",
+          "check": "盲检子代理顺带扫正文是否有明显常识/事实硬伤(单位量级离谱、生理/机制常识错误、跨文献综合时的事实拼接错误、前后数值逻辑矛盾)；软项仅报告不阻断、不改内容，与引用/文献核验区分",
+          "severity": "soft"
+        },
+        {
+          "id": "R21",
+          "name": "语法拼写与字符级格式",
+          "check": "机器门禁：高置信类别零容忍——misspelling（常见英文错拼，如 occured/seperate）、chinese_punct（中文标点漏入英文，如 ，；：（）。）、subsup_bare（应上下标却裸写，如 H2O/CO2/IC50，CJK 安全边界）命中任一即 fail。其余类别（英美拼写混用 bre_ame_mixed、单位格式 unit_format、术语写法不一致 term_variant、数字千分位不一致、Methods 时态、学术错拼/中文错别字/中文句内半角等）仅报告不阻断，由作者择一统一。脚本扫 drafts/ 下各节 section_*.md，自动跳过 Full_Manuscript/Draft_Round* 合并衍生物。",
+          "script": "python3 scripts/proofread.py --manuscript-dir drafts --report proofread_report.json --fail-on misspelling,chinese_punct,subsup_bare"
+        },
+        {
+          "id": "R22",
+          "name": "拉丁短语斜体软提醒",
+          "check": "proofread.py 的 latin_italic_missing 软提醒：in vitro/in vivo/ex vivo/in situ/de novo/post hoc/per se 等公认须斜体的拉丁短语，若正文裸写（未被 *...* 斜体标记包裹）则报告。仅提示，不阻断、不进 --fail-on、不扣分，由人工确认是否补斜体。",
+          "severity": "soft"
+        },
+        {
+          "id": "R23",
+          "name": "新颖性与贡献",
+          "check": "盲检：本节是否提出至少一个新框架/假说/分类/视角（而非仅复述既有综述），并有明确的 gap→contribution 陈述、说明本节相较既有工作推进了什么。只堆砌已有工作、无新贡献陈述=fail，指出缺失处为证。（原逐节自检 D1 轴并入此处，与 D2→R8 / D3→R7+R9 / D4→R18 / D5→R5 一起由本 gate 单次盲检承接，不再于写作循环 Step 6 重复委派。）"
+        },
+        {
+          "id": "R24",
+          "name": "每小节文献密度",
+          "check": "按标题层级的文献矩阵密度。硬门禁（低于地板判不通过）：三级叶子节(section_id 如 2.1)本节文献矩阵 ≥6 条、四级叶子节(如 2.1.1)≥3 条、容器父节(大纲里还有更深子节)≥1；由 prewrite_gate.py check3 在开写前硬拦，exit≠0 禁写。软建议（只提示不判不通过）：三级 ≥10、四级 ≥5，未达进 warnings 提醒补足文献覆盖度，不阻断。level = section_id 段数+1。",
+          "script": "python3 scripts/prewrite_gate.py --section X.X --root ."
+        }
+      ]
+    },
+    "split_boundary": {
+      "title": "拆分分节结构核验（功能② Layer 2 · LLM 反向核验）",
+      "applies_when": "每次拆分后必跑（split_audit exit 0 之后），不论有标题/无标题路。输入 = tmp/split_verify_ctx.md（标题树 + 各 atom 锚定行，不含全文正文）。",
+      "items": [
+        {
+          "id": "SB1",
+          "name": "每个原子文件对应正确的最细一级标题、边界无越界",
+          "check": "据标题树+各 atom 锚定行逐个核：该 atom 是否正好对应它标称的那一节？边界是否切在对的最细标题上（无把正文误当标题、无漏标题、无跨节串入）？逐条给判定+证据，evidence 必须用 verdict 标签开头：[OK]→verdict pass（前进）；[WRONG]→verdict fail（回退重切，有标题路先修 extract_headings 真值）；[UNCERTAIN]→verdict fail（交用户裁决，勿自动动）。uncertain 映射 fail 而非 na（na 会被放过）。不逐字读全文正文（正文逐字级由 split_audit 兜）。"
+        }
+      ]
+    },
+    "research-gap-dod": {
+      "title": "Phase 1.5 研究空白识别 DoD（落盘前委托独立子代理盲检）",
+      "applies_when": "Phase 1.5 产出 data/research_gap.json 后、提交用户确认选题方向前",
+      "items": [
+        {
+          "id": "G1",
+          "name": "每 gap 有 verified 文献支撑",
+          "check": "research_gap.json 中每个 gap 至少关联 1 篇支撑文献 [n]，且该文献在 literature_index.json 中 verified=true（已过 citation_guard）。无 verified 支撑的 gap 一律 fail",
+          "script": "python3 -c \"import json,pathlib; gaps=json.loads(pathlib.Path('data/research_gap.json').read_text(encoding='utf-8')).get('gaps',[]); idx={e['global_id']:e for e in json.loads(pathlib.Path('data/literature_index.json').read_text(encoding='utf-8'))}; bad=[g for g in gaps if not g.get('support_refs') or not all(idx.get(r,{}).get('verified') for r in g.get('support_refs',[]))]; print('UNSUPPORTED:', [g.get('id') for g in bad]) if bad else print('ALL_SUPPORTED')\""
+        },
+        {
+          "id": "G2",
+          "name": "与 literature_index 一致",
+          "check": "research_gap.json 引用的所有 [n]（覆盖 gaps/hotspots/candidate_topics 的 support_refs 与 controversies 的 side_a_refs/side_b_refs）均存在于 literature_index.json，无孤儿编号、无凭空捏造的文献条目",
+          "script": "python3 -c \"import json,pathlib; gaps=json.loads(pathlib.Path('data/research_gap.json').read_text(encoding='utf-8')); ids={e['global_id'] for e in json.loads(pathlib.Path('data/literature_index.json').read_text(encoding='utf-8'))}; used={r for g in gaps.get('gaps',[]) for r in (g.get('support_refs') or [])} | {r for h in gaps.get('hotspots',[]) for r in (h.get('support_refs') or [])} | {r for c in gaps.get('candidate_topics',[]) for r in (c.get('support_refs') or [])} | {r for v in gaps.get('controversies',[]) for r in (v.get('side_a_refs') or []) + (v.get('side_b_refs') or [])}; orphans=used-ids; print('ORPHANS:', sorted(orphans)) if orphans else print('NO_ORPHANS')\""
+        },
+        {
+          "id": "G3",
+          "name": "gap 从真实文献证据推出（禁脑补）",
+          "check": "每个 gap 的描述可追溯到所关联文献的实际内容（摘要/结论），不得出现文献未提及的论断；子代理对照支撑文献摘要逐条核对，凡无证据链的 gap 判 fail"
+        },
+        {
+          "id": "G4",
+          "name": "含 novelty_risk 比较",
+          "check": "research_gap.json 含 novelty_risk 字段，对候选选题与既有综述/已发表工作做了重叠度比较，标注 high/medium/low 风险及理由，非空",
+          "script": "python3 -c \"import json,pathlib; d=json.loads(pathlib.Path('data/research_gap.json').read_text(encoding='utf-8')); nr=d.get('novelty_risk'); print('OK') if nr else print('MISSING_NOVELTY_RISK')\""
+        },
+        {
+          "id": "G5",
+          "name": "占位符清零",
+          "check": "research_gap.json 无 CITE_PENDING / DATA_PENDING / TODO / 待AI 等占位符",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待AI|待AI翻译|\\[TODO\\]|TBD' data/research_gap.json || echo CLEAN"
+        }
+      ]
+    },
+    "benchmark-reviews-dod": {
+      "title": "Phase 1.6 对标综述库 + 框架指南 DoD（落盘前委托独立子代理盲检）",
+      "applies_when": "Phase 1.6 产出 data/benchmark_reviews.json + data/framing_guide.md 后、进入 Phase 3 搭框架前",
+      "items": [
+        {
+          "id": "B1",
+          "name": "≥5 篇 verified 对标综述",
+          "check": "benchmark_reviews.json 至少 5 篇，每篇为真实存在的高水平综述，已走 citation_guard 验证（verified=true 或与 literature_index.json verified 条目一致），无编造",
+          "script": "python3 -c \"import json,pathlib; b=json.loads(pathlib.Path('data/benchmark_reviews.json').read_text(encoding='utf-8')); n=len(b); ver=[x for x in b if x.get('verified')]; print(f'TOTAL={n} VERIFIED={len(ver)}'); exit(0 if len(ver)>=5 else 1)\""
+        },
+        {
+          "id": "B2",
+          "name": "每篇含框架大纲",
+          "check": "benchmark_reviews.json 每篇含 title/journal/year/framework_outline/highlights 字段，framework_outline 为该综述的章节框架（非空、可读）",
+          "script": "python3 -c \"import json,pathlib; b=json.loads(pathlib.Path('data/benchmark_reviews.json').read_text(encoding='utf-8')); bad=[x.get('title','?') for x in b if not x.get('framework_outline') or not x.get('journal') or not x.get('year')]; print('INCOMPLETE:', bad) if bad else print('ALL_COMPLETE')\""
+        },
+        {
+          "id": "B3",
+          "name": "framing_guide 含可操作建议",
+          "check": "framing_guide.md 提炼了可复用的章节框架、论证思路、图表与正文关系、引言-主体-展望组织，给出对本综述可操作的具体建议（非泛泛而谈），非空",
+          "script": "python3 -c \"import pathlib; t=pathlib.Path('data/framing_guide.md').read_text(encoding='utf-8'); print('OK' if len(t.strip())>300 else 'TOO_THIN')\""
+        },
+        {
+          "id": "B4",
+          "name": "占位符清零",
+          "check": "benchmark_reviews.json 与 framing_guide.md 无 CITE_PENDING / DATA_PENDING / TODO / 待AI 等占位符",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待AI|待AI翻译|\\[TODO\\]|TBD' data/benchmark_reviews.json data/framing_guide.md || echo CLEAN"
+        }
+      ]
+    },
+    "submission-pack-dod": {
+      "title": "Phase 5 投稿包 DoD（落盘前委托独立子代理盲检）",
+      "applies_when": "Phase 5 生成投稿包后、向用户交付前；对齐 general-sci-writing submission-guide / compliance-gate（综述版细则见 references/submission_checklist.md）",
+      "items": [
+        {
+          "id": "S1",
+          "name": "强制件齐全",
+          "check": "Cover Letter + Title Page + CRediT (Author Contributions) + COI + Keywords 五件必须全部生成且非空（强制级，见 references/submission_checklist.md 强制/询问分级）",
+          "script": "ls -la exports/cover_letter.md exports/title_page.md exports/author_contributions.md exports/coi_statement.md exports/keywords.md 2>&1"
+        },
+        {
+          "id": "S2",
+          "name": "COI / Funding / DAS 非空",
+          "check": "COI、Funding、Data Availability 三段均非空：无利益冲突写 'The authors declare no competing interests.'；无资助写 'This work received no specific external funding.'；综述无原始数据写明 'Data sharing not applicable — no datasets were generated.' 不留白"
+        },
+        {
+          "id": "S3",
+          "name": "Keywords 3-6 且不与标题雷同",
+          "check": "Keywords 数量 3-6 个，且与综述标题用词不简单重复（不照抄标题词），覆盖主题/方法/应用维度",
+          "script": "python3 -c \"import pathlib,re; t=pathlib.Path('exports/keywords.md').read_text(encoding='utf-8'); kws=[k.strip() for k in re.split(r'[\\n,;]', t) if k.strip() and not k.strip().startswith('#')]; print(f'COUNT={len(kws)}'); exit(0 if 3<=len(kws)<=6 else 1)\""
+        },
+        {
+          "id": "S4",
+          "name": "通讯作者一致",
+          "check": "Title Page 标注的通讯作者（含邮箱）与 Cover Letter 署名通讯作者一致；ORCID 如提供则格式合法（0000-0000-0000-0000）"
+        },
+        {
+          "id": "S5",
+          "name": "无占位符 / 无伪造",
+          "check": "投稿包所有文件无 {{VAR}} / TODO / 待填 残留；未提供的询问级信息（ORCID/致谢对象/suggested reviewers）按 submission_checklist 分级处理（询问用户或显式标 N/A），严禁伪造 reviewer 邮箱或编造单位",
+          "script": "grep -rnE '\\{\\{|CITE_PENDING|【待AI|\\[TODO\\]|待填' exports/cover_letter.md exports/title_page.md exports/author_contributions.md exports/coi_statement.md exports/keywords.md || echo CLEAN"
+        }
+      ]
+    }
+  }
+}

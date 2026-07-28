@@ -1,0 +1,222 @@
+{
+  "skill": "general-sci-writing",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件;SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "section-dod": {
+      "title": "节末 DoD 自检(落盘前委托独立子代理盲检)",
+      "applies_when": "每个正文章节落盘前;G7-G11 仅 Results/Discussion 节必检,其余节标 na 并注明",
+      "items": [
+        {
+          "id": "G1",
+          "name": "引文对应",
+          "check": "[n] 与节末 Vancouver 列表一一对应、编号连续、无孤儿引用",
+          "script": "python scripts/state_manager.py sync-literature --dry-run --strict-references"
+        },
+        {
+          "id": "G2",
+          "name": "citation_guard",
+          "check": "本节新增引用已过核验 ok=true",
+          "script": "python scripts/citation_guard.py --offline --index literature_index.json"
+        },
+        {
+          "id": "G3",
+          "name": "主线对齐",
+          "check": "本节内容符合 storyline.json 对应 section 的核心论点,无跑题或自相矛盾"
+        },
+        {
+          "id": "G4",
+          "name": "占位清零",
+          "check": "本节文件内无 CITE_PENDING / DATA_PENDING / REF_DROPPED 残留",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|REF_DROPPED' <本节文件> || echo CLEAN"
+        },
+        {
+          "id": "G5",
+          "name": "去AI",
+          "check": "无 trailing_ing_clause / forbidden_ai_phrases / decorative_em_dash / scare_quotes / explanatory_colon;英文单句≤30词;被动比例按文体(原创50-70%)",
+          "script": "python scripts/style_checker.py --file <本节文件> --threshold 70"
+        },
+        {
+          "id": "G6",
+          "name": "字数达标",
+          "check": "本节字数在 storyline 预估区间内,且全文累计未超期刊上限"
+        },
+        {
+          "id": "G7",
+          "name": "figure data_status",
+          "check": "本节引用的所有 figure 在 figures_database.json 中 data_status != pending"
+        },
+        {
+          "id": "G8",
+          "name": "无像素定量",
+          "check": "对图的描述只依据图面已印出的数字/标签,无从像素推断的定量值"
+        },
+        {
+          "id": "G9",
+          "name": "实验逻辑批判",
+          "check": "Part 1 实验逻辑批判 Verdict 为 Reliable(非 Flaw Detected)"
+        },
+        {
+          "id": "G10",
+          "name": "节末Vancouver",
+          "check": "本节文件末尾附有该节所引文献的 Vancouver 格式列表"
+        },
+        {
+          "id": "G11",
+          "name": "未超期刊字数",
+          "check": "正文章节累计字数 ≤ project_config.word_limits 的对应上限"
+        },
+        {
+          "id": "G12",
+          "name": "只改原子化源",
+          "check": "本次写入目标为 manuscripts/ 下原子化源文件,非 Full_Manuscript.md / .docx"
+        },
+        {
+          "id": "G13",
+          "name": "结构完整性",
+          "check": "本节包含其文体/storyline 规定的全部结构组件,无缺段/空标题/未填骨架;且符合该节类型规定结构(Introduction 漏斗式;Discussion 主要发现→文献对比+机制→Limitations→Outlook 四段;Methods 必备子节)。子代理对照 storyline.json 对应 section 的结构要求逐组件核对"
+        },
+        {
+          "id": "G14",
+          "name": "figure_analysis 加载",
+          "check": "本节涉及的 figure 在 figures_database.json 中均有对应 figure_analysis/figure_{N}.md 文件、非空、无 ❓待确认 残留",
+          "script": "python scripts/figure_analysis_gate.py --section <本节section_id> --root ."
+        },
+        {
+          "id": "G15",
+          "name": "缩略词一致性",
+          "check": "全文无重复定义/未定义就用/Title 出现缩写",
+          "script": "python scripts/abbreviation_consistency.py --root ."
+        },
+        {
+          "id": "G16",
+          "name": "检查点已落",
+          "check": "本节已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随节递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python scripts/git_checkpoint.py status ."
+        },
+        {
+          "id": "G17",
+          "name": "科学事实正确",
+          "check": "盲检:本节涉及的科学事实、定律、公式、单位、常识性数值是否正确,有无与领域公认知识冲突的硬错误。发现任一明确科学错误=fail,需列出错误原文与正确表述作为证据。"
+        },
+        {
+          "id": "G18",
+          "name": "统计方法学",
+          "check": "盲检(仅含定量结果的节):统计检验是否与数据类型/设计匹配;是否报告效应量与95%CI而非仅p值;多重比较是否校正;样本量/重复是否交代;观察性数据是否被错误表述为因果;异常值剔除有无说明;关键结果可重复性是否可信。任一明显缺陷=fail,需引节内原文为证。"
+        },
+        {
+          "id": "G19",
+          "name": "论证逻辑闭环",
+          "check": "盲检:假设-方法-结果-结论是否闭环;结论是否被本节数据支撑而非过度声称;是否排除了竞争性解释;局限性是否如实披露(Discussion 节)。出现结论超出数据、忽略明显替代解释、或刻意隐瞒局限=fail,需列证据。"
+        },
+        {
+          "id": "G20",
+          "name": "文献完整性与引用偏倚",
+          "check": "盲检:本节论点所依赖的关键奠基性/反方文献有无明显遗漏;是否存在只引支持性证据、回避矛盾或阴性结果的引用偏倚;是否过度自引。发现关键遗漏或明显选择性引用=fail,指出缺哪类文献或偏在何处作为证据。"
+        },
+        {
+          "id": "G21",
+          "name": "图表质量与完整性",
+          "check": "盲检(引用图表的节):坐标轴是否有单位、误差棒是否定义、图例是否完整、是否自解释、配色是否色盲友好、分辨率是否达标;有无拼接/复用/异常平滑等疑似图像造假迹象。发现任一缺陷或可疑造假=fail,需指明具体图号与问题。"
+        },
+        {
+          "id": "G22",
+          "name": "学术合规披露",
+          "check": "盲检:涉及人/动物研究是否有伦理批准与知情同意陈述;利益冲突(COI)、作者贡献、基金、数据可得性、AI使用是否按目标刊要求披露。应披露而缺失=fail,列出缺失项作为证据。"
+        },
+        {
+          "id": "G23",
+          "name": "常识合理性",
+          "check": "盲检子代理顺带扫本节是否有明显常识/事实硬伤(单位量级离谱、生理/机制常识错误、前后数值逻辑矛盾)被写入；软项仅报告不阻断、不改内容，与 citation_guard 文献核验、结构完整性区分",
+          "severity": "soft"
+        },
+        {
+          "id": "G24",
+          "name": "语法拼写与字符级格式",
+          "check": "proofread.py 扫描本节,高置信类别(misspelling/chinese_punct/subsup_bare)零容忍;英美混用/术语不一致等低置信项仅报告",
+          "script": "python scripts/proofread.py --manuscript-dir <本节所在目录> --report proofread_report.json --fail-on misspelling,chinese_punct,subsup_bare"
+        },
+        {
+          "id": "G25",
+          "name": "拉丁短语斜体软提醒",
+          "check": "proofread.py 的 latin_italic_missing 软提醒:in vitro/in vivo/ex vivo/in situ/de novo/post hoc/per se 等公认须斜体的拉丁短语,若正文裸写(未被 *...* 斜体标记包裹)则报告。仅提示,不阻断、不进 --fail-on、不扣分,由人工确认是否补斜体",
+          "severity": "soft"
+        },
+        {
+          "id": "G26",
+          "name": "承重声明引文类型",
+          "check": "承重机制/实验声明(claim_kind=mechanism/efficacy)的支撑 ref 应为 original_research,不得以 review/systematic_review 代替(见 references/citation-policy.md「承重声明的引文类型纪律」);疗效声明可挂 meta_analysis/clinical_trial;preprint 作承重须正文标 [Preprint]。字段 unknown/缺 → 软提醒不硬拦",
+          "script": "python scripts/citation_claim_check.py --root <项目根>"
+        }
+      ]
+    },
+    "journal-study-dod": {
+      "title": "目标期刊风格深度学习 DoD(落盘前委托独立子代理盲检)",
+      "applies_when": "Phase 8.6 journal_study/target_journal_study.json 落盘前",
+      "items": [
+        {
+          "id": "JS1",
+          "name": "代表作数量",
+          "check": "recent_representative_papers ≥5 篇且均为近 5 年"
+        },
+        {
+          "id": "JS2",
+          "name": "真实性核验",
+          "check": "每篇过 citation_guard --require-mcp 且 verified=true、带 DOI/PMID",
+          "script": "python scripts/citation_guard.py --index journal_study/journal_study_index.json --mcp-cache mcp_literature_cache.json --require-mcp --report journal_study/journal_study_guard.json"
+        },
+        {
+          "id": "JS3",
+          "name": "四维特征非空",
+          "check": "abstract_structure_features / writing_style_features / figure_conventions / format_preferences 四字段均非空"
+        },
+        {
+          "id": "JS4",
+          "name": "可操作建议",
+          "check": "actionable_recommendations ≥5 条,每条 maps_to ∈ {abstract,正文,图表}"
+        },
+        {
+          "id": "JS5",
+          "name": "目标刊一致",
+          "check": "target_journal 与 storyline.json 的目标刊一致"
+        },
+        {
+          "id": "JS6",
+          "name": "防抄袭",
+          "check": "报告只含风格/结构特征,无目标文原句或具体科学论断/数据"
+        },
+        {
+          "id": "JS7",
+          "name": "占位清零",
+          "check": "无 {{}}/TBD/空必填字段"
+        }
+      ]
+    },
+    "submission-pack-dod": {
+      "title": "投稿包 DoD(Phase 11 产出后核查,Phase 10.5 含阻断)",
+      "applies_when": "Phase 11 /submission-pack 产出后",
+      "items": [
+        {
+          "id": "SP1",
+          "name": "无占位残留",
+          "check": "各模板无 {{VAR}} 残留"
+        },
+        {
+          "id": "SP2",
+          "name": "Keywords",
+          "check": "submission/keywords.txt 存在,含 3-6 个投稿关键词且数量符合目标刊,与 title/abstract 主题一致、不与标题词完全重复,生命科学优先 MeSH",
+          "script": "test -s submission/keywords.txt"
+        },
+        {
+          "id": "SP3",
+          "name": "Source Data 对应",
+          "check": "Source Data 数值与图对应,sheet 命名与 figures_database figure_id 一致"
+        },
+        {
+          "id": "SP4",
+          "name": "Funding/Acks 不空",
+          "check": "Funding 无则写 no specific external funding,Acks 各类无则 N/A,均不留空"
+        }
+      ]
+    }
+  }
+}

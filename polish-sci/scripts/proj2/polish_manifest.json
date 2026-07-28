@@ -1,0 +1,74 @@
+{
+  "intensity": "standard",
+  "rules": {
+    "note": "润色规则细则。被动语态目标为区间(非硬卡),按 section_type 取值。polish_units.py 读此文件;缺失则用脚本内 DEFAULT_RULES。",
+    "passive_target": {
+      "methods": [
+        0.3,
+        0.7
+      ],
+      "results": [
+        0.2,
+        0.55
+      ],
+      "abstract": [
+        0.0,
+        0.4
+      ],
+      "intro": [
+        0.0,
+        0.3
+      ],
+      "discussion": [
+        0.0,
+        0.3
+      ],
+      "other": [
+        0.0,
+        0.4
+      ]
+    },
+    "max_sentence_words_en": 30,
+    "max_sentence_chars_zh": 50,
+    "certainty_gradient": {
+      "note": "不确定性梯度:润色只可平移或下调,绝不上调。脚本 detect_certainty_upgrade 拦截 hedge->strong 的升级。",
+      "hedge": [
+        "may",
+        "might",
+        "could",
+        "suggest",
+        "indicate",
+        "appear",
+        "seem",
+        "可能",
+        "提示",
+        "似乎"
+      ],
+      "moderate": [
+        "is associated with",
+        "is consistent with",
+        "支持",
+        "符合"
+      ],
+      "strong": [
+        "prove",
+        "demonstrate",
+        "establish",
+        "confirm",
+        "证明",
+        "确证",
+        "表明"
+      ]
+    },
+    "red_lines": {
+      "note": "一字不改的红线集合。脚本对数值/引用做集合比对;基因/蛋白/试剂名靠 meaning_changed 守卫 + 人工。",
+      "never_touch": [
+        "citation markers [n] and DOI strings",
+        "numeric values, statistics, p-values, CI, n=N, percentages, units",
+        "gene / protein / reagent / cell-line / species names",
+        "any token that would change the scientific claim"
+      ]
+    }
+  },
+  "tasks": []
+}

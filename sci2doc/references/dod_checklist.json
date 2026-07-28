@@ -1,0 +1,242 @@
+{
+  "skill": "sci2doc",
+  "note": "DoD 自检清单机器可读真源。delegate_review.py pack/verify 读此文件；SKILL.md 散文与各 item 逐项对应。改清单先改这里。",
+  "gates": {
+    "section-dod": {
+      "title": "节末 DoD 自检（落盘前委托独立子代理盲检）",
+      "applies_when": "每个正文小节落盘前；S1-S5 为 sci2doc 特有项，不含此场景的节标 na 并注明",
+      "items": [
+        {
+          "id": "G1",
+          "name": "引文编号连续",
+          "check": "引文 [n] 与参考列表一一对应，无孤儿编号、无缺号",
+          "script": "python scripts/atomic_md_workflow.py validate --chapter N"
+        },
+        {
+          "id": "G2",
+          "name": "citation_guard",
+          "check": "本节新增引用已过 citation_guard，报告 ok=true",
+          "script": "python scripts/citation_guard.py --offline --index <项目根>/literature_index.json"
+        },
+        {
+          "id": "G3",
+          "name": "主线对齐",
+          "check": "本节内容不跑题、不与 outline.core_argument 矛盾"
+        },
+        {
+          "id": "G4",
+          "name": "占位清零",
+          "check": "文中无 CITE_PENDING / DATA_PENDING / 【待AI】 / 【待翻译】 等未填占位符",
+          "script": "grep -nE 'CITE_PENDING|DATA_PENDING|【待AI】|【待翻译】' <本节文件> || echo CLEAN"
+        },
+        {
+          "id": "G5",
+          "name": "去AI通过",
+          "check": "check_quality.py check_writing_style() 硬禁清零（AI禁词、破折号/scare quotes/解释性冒号）；中文句长/句式节奏为软提示（cn_sentence_too_long=warning、cn_sentence_monotone=info），不阻断。节末 md 需先合并为 docx 后可跑脚本；无 docx 时人工逐条目视核查"
+        },
+        {
+          "id": "G6",
+          "name": "字数达标（软目标）",
+          "check": "本节字数贡献接近 chapter_targets 分配比例（软目标，不足只提示不阻断；综述/绪论已计入正文）。宁可少写也不得编数据凑字",
+          "script": "python scripts/count_words.py <本节文件>"
+        },
+        {
+          "id": "S1",
+          "name": "实验-方法映射完整",
+          "check": "[实验] EXP-N-M 与 [对应实验] EXP-N-M 成对出现，无悬空标记",
+          "script": "grep -nE '\\[实验\\]|\\[对应实验\\]' <本节文件>"
+        },
+        {
+          "id": "S2",
+          "name": "一实验≥一图表",
+          "check": "每个 [实验] EXP-N-M 对应至少一个 [图] 图N-X 或 [表] 表N-X"
+        },
+        {
+          "id": "S3",
+          "name": "三线表格式",
+          "check": "本节所有数据表使用 Markdown 管道语法，无散文替代",
+          "script": "python scripts/check_quality.py <节合并.docx>"
+        },
+        {
+          "id": "S4",
+          "name": "缩略语首展",
+          "check": "本节新引入缩略语均已按 中文全称（English Full Name, ABBR）格式首展，已过 abbreviation_registry.py process",
+          "script": "python scripts/abbreviation_registry.py validate"
+        },
+        {
+          "id": "S5",
+          "name": "自我抄袭标注",
+          "check": "本节复用已发表 SCI 内容处已标注来源文献 [N] 及声明"
+        },
+        {
+          "id": "S6",
+          "name": "结构完整性",
+          "check": "本节含其规定的全部结构组件，无缺段/空标题/未填骨架，符合该节在中文博论章节结构中的定位。子代理对照 outline 逐组件核对"
+        },
+        {
+          "id": "S10",
+          "name": "数据溯源硬门",
+          "check": "含实验数值的段落均标 [数据来源] materials/<档>#<字段>，且指向真实 materials/*.md 素材档的存在字段。fail-closed：含数值却无有效标记=编数据嫌疑，硬拦",
+          "script": "python scripts/data_trace_gate.py --section N.M --root <项目根>",
+          "severity": "hard"
+        },
+        {
+          "id": "S11",
+          "name": "承重引文核证",
+          "check": "本节承重论点句↔引文已建 claim_evidence.json 并过 citation_claim_check，承重句 verdict 非 contradict/unknown 且已人工确认。见 SKILL.md § Citation Claim Check",
+          "script": "python <_shared>/citation_claim_check.py --root <项目根> --evidence <项目根>/claim_evidence.json"
+        },
+        {
+          "id": "S-GIT",
+          "name": "检查点已落",
+          "check": "已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随节/章递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        },
+        {
+          "id": "C1",
+          "name": "科学事实正确",
+          "check": "盲检：本节科学事实、定律、公式、单位、机制表述是否正确，转写自 SCI 原文时有无引入硬错误或曲解原意。发现任一明确科学错误=fail，列出本节原文与正确表述为证。"
+        },
+        {
+          "id": "I1",
+          "name": "论证逻辑闭环",
+          "check": "盲检：本节假设-方法-结果-结论是否闭环，结论是否被本节数据支撑、无过度声称，是否排除竞争性解释、披露局限。结论超出数据或逻辑断裂=fail，需引原文为证。"
+        },
+        {
+          "id": "O3",
+          "name": "工作量与原创性",
+          "check": "盲检：本节呈现的工作量与原创贡献是否达学位论文层级，是否清楚区分本人工作与他人/已有成果，有无把综述性内容冒充原创结果。原创性不足或贡献边界不清=fail，指出具体段落为证。"
+        },
+        {
+          "id": "O4",
+          "name": "中英摘要对应",
+          "check": "盲检（摘要节）：中文摘要与英文摘要在研究目的、方法、关键结果数值、结论上是否一一对应、无信息增删或数值矛盾。出现不一致=fail，列出对应差异为证。"
+        },
+        {
+          "id": "M3",
+          "name": "伦理合规披露",
+          "check": "盲检：涉及人/动物/临床数据的研究是否有伦理批准与知情同意陈述。应披露而缺失=fail，指出缺失项为证。"
+        }
+      ]
+    },
+    "chapter-dod": {
+      "title": "章末 DoD 自检（提交下一步前委托独立子代理盲检）",
+      "applies_when": "每章合并完成、章后 self-check 后，进入 Step 7 finalize 前",
+      "items": [
+        {
+          "id": "G1",
+          "name": "全章引文编号连续",
+          "check": "全章引文编号连续，无孤儿、无缺号",
+          "script": "python scripts/atomic_md_workflow.py validate --chapter N"
+        },
+        {
+          "id": "G2",
+          "name": "全章citation_guard",
+          "check": "本章所有引用已过 citation_guard，报告 ok=true",
+          "script": "python scripts/citation_guard.py --offline --index <项目根>/literature_index.json"
+        },
+        {
+          "id": "G3",
+          "name": "全章主线对齐",
+          "check": "全章内容符合 outline 本章 core_argument，无跑题"
+        },
+        {
+          "id": "G4",
+          "name": "全章占位清零",
+          "check": "全章无 CITE_PENDING / DATA_PENDING / 【待AI】 等占位符",
+          "script": "grep -rn 'CITE_PENDING|DATA_PENDING|【待AI】|【待翻译】' <章节目录> || echo CLEAN"
+        },
+        {
+          "id": "G5",
+          "name": "全章去AI通过",
+          "check": "check_quality.py check_writing_style() 硬禁清零（AI禁词、三项标点规范）；中文句长/句式为软提示不阻断（C降软）",
+          "script": "python scripts/check_quality.py <章节合并.docx>"
+        },
+        {
+          "id": "G6",
+          "name": "全章字数达标（软目标）",
+          "check": "count_words.py 输出接近 chapter_targets[N]（软目标，不足只提示不阻断；综述/绪论已计入正文，A③）。不得编数据凑字",
+          "script": "python scripts/count_words.py <章节目录>"
+        },
+        {
+          "id": "S1",
+          "name": "全章实验映射完整",
+          "check": "全章实验-方法映射完整，validate-experiment-map 通过",
+          "script": "python scripts/atomic_md_workflow.py validate-experiment-map --chapter N"
+        },
+        {
+          "id": "S2",
+          "name": "全章每实验≥图表",
+          "check": "全章每个实验对应至少一个图表，figure_registry validate 通过",
+          "script": "python scripts/figure_registry.py validate"
+        },
+        {
+          "id": "S3",
+          "name": "全章三线表格式",
+          "check": "全章所有三线表格式校验通过，check_quality 三线表类别零 error",
+          "script": "python scripts/check_quality.py <章节合并.docx>"
+        },
+        {
+          "id": "S4",
+          "name": "全章缩略语注册",
+          "check": "缩略语注册表已更新，本章无重复首展、无遗漏",
+          "script": "python scripts/abbreviation_registry.py validate"
+        },
+        {
+          "id": "S5",
+          "name": "GB/T 7714著录格式",
+          "check": "本章新引文已过 reference_renderer.py validate_all，零偏差",
+          "script": "python scripts/reference_renderer.py --index <项目根>/literature_index.json --validate-only"
+        },
+        {
+          "id": "S6",
+          "name": "全章自我抄袭标注",
+          "check": "本章所有复用 SCI 来源处均有 [N] 引用 + 声明"
+        },
+        {
+          "id": "S7",
+          "name": "章后self-check通过",
+          "check": "atomic_md_workflow.py self-check 输出 ok=true，无 error 级问题",
+          "script": "python scripts/atomic_md_workflow.py self-check --target <章节合并.docx>"
+        },
+        {
+          "id": "S8",
+          "name": "章结构完整性",
+          "check": "本章各节齐全、层级完整（引言/方法/结果/讨论或学科对应结构），无缺节、无空章节标题、章末小结齐全"
+        },
+        {
+          "id": "S10",
+          "name": "全章数据溯源硬门",
+          "check": "本章每个含数值小节均过 data_trace_gate（数值均标 [数据来源] materials/<档>#<字段> 且指向真实素材档字段）。fail-closed",
+          "script": "for f in atomic_md/第N章/*.md; do python scripts/data_trace_gate.py --file \"$f\" --root <项目根>; done",
+          "severity": "hard"
+        },
+        {
+          "id": "S11",
+          "name": "全章承重引文核证",
+          "check": "本章所有承重论点句已过 citation_claim_check，无 contradict/unknown 承重句、均人工确认",
+          "script": "python <_shared>/citation_claim_check.py --root <项目根> --evidence <项目根>/claim_evidence.json"
+        },
+        {
+          "id": "S9",
+          "name": "上下标裸写零容忍",
+          "check": "check_char_level() 上下标裸写（code=subsup_bare，如 H2O/CO2/IC50/cm2）命中数为 0。hard 阻断：命中>0 则 check_quality.py 非零退出（issue_summary.subsup_bare>0）。注：硬阻断=subsup_bare + halfwidth_punct_in_cn + english_misspelling（任一>0 即非零退出）；F2 英文拼写用固定错拼表(occured/recieve 类)零误报、摘要区也扫；F1 中文错别字仍为 warning（含登陆等同形异义，硬拦会误伤）；中文紧邻经 _SS/_SE 边界已处理不误报",
+          "script": "python scripts/check_quality.py <章节合并.docx>",
+          "severity": "hard"
+        },
+        {
+          "id": "S-GIT",
+          "name": "检查点已落",
+          "check": "已落版本检查点:git 可用时 git_checkpoint.py status 的 commit 数随节/章递增;git 不可用时已生成 snapshot。二者满足其一",
+          "script": "python3 scripts/git_checkpoint.py status ."
+        },
+        {
+          "id": "G7",
+          "name": "常识合理性",
+          "check": "盲检子代理顺带扫本章是否有明显常识/事实硬伤(单位量级离谱、生理/机制常识错误、前后数值逻辑矛盾、转写翻译扭曲原意致常识错误)；软项仅报告不阻断、不改内容，与 Citation Zero-Hallucination Gate 区分",
+          "severity": "soft"
+        }
+      ]
+    }
+  }
+}

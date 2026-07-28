@@ -1,0 +1,6 @@
+{
+  "name": "academic-gate",
+  "version": "0.8.0",
+  "description": "学术写作技能的结构签字物理门禁（PreToolUse）——未确认大纲不得写正文，由 Claude Code 启动时自动加载，不依赖 AI 自觉安装",
+  "hooks": "./hooks/hooks.json"
+}

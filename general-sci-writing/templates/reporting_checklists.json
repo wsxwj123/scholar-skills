@@ -1,0 +1,87 @@
+{
+  "_doc": "投稿前强制报告规范 checklist。按 research_field + target_journal 自动挂对应清单。Phase 4.8 必跑。",
+
+  "_field_to_checklist": {
+    "drug_delivery": ["ARRIVE 2.0", "ARRIVE essential 10 (animal studies)"],
+    "biomedical_pharma": ["ARRIVE 2.0", "ARRIVE essential 10"],
+    "clinical_pharmacy_llm": ["CONSORT 2010 (RCT)", "STROBE (observational)", "TRIPOD (prediction models)"],
+    "quantitative_pharmacology": ["CONSORT 2010", "TRIPOD", "ClinPK reporting checklist"],
+    "computer_science": ["ML reproducibility (NeurIPS) checklist"],
+    "default": ["assess case-by-case"]
+  },
+
+  "_journal_specific_requirements": {
+    "Nature": ["Reporting Summary form mandatory", "Editorial Policy Checklist", "Life Sciences Reporting Summary if biomedical"],
+    "Nature Biomedical Engineering": ["Reporting Summary", "Editorial Policy Checklist", "Code & Software disclosure"],
+    "Cell": ["STAR Methods structured Methods", "Resource Sharing Plan", "no separate checklist but STAR Methods mandatory"],
+    "Science": ["Reporting Standards (life sciences)"],
+    "Nature Medicine": ["CONSORT for trials", "TRIPOD for prediction", "STREGA for genetics"],
+    "Lancet": ["CONSORT (RCT)", "PRISMA (systematic review)", "STROBE (observational)"],
+    "JAMA": ["Same as Lancet"],
+    "BMJ": ["Same as Lancet"]
+  },
+
+  "ARRIVE_2.0_essential_10": [
+    {"id": 1, "item": "Study design — groups, allocation, randomization, blinding", "must_report": "exp groups + control + n per group + randomization method + blinding method (or N/A)"},
+    {"id": 2, "item": "Sample size — total n + per-group n + power justification", "must_report": "absolute n + 'how decided' (pilot/prior literature/power analysis)"},
+    {"id": 3, "item": "Inclusion/exclusion criteria — pre-defined", "must_report": "pre-registered criteria; post-hoc exclusions flagged"},
+    {"id": 4, "item": "Randomization — method (random number generator/sealed envelope)", "must_report": "explicit method, not 'randomly assigned'"},
+    {"id": 5, "item": "Blinding — investigator/outcome assessor blinded?", "must_report": "blinded to group during data collection AND analysis"},
+    {"id": 6, "item": "Outcome measures — primary + secondary, pre-defined", "must_report": "primary outcome stated before unblinding"},
+    {"id": 7, "item": "Statistical methods — test + assumptions + correction", "must_report": "test name + assumption check (normality/variance) + multiple comparison correction"},
+    {"id": 8, "item": "Experimental animals — species + strain + sex + age + weight + source", "must_report": "every field, no defaults like 'adult mice'"},
+    {"id": 9, "item": "Experimental procedures — drugs (dose/route/timing) + reagents (vendor+cat#+RRID)", "must_report": "reproducible by another lab"},
+    {"id": 10, "item": "Results — descriptive stats + measure of variability + n per analysis", "must_report": "absolute numbers + mean ± SD/SEM (specify which) + n for each panel"}
+  ],
+
+  "CONSORT_2010_core": [
+    {"id": "T1", "item": "Title identifies as randomized trial"},
+    {"id": "M1", "item": "Trial registry (ClinicalTrials.gov NCT ID) — pre-registration"},
+    {"id": "M2", "item": "Eligibility criteria for participants"},
+    {"id": "M3", "item": "Intervention details for each group (so it could be replicated)"},
+    {"id": "M4", "item": "Primary + secondary outcome measures, defined a priori"},
+    {"id": "M5", "item": "Sample size calculation with assumptions"},
+    {"id": "M6", "item": "Randomization sequence — method, type (block, stratified), allocation concealment"},
+    {"id": "M7", "item": "Blinding — who, how"},
+    {"id": "M8", "item": "Statistical methods — primary + secondary + subgroup"},
+    {"id": "R1", "item": "CONSORT flow diagram — enrollment, allocation, follow-up, analysis"},
+    {"id": "R2", "item": "Baseline demographics per group"},
+    {"id": "R3", "item": "Number analyzed per group, intention-to-treat vs per-protocol"},
+    {"id": "R4", "item": "Effect size + 95% CI for primary outcome"},
+    {"id": "R5", "item": "Harms / adverse events per group"},
+    {"id": "D1", "item": "Trial limitations + generalizability"}
+  ],
+
+  "MIQE_2009_qPCR": [
+    {"item": "Reverse transcriptase — kit, RNA input amount, priming method"},
+    {"item": "qPCR primer sequences + amplicon size + Tm"},
+    {"item": "qPCR efficiency calculation per primer pair (95-105% acceptable)"},
+    {"item": "Reference gene validation (geNorm/NormFinder)"},
+    {"item": "Cq calculation method (auto threshold vs second derivative)"},
+    {"item": "Melting curve analysis + gel verification for SYBR"},
+    {"item": "Normalization method (ΔΔCt vs absolute)"},
+    {"item": "n biological replicates (not just technical)"},
+    {"item": "Statistical analysis — non-parametric for small n"}
+  ],
+
+  "PRISMA_2020_systematic_review": [
+    "PRISMA flow diagram",
+    "Database list + search dates + last search date",
+    "Full search strings per database",
+    "Inclusion/exclusion criteria + screening process",
+    "Number of records at each stage (identification → screening → eligibility → included)",
+    "Risk of bias assessment per included study (RoB 2.0 / ROBINS-I)",
+    "Forest plot for meta-analyses",
+    "Heterogeneity (I²) + sensitivity analysis"
+  ],
+
+  "ML_reproducibility_neurips": [
+    "Dataset description + train/val/test split + license",
+    "Model architecture + hyperparameters + number of parameters",
+    "Random seed + multiple runs (mean ± std over ≥3 seeds)",
+    "Compute (GPU type + training time + total compute estimate)",
+    "Baseline comparisons — same data + same eval protocol",
+    "Code repository + checkpoint download + environment.yml",
+    "Failure modes / limitations explicitly discussed"
+  ]
+}

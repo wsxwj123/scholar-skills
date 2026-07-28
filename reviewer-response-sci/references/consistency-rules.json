@@ -1,0 +1,10 @@
+{
+  "forbidden_phrase_patterns": [
+    "we will definitely",
+    "without any doubt"
+  ],
+  "conflict_term_sets": [
+    ["MPC-83", "MPC-38"]
+  ],
+  "required_markers": []
+}
