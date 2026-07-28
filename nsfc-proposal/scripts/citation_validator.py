@@ -12,9 +12,6 @@ import argparse
 import json
 import re
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -30,7 +27,6 @@ import citation_guard_core as core
 DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$", re.IGNORECASE)
 PMID_RE = re.compile(r"^\d{4,10}$")
 CIT_RE = re.compile(r"\[\d+(?:[-,，]\d+)*\]")
-TITLE_TOKEN_RE = re.compile(r"[a-z0-9\u4e00-\u9fff]+")
 
 CACHE_SCHEMA_VERSION = "1.0"
 ALLOWED_PROVIDER_FAMILIES = {"paper-search", "pubmed-cli"}
@@ -81,26 +77,6 @@ def extract_citation_numbers(text: str) -> list[int]:
     return numbers
 
 
-def _http_get_json(url: str, timeout_sec: float = 8.0) -> dict[str, Any] | None:
-    req = urllib.request.Request(url, headers={"User-Agent": "nsfc-proposal-skill/1.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
-            body = resp.read().decode("utf-8", errors="ignore")
-            return json.loads(body)
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
-        return None
-
-
-def _normalize_title(title: str) -> str:
-    t = title.lower().strip()
-    t = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", " ", t)
-    return re.sub(r"\s+", " ", t).strip()
-
-
-def _title_tokens(title: str) -> set[str]:
-    return set(TITLE_TOKEN_RE.findall(_normalize_title(title)))
-
-
 def _provider_family(entry: dict[str, Any]) -> str | None:
     """Map an entry's recorded retrieval source to a provider family.
 
@@ -129,111 +105,18 @@ def _provider_family(entry: dict[str, Any]) -> str | None:
     return raw
 
 
-def _title_similarity(a: str, b: str) -> float:
-    na = _normalize_title(a)
-    nb = _normalize_title(b)
-    if not na or not nb:
-        return 0.0
-    if na == nb:
-        return 1.0
-
-    ta = _title_tokens(a)
-    tb = _title_tokens(b)
-    jacc = (len(ta & tb) / len(ta | tb)) if ta and tb else 0.0
-
-    # fallback char overlap ratio for small token sets
-    short = min(len(na), len(nb)) / max(len(na), len(nb))
-    contain_bonus = 0.1 if (na in nb or nb in na) else 0.0
-    return min(1.0, 0.75 * jacc + 0.25 * short + contain_bonus)
-
-
-def _titles_match(a: str, b: str, threshold: float = 0.72) -> tuple[bool, float]:
-    score = _title_similarity(a, b)
-    return score >= threshold, score
-
-
-def _parse_dt(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    s = value.strip()
-    if not s:
-        return None
-    try:
-        if len(s) == 10 and s.count("-") == 2:
-            return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except ValueError:
-        return None
-
-
 def _is_mcp_fresh(record: dict[str, Any], ttl_days: int, now_utc: datetime) -> tuple[bool, str | None]:
     if ttl_days <= 0:
         return True, None
-    checked_at = _parse_dt(str(record.get("verified_at") or record.get("checked_at") or ""))
+    # 时间戳解析用共享 core 的那一份（本地曾有逐字节相同的副本，已删，避免两处漂移）。
+    # 注意：字段查找顺序仍是 nsfc 自己的（只认 verified_at/checked_at，不认 retrieved_at），
+    # 与 core._is_mcp_fresh 有意不同，见 SKILL.md:357。
+    checked_at = core._parse_dt(str(record.get("verified_at") or record.get("checked_at") or ""))
     if checked_at is None:
         return False, "mcp_timestamp_missing"
     if checked_at < now_utc - timedelta(days=ttl_days):
         return False, "mcp_stale"
     return True, None
-
-
-def _fetch_crossref_by_doi(doi: str) -> dict[str, Any] | None:
-    encoded = urllib.parse.quote(doi, safe="")
-    payload = _http_get_json(f"https://api.crossref.org/works/{encoded}")
-    if not payload or "message" not in payload:
-        return None
-
-    msg = payload["message"]
-    title = (msg.get("title") or [""])[0] if isinstance(msg.get("title"), list) else ""
-    relation = msg.get("relation") or {}
-    is_retracted = False
-    if isinstance(relation, dict):
-        for k in relation.keys():
-            if "retract" in str(k).lower():
-                is_retracted = True
-                break
-
-    return {
-        "source": "crossref",
-        "title": title or "",
-        "doi": doi,
-        "pmid": None,
-        "retracted": is_retracted,
-    }
-
-
-def _fetch_pubmed_by_pmid(pmid: str) -> dict[str, Any] | None:
-    payload = _http_get_json(
-        f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={pmid}&retmode=json"
-    )
-    if not payload or "result" not in payload:
-        return None
-
-    result = payload["result"].get(str(pmid))
-    if not isinstance(result, dict):
-        return None
-
-    title = result.get("title") or ""
-    article_ids = result.get("articleids") or []
-    doi = None
-    for aid in article_ids:
-        if isinstance(aid, dict) and str(aid.get("idtype", "")).lower() == "doi":
-            doi = aid.get("value")
-            break
-
-    pubtypes = result.get("pubtype") or []
-    is_retracted = any("retract" in str(x).lower() for x in pubtypes)
-
-    return {
-        "source": "pubmed",
-        "title": title,
-        "doi": doi,
-        "pmid": str(pmid),
-        "retracted": is_retracted,
-    }
 
 
 def _build_mcp_index(mcp_cache: dict[str, Any] | None) -> dict[str, dict[str, Any]]:

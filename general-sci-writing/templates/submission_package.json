@@ -9,7 +9,7 @@
 
   "code_availability_statement": "## Code Availability\n\nAll custom code used in this study is available at {{GITHUB_URL}} under the {{LICENSE}} license, and is archived at Zenodo (DOI: {{ZENODO_DOI}}). The repository includes README with installation instructions, expected runtime, and example input data.\n",
 
-  "credit_taxonomy": "## Author Contributions (CRediT taxonomy)\n\n**Conceptualization:** {{AUTHORS_CONCEPTUALIZATION}}\n**Methodology:** {{AUTHORS_METHODOLOGY}}\n**Investigation:** {{AUTHORS_INVESTIGATION}}\n**Formal analysis:** {{AUTHORS_FORMAL_ANALYSIS}}\n**Resources:** {{AUTHORS_RESOURCES}}\n**Writing – original draft:** {{AUTHORS_DRAFT}}\n**Writing – review & editing:** {{AUTHORS_EDIT}}\n**Visualization:** {{AUTHORS_VIZ}}\n**Supervision:** {{AUTHORS_SUPERVISION}}\n**Project administration:** {{AUTHORS_PM}}\n**Funding acquisition:** {{AUTHORS_FUNDING}}\n\n(Use full author initials, e.g., \"J.S., L.W.\"; assign each role to at least one author; cover all 11 CRediT categories or explicitly note N/A.)\n",
+  "credit_taxonomy": "## Author Contributions (CRediT taxonomy)\n\n**Conceptualization:** {{AUTHORS_CONCEPTUALIZATION}}\n**Methodology:** {{AUTHORS_METHODOLOGY}}\n**Software:** {{AUTHORS_SOFTWARE}}\n**Investigation:** {{AUTHORS_INVESTIGATION}}\n**Data curation:** {{AUTHORS_DATA_CURATION}}\n**Formal analysis:** {{AUTHORS_FORMAL_ANALYSIS}}\n**Validation:** {{AUTHORS_VALIDATION}}\n**Resources:** {{AUTHORS_RESOURCES}}\n**Writing – original draft:** {{AUTHORS_DRAFT}}\n**Writing – review & editing:** {{AUTHORS_EDIT}}\n**Visualization:** {{AUTHORS_VIZ}}\n**Supervision:** {{AUTHORS_SUPERVISION}}\n**Project administration:** {{AUTHORS_PM}}\n**Funding acquisition:** {{AUTHORS_FUNDING}}\n\n(Use full author initials, e.g., \"J.S., L.W.\"; assign each role to at least one author; cover all 14 CRediT categories or explicitly note N/A.)\n",
 
   "competing_interests": "## Competing Interests\n\nThe authors declare {{COI_STATEMENT}}.\n\n(Options: \"no competing interests\" / \"the following competing interests: [details — patents, advisory roles, equity, consulting]\")\n",
 
@@ -28,7 +28,7 @@
     {"item": "Source data .xlsx (one tab per main figure panel)", "required_by": "Nature/Cell — strongly preferred"},
     {"item": "Data Availability Statement in Methods or stand-alone section", "required_by": "Nature/Cell/Science — mandatory"},
     {"item": "Code Availability Statement (if any custom code)", "required_by": "if applicable"},
-    {"item": "CRediT author contributions — all 11 categories addressed", "required_by": "most journals"},
+    {"item": "CRediT author contributions — all 14 categories addressed", "required_by": "most journals"},
     {"item": "Competing Interests / COI statement", "required_by": "all journals"},
     {"item": "Funding statement with grant numbers", "required_by": "all journals"},
     {"item": "Highlights (3-5 bullets ≤85 char)", "required_by": "Cell / Elsevier journals"},

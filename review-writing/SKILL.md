@@ -1,6 +1,6 @@
 ---
 name: review-writing
-version: 2.28.0
+version: 2.28.1
 description: "Universal assistant for writing high-impact academic literature reviews (Nature/Cell/Lancet level). Supports real-time Zotero integration, outline persistence, and multi-mode reference management. Use when writing a comprehensive review article requiring systematic search, synthesis, and citation management. 触发词：写综述、文献综述、综述写作、literature review、review article、改综述、完善综述、继续写综述、improve review。"
 triggers:
   - "写综述"
@@ -64,7 +64,7 @@ why_how_what_note: |
 - **Phase 2:** 逐节搜索（**串行，≥1s 间隔**）→ 写入 Zotero/index → **HALT** dedup
 - **Phase 3:** Read framing_guide 搭框架 → 备料子代理起草承重核证 → 主会话调度撰写子代理盲写本节（pack-write→verify-write→落盘→认键翻号）→ citation spot-check → 逐节质量自检（内部 checklist，禁 HTML/禁调 reviewer-simulator）→ **HALT**
 - **Phase 4:** 引用总量校验 → citation guard → 编译 → 连贯性扫描 → 缩写扫描 → **交叉引用核查（xref，三层·HALT）** → 导出
-- **Phase 5:** 对齐 gsw submission-guide/compliance-gate → 生成投稿包（Cover Letter/Title Page/CRediT/COI/Funding/DAS/Keywords...）→ 委托盲检
+- **Phase 5:** Read 综述版 submission_checklist → 生成投稿包（Cover Letter/Title Page/CRediT/COI/Funding/DAS/Keywords...）→ 委托盲检
 
 ### 绝对禁止
 - 并行搜索调用
@@ -1043,10 +1043,9 @@ Write Mode has no `pending_sections` field so this gate is a no-op (no key → e
 **📖 进入本阶段必读：**
 1. `references/submission_checklist.md`（综述版投稿清单 + 强制/询问分级 + 红线 + 产出路径）
 1b. **`references/cover-letter-guide.md`（综述版 cover letter 写法必读）**：四段结构 / Innovation≠Contribution（综述落在框架层）/ **期刊 scope 契合强制**。写 `exports/cover_letter.md` 前必读。
-2. general-sci-writing 的 `references/submission-guide.md` 与 `references/compliance-gate.md` 的逐项标准，**只读，不改 gsw**。读取以对齐 Cover Letter 询问明细、CRediT 11 类分配、Acknowledgements 类别、合规门禁判定。
-3. `references/presubmission_checklist.md`（投稿前作者自检清单，**soft 提醒不阻断**）：终稿交付前对照逐项自查，重点是机器无法可靠裁决、需作者掌握原始数据/图像/外部工具的项（图像不当处理、Source Data、查重、注册号、报告规范附件、投稿材料齐全等）。已被本技能 hard 门禁覆盖的维度不重复，仅提醒，不阻断交付。
+2. `references/presubmission_checklist.md`（投稿前作者自检清单，**soft 提醒不阻断**）：终稿交付前对照逐项自查，重点是机器无法可靠裁决、需作者掌握原始数据/图像/外部工具的项（图像不当处理、Source Data、查重、注册号、报告规范附件、投稿材料齐全等）。已被本技能 hard 门禁覆盖的维度不重复，仅提醒，不阻断交付。
 
-### 强制 / 询问分级（对齐 gsw，不静默留白）
+### 强制 / 询问分级（不静默留白）
 
 | 件 | 级别 | 无内容时的处理 |
 |----|------|---------------|
@@ -1056,12 +1055,12 @@ Write Mode has no `pending_sections` field so this gate is a no-op (no key → e
 
 ### 步骤
 
-1. **逐项询问**（不要静默用空白）：通讯作者信息 + ORCID、各作者 CRediT role、COI、Funding（funder + grant number）、致谢对象、目标刊是否要 Highlights / Suggested Reviewers。明细见 submission_checklist.md 第 1 节 + gsw submission-guide.md 第 1 节。
+1. **逐项询问**（不要静默用空白）：通讯作者信息 + ORCID、各作者 CRediT role、COI、Funding（funder + grant number）、致谢对象、目标刊是否要 Highlights / Suggested Reviewers。明细见 submission_checklist.md 第 1 节。
 
 2. **生成投稿包**（写入 `exports/`，路径以 submission_checklist.md 第 6 节为准）：
    - `exports/cover_letter.md` — 写法见 `references/cover-letter-guide.md`。综述卖点是 synthesis/framing/gap→展望；引用 Phase 1.5 gap + Phase 1.6 framing 作为"为何此刻需要这篇综述"。**🔴 scope 契合段强制**：向用户索取目标刊 **Aims & Scope 原文**（技能不自动抓取），据此写具体契合论证，禁 "will interest the broad readership" 类通用套话；用户未给 scope 原文则停下索取，不编造。
    - `exports/title_page.md` — 题名（禁缩写）/ 作者 / 单位 / 通讯(含邮箱) / ORCID。
-   - `exports/author_contributions.md` — CRediT（综述常用 role；未覆盖的 11 类标 N/A，分配细则见 gsw 第 5 节）。
+   - `exports/author_contributions.md` — CRediT（完整 14 类逐条认领，未覆盖的标 N/A 并说明；角色清单与综述适用性见 `references/submission_checklist.md` 第 2 节）。
    - `exports/coi_statement.md` — 无则 "The authors declare no competing interests."
    - `exports/funding.md`（可并入 title page）— 无则 "This work received no specific external funding."
    - `exports/data_availability.md` — 综述无原始数据 → "Data sharing not applicable — no new datasets were generated or analysed."（systematic 有提取数据则给获取方式）。
@@ -1069,7 +1068,7 @@ Write Mode has no `pending_sections` field so this gate is a no-op (no key → e
    - `exports/acknowledgements.md` — 各类别（非作者贡献者/技术平台/讨论反馈），无则 N/A。
    - `exports/highlights.md`（按目标刊）/ `exports/suggested_reviewers.md`（按需，逐一核 COI 回避）。
 
-3. **合规核对**（综述相关项，对齐 gsw compliance-gate）：署名 ICMJE 四准则、Reviewer COI 回避；伦理/注册号/统计报告对 narrative 综述标 N/A，仅 systematic/scoping 走 PRISMA。细则见 submission_checklist.md 第 3–4 节。
+3. **合规核对**（综述相关项）：署名 ICMJE 四准则、Reviewer COI 回避；伦理/注册号/统计报告对 narrative 综述标 N/A，仅 systematic/scoping 走 PRISMA。细则见 submission_checklist.md 第 3–4 节。
 
 4. **DoD 自检（gate `submission-pack-dod`，委托独立subagent盲检）：**
    ```bash

@@ -1,6 +1,6 @@
 ---
 name: reviewer-response-sci
-version: 2.26.0
+version: 2.26.1
 description: 用于SCI审稿意见逐条回复的全流程技能，适用于期刊大修/小修阶段，只出回复包（HTML），不改主稿。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：与revise-sci区分，本技能只出回复包不改主稿，需同时改主稿并出修订稿docx请用revise-sci；与reviewer-simulator区分，本技能针对已收到的意见写回复，后者是模拟生成审稿意见。
 ---
 
@@ -379,6 +379,7 @@ python3 scripts/run_pipeline.py \
 - `html_format_check.py`：HTML 结构完整性
 - `risk_check.py`：检测虚构实验/统计、过度承诺、AI 式套话、跨 unit 结构重复
 - `citation_guard.py`：验证 `citation_registry.json` 新增引用真实性（DOI/PMID/撤稿检测）；`--offline` 跳过在线验证。报告写入 `logs/citation_guard_report.json`，顶层结构为 `{"status": "pass"|"warn", "verified": N, "failed": N, "retracted": N, ...}`（注意：无 `report.ok` 嵌套层；判断通过用 `status == "pass"`，判断撤稿用 `retracted > 0`）
+  - **已知限制（诊断提示在本技能里看不到，但请求照打）**：在线跑（不加 `--offline`，即默认）时，对每条没验过、带 DOI/PMID、标题≥3 个词的文献，底层核验会额外拿标题上网回查一次，本可给出「这条的 DOI/PMID 可能填错了，线上同名文章是这个」之类的提示；但本技能的报告只保留固定字段，这些提示会被直接丢掉——**请求照打、结果照扔**，白花一次网络往返和限流额度。**判定结果完全不受影响**（验过/没验过/撤稿一条都不会变），只是慢一点。所以遇到验不过的条目，直接看报告里每条的 `failures` 排查，别指望有诊断提示；只想快速过一遍时可以加 `--offline`（离线不打这些请求）。
 - `citation_ref_tracker.py`：交叉验证 `[N]` 引用编号一致性（未定义引用、编号间隙）
 
 字符级硬门禁（DoD RR16 单独跑，不在 pipeline 内自动调用）：

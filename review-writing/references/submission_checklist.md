@@ -1,13 +1,12 @@
 # 综述投稿包清单 (submission_checklist) — 综述版
 
 > 被 SKILL.md **Phase 5（投稿包）** 引用。执行该阶段时 `Read` 本文件。
-> 对齐 general-sci-writing 的 `references/submission-guide.md` 与 `references/compliance-gate.md`
-> 的逐项标准（**只读 gsw，不改 gsw**）。综述（review）与原始研究的差异已在此文件内吸收：
+> 标准口径源自原始研究投稿规范，已按综述（review）口径吸收进本文件，**本文件自足，不需读取其他技能**：
 > 综述通常无原始数据/伦理批号/试验注册号/报告规范（PRISMA 除外），故相关项默认 N/A 或仅 systematic 适用。
 
 ---
 
-## 1. 强制 / 询问分级（对齐 gsw，不静默留白）
+## 1. 强制 / 询问分级（不静默留白）
 
 | 件 | 级别 | 说明 |
 |----|------|------|
@@ -31,13 +30,32 @@
 
 - **Cover Letter**（详细写法见 `references/cover-letter-guide.md`）：综述的卖点是 *synthesis / framing / gap→展望*，而非新数据。一句话卖点应突出"本综述提出的新框架/视角"。引用 Phase 1.5 的 gap 与 Phase 1.6 的 framing 作为"为什么现在需要这篇综述"的论据。**scope 契合段强制**：基于目标刊 Aims & Scope 原文（向用户索取）写具体契合，禁 "broad readership" 类通用套话，换成别的刊仍成立即须重写。
 - **Title Page**：题名禁缩写（DNA/RNA/PCR 等公知除外）；共同一作 `†`，通讯 `*`，共同通讯双 `*`。
-- **CRediT**：综述无 Investigation/Formal analysis（无实验）时，对应作者写覆盖到的 role 即可，未覆盖的 11 类标 N/A 并说明（综述常缺 Resources / Methodology-wet-lab）。通讯作者通常 ≥3 个 role（含 Supervision/Funding）。分配细则见 gsw `submission-guide.md` 第 5 节。
+- **CRediT（完整 14 类 + 综述适用性，本节即分配细则，不依赖其他技能）**：逐位作者认领 role，用姓名首字母缩写（如 "J.S., L.W."）。
+
+  | Role | 综述场景 |
+  |------|---------|
+  | Conceptualization | **适用**：提出综述选题、研究问题与框架视角的人 |
+  | Methodology | systematic / scoping **适用**（检索式、纳排标准、筛选与提取流程）；narrative 通常 N/A |
+  | Software | 仅当写了自定义代码（meta 分析脚本、文献计量/可视化程序）时**适用**；否则 N/A |
+  | Investigation | 综述无实验 → 通常 N/A；systematic 可记"执行检索与数据提取"的人 |
+  | Data curation | systematic **适用**（提取表、纳排记录、PRISMA 流程数据的整理归档与可复用维护）；narrative 通常 N/A |
+  | Formal analysis | 仅含 meta 分析（合并效应量、异质性 I²、亚组/敏感性分析）时**适用**；否则 N/A |
+  | Validation | systematic **适用**（双人独立筛选/提取的交叉复核、结果可重复性核验）；narrative 通常 N/A |
+  | Resources | 综述通常 N/A（无试剂 / 样本 / 设备）；有独家数据库或付费文献库授权时可写 |
+  | Writing – original draft | **适用**：写初稿的人（综述主力） |
+  | Writing – review & editing | **适用**：修改与定稿的人（PI + 共同作者） |
+  | Visualization | **适用**：出机制图 / 框架图 / 时间线 / PRISMA 流程图的人 |
+  | Supervision | **适用**：直接指导的 PI |
+  | Project administration | 多作者 / 多单位协作时**适用**：协调进度的人 |
+  | Funding acquisition | 有资助时**适用**：拿到经费的 PI；无资助 N/A |
+
+  规则：① 每个 role 至少一位作者，**未被任何作者覆盖的 role 写 "N/A" 并一句话说明原因**（综述常缺 Investigation / Formal analysis / Resources），绝不留空 ② 一位作者可承担多个 role ③ 通讯作者通常 ≥3 个 role（含 Supervision / Funding acquisition）。
 - **Keywords**：从 outline.md 的 RQ/PICO 与各节主题提炼；MeSH 术语优先（医学刊）。
 - **Highlights（按需）**：每条聚焦综述的一个核心论点或框架贡献，非罗列章节。
 
 ---
 
-## 3. 合规门禁（综述相关项，对齐 gsw compliance-gate）
+## 3. 合规门禁（综述相关项）
 
 综述多数合规项 N/A，仅保留与综述相关的：
 

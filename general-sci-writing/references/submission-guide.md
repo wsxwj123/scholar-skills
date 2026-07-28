@@ -7,7 +7,7 @@
 - **Cover letter**（**详细写法必读 `references/cover-letter-guide.md`**）：目标期刊编辑姓名 / 开场创新点强调句 / 3 条 Key Innovation + 3 条 Major Contribution（区分：Innovation=做了什么新东西，Contribution=对领域什么用）/ **目标刊 Aims & Scope 原文（向用户索取，据此写强制的 scope 契合段，禁通用套话）** / 3 位 suggested reviewer 名字与邮箱 / 是否有 opposed reviewer / 通讯作者信息+ORCID
 - **Data Availability**：原始数据是否 deposit？哪个 repository？accession number？源数据 Supp Data 编号？
 - **Code Availability**：是否有自定义代码？GitHub URL？license？Zenodo DOI？
-- **CRediT**：每位作者承担哪些 role（11 类），用作者首字母缩写（分配指南见第 5 节）
+- **CRediT**：每位作者承担哪些 role（14 类），用作者首字母缩写（分配指南见第 5 节）
 - **COI**：所有作者有无 competing interests（专利、咨询、股权）
 - **Funding**：每个 funder + grant number + 受资助 PI
 - **Highlights**（Cell 系强制）：3-5 条 ≤85 字符，写完后必须 `wc -L` 确认
@@ -33,12 +33,15 @@
 - **不能藏数据**：审稿人会比对 source data 与图表，**数值对不上 = 学术不端嫌疑**。
 - 用户自己准备 .xlsx（脚本生成出错率高），AI 给规范 + 检查 sheet 命名与 figures_database 的 figure_id 是否对应。
 
-## 5. CRediT 角色分配指南（学生常犯困）—— 11 类对应典型角色
+## 5. CRediT 角色分配指南（学生常犯困）—— 14 类对应典型角色
 
 - **Conceptualization** → 通常 PI + 提出 idea 的核心学生
 - **Methodology** → 设计实验方案的人（学生 + PI）
+- **Software** → 写代码的人（自定义分析脚本 / 算法实现 / 支撑性程序）
 - **Investigation** → 真正做实验的学生（**博士生主体**）
+- **Data curation** → 整理、标注、维护数据与元数据的人（保证数据可复用、可归档）
 - **Formal analysis** → 跑统计 / 数据处理的人
+- **Validation** → 复核结果的人（重复实验 / 独立验证数据与整体结论的可信度）
 - **Resources** → 提供独家试剂 / 样本 / 设备的人
 - **Writing – original draft** → 写初稿的人（**博士生主体**）
 - **Writing – review & editing** → 改稿的人（PI + 共同作者）
@@ -46,7 +49,7 @@
 - **Supervision** → 直接指导的 PI
 - **Project administration** → 协调多 lab 的负责人
 - **Funding acquisition** → 拿钱的 PI
-- **规则**：① 每个 role 至少一位作者，全员覆盖 11 类（无人对应的写"N/A"并解释）② 一位作者可承担多个 role ③ 通讯作者通常 ≥ 4 个 role（含 Supervision/Funding）。
+- **规则**：① 每个 role 至少一位作者，全员覆盖 14 类（无人对应的写"N/A"并解释）② 一位作者可承担多个 role ③ 通讯作者通常 ≥ 4 个 role（含 Supervision/Funding）。
 
 ## 6. Acknowledgments 模板（投稿必备但常忘）—— 必须含以下类别，无则写 N/A
 

@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.28.0
+version: 2.28.1
 description: Use when drafting, restructuring, or polishing Chinese NSFC proposals (2026 template), especially when strict section-by-section gating, hypothesis-objective-content-problem consistency, literature verification via paper-search MCP, and anti-AI Chinese academic writing constraints are required. 触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -436,6 +436,8 @@ Failure handling playbook:
 - `failed_at=review`: fix D/C dimensions from review report, then `gate-check`.
 
 **Dual-Track Citation Verification:** Provide MCP retrieval cache in `data/mcp_literature_cache.json` and run online validation without `--offline` whenever network is available. Final gate must enforce `--require-mcp`.
+
+**已知限制（诊断提示在本技能里看不到，但请求照打）**：在线核验（不加 `--offline`，即默认）时，对每条没验过、带 DOI/PMID、标题≥3 个词的文献，底层核验会额外拿标题上网回查一次，本可给出「这条的 DOI/PMID 可能填错了，线上同名文章是这个」之类的提示；但 `citation_validator.py` 的 `verification_details` 只保留固定字段，这些提示会被直接丢掉——**请求照打、结果照扔**，白花一次网络往返和限流额度。**判定结果完全不受影响**（verified / 撤稿 / 硬失败一条都不会变），只是文献多时 `verify-all` 会慢一些。所以验不过的条目直接看 `verification_details.failure_reasons` 排查，别等诊断提示；网络紧张时可先 `--offline` 跑一遍粗筛（但终审 gate 仍须在线 + `--require-mcp`）。
 
 ## References
 Load only what is needed:

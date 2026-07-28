@@ -216,7 +216,7 @@
     },
     "submission-pack-dod": {
       "title": "Phase 5 投稿包 DoD（落盘前委托独立子代理盲检）",
-      "applies_when": "Phase 5 生成投稿包后、向用户交付前；对齐 general-sci-writing submission-guide / compliance-gate（综述版细则见 references/submission_checklist.md）",
+      "applies_when": "Phase 5 生成投稿包后、向用户交付前；综述版细则见 references/submission_checklist.md",
       "items": [
         {
           "id": "S1",

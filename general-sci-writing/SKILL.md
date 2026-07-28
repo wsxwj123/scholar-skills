@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.27.3
+version: 2.27.4
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色，Phase 13B含内部初步退稿自查但不出回复包也不出修订稿docx。
 license: Proprietary
 ---
@@ -526,7 +526,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 **触发**：用户说"准备投稿"/"提交"/"submission"/"准备投递材料" 即进入。
 
 **流程（细则见 `references/submission-guide.md`，执行本阶段时必须先 `Read` 它）**：
-1. **Read 模板**：`Read templates/submission_package.json`（8 类模板 + 投稿 checklist）+ `Read references/submission-guide.md`（逐项询问明细 / CRediT 11 类分配 / Source Data 规范 / Acks 模板 / 报告 checklist 映射）+ **`Read references/cover-letter-guide.md`**（cover letter 四段结构 / Innovation≠Contribution / 期刊 scope 契合，写 cover letter 前必读）。
+1. **Read 模板**：`Read templates/submission_package.json`（8 类模板 + 投稿 checklist）+ `Read references/submission-guide.md`（逐项询问明细 / CRediT 14 类分配 / Source Data 规范 / Acks 模板 / 报告 checklist 映射）+ **`Read references/cover-letter-guide.md`**（cover letter 四段结构 / Innovation≠Contribution / 期刊 scope 契合，写 cover letter 前必读）。
 2. **建目录**：`mkdir -p submission/`；下分 `cover_letter.md`、`statements.md`（DAS+Code+CRediT+COI+Funding 合并）、`highlights.md`、`keywords.txt`、`graphical_abstract/`。
 3. **逐项询问 → 填模板**：按 guide 第 1 节主动问全部字段，**不要静默用空白**。**🔴 cover letter 的 scope 契合段强制**：主动向用户索取目标刊 **Aims & Scope 原文**（技能不自动抓取），据此写具体契合论证，禁 "will interest the broad readership" 类通用套话；用户未提供 scope 原文则停下索取，不编造（细则见 `references/cover-letter-guide.md` 第 3 节）。
 4. **替换占位符**：所有 `{{VAR}}` 必须替换成实际值；**严禁保留 `{{}}` 占位**就交付。
