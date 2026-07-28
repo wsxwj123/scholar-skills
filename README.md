@@ -2,27 +2,9 @@
 
 中文科研写作的 Claude Code 技能包。9 个技能 + 1 个流程门禁插件。
 
+## 简介
+
 技能覆盖：写 SCI 论文、写综述、写国自然本子、SCI 转学位论文、返修改稿、写审稿回复、模拟审稿、纯润色、想课题。
-
-门禁插件干两件事：在关键节点拦住 AI 跳步；每轮把项目当前状态重新注入上下文。
-
-## 动机
-
-长文档写作里 AI 跳步的两个成因，都不是模型能力问题。
-
-一是注意力衰减。SKILL.md 动辄一两万 token，写到第 5 节时第 2 节定的规矩在注意力里已经很淡。
-
-二是上下文压缩会截断文档。Claude Code 压缩上下文时，每个技能只保留 SKILL.md 的前 5000 token，后面直接丢。如果纪律条款写在后半篇，压缩后它物理上不存在了。这条是查官方文档时发现的，之前一直以为是模型不听话。
-
-对应三个做法：
-
-- 喂：SessionStart / UserPromptSubmit / PostToolUse 三个时机注入状态卡，压缩那一刻优先。
-- 拦：PreToolUse 拦 Write/Edit 和 Bash，卡住未签字写正文、伪造签字、上一节未过盲检就开下一节。
-- 减：SKILL.md 重排 + 细则下沉 references/，把执法内容压进 5000 token 线内。polish-sci 从 10918 降到 5939。
-
-## 内容
-
-### 技能
 
 | 目录 | 用途 |
 |---|---|
@@ -35,34 +17,33 @@
 | `reviewer-simulator` | 模拟审稿人挑刺 |
 | `polish-sci` | 纯语言润色，不改数据结论 |
 | `idea-bomb` | 课题构思与实验设计 |
+| `academic-gate` | 流程门禁插件，见下 |
 
-靠 frontmatter 的 description 自动触发，不需要记命令。说"帮我写 SCI 论文"就进 general-sci-writing。
+技能靠 frontmatter 的 description 自动触发，不用记命令。说"帮我写 SCI 论文"就进 general-sci-writing。每家可以单独装，装一家就只拿一家。
 
-### 门禁插件
+### 门禁插件在干什么
 
-`academic-gate`。目录里带 `.claude-plugin/plugin.json`，放进 `~/.claude/skills/` 重启一次，Claude Code 自动加载 `hooks/hooks.json`，不需要手工改 settings.json。
+长文档写作里 AI 跳步有两个成因，都不是模型能力问题。一是注意力衰减，SKILL.md 动辄一两万 token，写到第 5 节时第 2 节定的规矩已经很淡。二是上下文压缩会截断文档——Claude Code 压缩时每个技能只保留 SKILL.md 的前 5000 token，写在后半篇的纪律条款压缩后物理上不存在了。
 
-5 个 handler，3 个脚本：
+`academic-gate` 是个普通目录，里面有 `.claude-plugin/plugin.json`，放进 `~/.claude/skills/` 重启一次自动加载，不用手改配置。5 个 handler，3 个脚本：
 
-| 事件 | matcher | 脚本 | 行为 |
-|---|---|---|---|
-| SessionStart | startup\|clear\|compact\|resume\|fork | `context_feed_hook.py` | 注入全景状态卡 |
-| UserPromptSubmit | 全部 | 同上 | 有待办才注入短卡，全绿静默 |
-| PostToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | 同上 | 写完某节提示送检 |
-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | `academic_gate_hook.py` | deny / ask / allow |
-| PreToolUse | Bash | `bash_guard_hook.py` | 拦 shell 绕过 |
+| 事件 | matcher | 行为 |
+|---|---|---|
+| SessionStart | startup\|clear\|compact\|resume\|fork | 注入全景状态卡 |
+| UserPromptSubmit | 全部 | 有待办才注入短卡，全绿静默 |
+| PostToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | 写完某节提示送检 |
+| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | deny / ask / allow |
+| PreToolUse | Bash | 拦 shell 绕过 |
 
 判定逻辑只有一份（`context_guard_core.py`），三个钩子共用，避免状态卡说 A、门禁判 B。
 
+**这不是防绕过的锁。** 拦得住忘，拦不住铁了心要绕（shell 里写文件的形态无穷，黑名单原理上不完备）。绕过会在审计日志里留痕。
+
+**只在 Claude Code 上生效。** codex 有几乎同构的 hooks，但它的 `tool_input` 里没有 `file_path`（在 apply_patch 补丁文本里），我们的钩子会一律读到空然后放行——**门禁静默失效但不报错**，所以没往那边挂。opencode 走 in-process JS 插件，需要另写桥接层。**在这两端只有技能，没有门禁。**
+
 ## 安装
 
-### 依赖
-
-必需：Claude Code、Python 3.7+、git。
-
-可选：pandoc（导出 docx）、edirect（PubMed 检索，技能会在需要时提示装法）。
-
-### 步骤
+必需 Claude Code、Python 3.7+、git。可选 pandoc（导出 docx）、edirect（PubMed 检索，技能会在需要时提示装法）。
 
 ```bash
 git clone https://github.com/wsxwj123/scholar-skills.git
@@ -77,97 +58,78 @@ New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills"
 Copy-Item -Recurse "scholar-skills\*" "$env:USERPROFILE\.claude\skills\"
 ```
 
-然后重启 Claude Code。钩子在启动时加载，不重启等于没装。
+**然后重启 Claude Code。** 钩子在启动时加载，不重启等于没装，且不会报错。
 
-验证：
+更新就是 `git pull` 之后重跑上面那条 `cp`，再重启一次。
+
+### 验证装上了
 
 ```bash
 claude plugin list          # 应出现 academic-gate@skills-dir
 ```
 
-### opencode / codex
+再在项目目录里开个会话，AI 那边会收到一张状态卡（你在对话里通常看不见，问它一句"当前项目状态卡说了什么"就知道）。
 
-技能目录本身在这两端可用，直接 clone 到对应位置即可：
+**钩子起不来时的表现和没装完全一样，不报错、不提示。** 唯一判别法就是上面这两条。看不到就当没保护，按流程人工盯。
+
+### 装不上的两个常见原因
+
+**没重启，或目录放错了。** 必须在 `~/.claude/skills/` 下，不是 `~/.claude/plugins/`。
+
+**Windows 上 `python3` 可能是空壳。** Windows 自带一个 0 字节的 `python3` 占位程序，装了真 Python 也可能还排在 PATH 前面。`python3 --version` 没有正常输出就去 设置 → 应用 → 应用执行别名 关掉 `python3.exe`。另外钩子命令是 POSIX 写法（`exec "$(command -v python3 || command -v python)"`），纯 cmd/PowerShell 起不来，装 Git for Windows 一般能解决。
+
+### 它会往哪写文件
+
+技能会在**项目目录**里建稿件、状态文件、git 检查点，这是它的工作。
+
+门禁插件不写你的稿子。它在确认是学术项目的目录里写 `.academic_gate_audit.jsonl`，并在该目录已有 `.gitignore` 时追加一行。不是学术项目的目录不写。
+
+门禁插件**不碰 `~/.claude/settings.json`**（见下一节的例外）。
+
+## 卸载
+
+删目录就行：
 
 ```bash
-cp -R scholar-skills/*/ ~/.codex/skills/            # codex
-cp -R scholar-skills/*/ ~/.config/opencode/skills/  # opencode（新版本也读 ~/.claude/skills，可能不必单独放）
+cd ~/.claude/skills && rm -rf general-sci-writing review-writing nsfc-proposal sci2doc \
+  revise-sci reviewer-response-sci reviewer-simulator polish-sci idea-bomb academic-gate
 ```
 
-钩子在这两端不生效。codex 的 hooks 机制与 Claude Code 高度同构（事件名、hooks.json 结构、permissionDecision 都一样），但它的 `tool_input` 里没有 `file_path`（在 apply_patch 补丁文本里），需要约 20 行解析；opencode 走 in-process JS 插件，需要一个约 50 行的桥接层。两个适配都还没做。
+钩子定义住在 `academic-gate/hooks/hooks.json` 里，目录没了钩子跟着没，`settings.json` 里不留任何东西。重启一次生效。
 
-在这两端只有技能，没有门禁。
+### ⚠️ 别只删 academic-gate
 
-## 用法
+**只删门禁目录、留着技能，会让门禁改走旧路径，反而写进你的 `settings.json`。**
 
-在项目根目录起 Claude Code，直接说需求：
+因为每家技能开工时都会自检一次门禁：发现插件不在，就判定这台机器还没保护，于是把门禁脚本复制到 `~/.claude/academic-gate/`（这个位置在 skills 之外，故意不随技能目录增删），再往 `settings.json` 的 `PreToolUse` 追加一条。
 
-```
-帮我写一篇 SCI 论文，数据我一会儿给
-```
+这条自装路径只动它自己的东西——只认命令里含 `academic_gate_hook.py` 的条目，你的 `env` / `model` / `permissions` / `statusLine` / 你自己的钩子全部原样保留，改之前还会存一份 `settings.json.bak-gatehook`。但它**没有反向的卸载动作**，删技能不会把它清掉。
 
-流程大致是：先要素材，再把大纲摆给你确认，你确认后由**你自己**在终端跑签字命令解锁（命令技能会打印），之后逐节写，每节写完过一遍独立盲检才能开下一节。
+真踩了的话手动清两处：
 
-跑起来会看到两样东西。
-
-状态卡（自动进上下文，你在对话里通常看不到，AI 能看到）：
-
-```
-[学术项目状态卡 · academic-gate v0.8.0]
-项目根：/Users/you/my-paper
-技能：general-sci-writing
-已完成：3.1 ✅已检  3.2 ✅已检  3.3 ⚠️写完未检
-下一步：python scripts/delegate_review.py verify --section 3.3 --root "/Users/you/my-paper"
+```bash
+rm -rf ~/.claude/academic-gate
 ```
 
-拦截提示：
+再打开 `~/.claude/settings.json`，把 `hooks.PreToolUse` 里那个命令含 `academic_gate_hook.py` 的对象删掉。
 
+残留本身无害（它只在识别出学术项目时才管事，别的目录一律放行），只是每次写文件会被白调起来一次。
+
+### codex / opencode
+
+那两端从来不读 Claude Code 的钩子配置，本来就没挂钩子，删目录就是删干净了：
+
+```bash
+# 把 <目录> 换成上面那串同样的名字
+cd ~/.codex/skills            && rm -rf <目录>...   # codex
+cd ~/.config/opencode/skills  && rm -rf <目录>...   # opencode
 ```
-[学术门禁]「structure_signoff」未通过，本次写入被拦下。
-原因：结构签字缺失：大纲/故事线还没有经过用户确认。
-```
-
-被拦住说明流程被跳了，按提示补那一步。
-
-## 排障
-
-| 现象 | 原因 | 处置 |
-|---|---|---|
-| `claude plugin list` 无 `academic-gate@skills-dir` | 没重启，或目录不在 `~/.claude/skills/` 下 | 重启；确认路径 |
-| 开局看不到状态卡 | 钩子没跑起来 | 见下面 Windows 两条；检查 `python3 --version` |
-| 某技能不拦 | 那家 signoff 本来就是 false（返修/润色/审稿类没有大纲概念） | 正常 |
-
-### Windows 两个坑
-
-**`python3` 可能是空壳。** Windows 自带一个 0 字节的 `python3` 占位程序，装了真 Python 也可能还排在 PATH 前面。`python3 --version` 没有正常输出就去 设置 → 应用 → 应用执行别名 关掉 `python3.exe`。
-
-**钩子命令是 POSIX 写法**（`exec "$(command -v python3 || command -v python)"`），纯 cmd/PowerShell 起不来。装 Git for Windows 一般能解决。
-
-钩子起不来时的表现和没装完全一样，不报错、不提示。唯一判别法是开局看不看得到状态卡。看不到就当没保护，按流程人工盯。
-
-### 文件写入范围
-
-技能会在项目目录里建稿件、状态文件、git 检查点，这是它的工作。
-
-门禁插件不写你的稿子。它在**确认是学术项目**的目录里写 `.academic_gate_audit.jsonl`，并在该目录已有 `.gitignore` 时追加一行。不是学术项目的目录不写。
-
-## 已知局限
-
-**不是防绕过的锁。** 拦得住忘（绝大多数情况），拦不住铁了心要绕。shell 里写文件的形态无穷，我们拦常见的，黑名单原理上不完备。绕过会在审计日志里留痕，事后可查。
-
-**状态卡会重复。** 只要有节写完未送检，每轮都提醒。这是有意的，不是 bug，待办清空后自动安静。
-
-**三端不齐平。** 见上面 opencode/codex 那节。
-
-**"零残留"要说准。** 只是目录名撞上（你有个 `drafts/`）不写任何文件；但 AI 去写 `.review_pass/` 或 `structure_signoff.json` 这两个我们的凭证名时，会在那个目录留一行审计。
-
-**没有真实写作场景的长跑验证。** 有 1099 条自动化测试覆盖行为契约（含误伤矩阵、注入清洗、大小写绕过、越界读、GBK `.gitignore` 字节不变、单家可独立安装），但测试证不了"用起来真的治忘、真的不烦"。这部分待实测。
-
-**每家技能可以单独装。** 装一家就只拿一家，不需要凑齐。这条现在由测试锁着（不许任何一家的文档里出现指向另一家目录的文件路径），此前 review-writing 的投稿阶段就踩过：它要求去读 general-sci-writing 的两个文件，只装综述的人那里根本没有，AI 读不到就自己编。
 
 ## 反馈
 
 误拦、漏拦、状态卡内容不对、装不上，都欢迎开 issue。误拦优先修。
+
+有 1099 条自动化测试覆盖行为契约，但测试证不了"用起来真的治忘、真的不烦"，这部分待实测。
 
 ## 授权
 
