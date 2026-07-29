@@ -15,14 +15,26 @@ except Exception:  # pragma: no cover
 
 
 def load_json(path, default):
+    """读 JSON。文件不存在 → default（静默，缺席是常态：矩阵/claims 还没建就是这样）；
+    文件在但读不出/坏 JSON → 立刻退出 1 并指名文件（异常状态必须可见）。
+
+    历史弱点（2026-07-29 修）：这里原本 `except Exception: return default`，把破损
+    文件当成空数据继续跑，于是 audit --fail-on-gap 在矩阵损坏时报 0 缺口 exit 0
+    ——"文件坏了反而全绿"。退出码沿用本脚本既有的"输入不合法=1"（同 must be a list），
+    不新增语义；2 仍专用于"矩阵不合格"这类门禁判定。
+    """
     p = Path(path)
     if not p.exists():
         return default
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-        return data
-    except Exception:
-        return default
+        return json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"{p} 不是合法 JSON（第 {exc.lineno} 行第 {exc.colno} 列：{exc.msg}）。"
+            f"文件可能被写坏或截断，请修复或删除后重新生成；不修就继续跑会把损坏当成空数据。"
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        raise SystemExit(f"{p} 读不出（{exc}）。请检查文件权限与编码（要求 UTF-8）。")
 
 
 def save_json(path, data):
