@@ -39,28 +39,67 @@
 
 **这不是防绕过的锁。** 对 AI 直接写文件那条路（Write / Edit / MultiEdit / NotebookEdit / apply_patch）它是完备的：大小写变体、`..`、`~`、相对路径、空字节、补丁头这类花样实测全部拦下。但 AI 用 shell 命令写文件的形态无穷，黑名单原理上堵不完，而且技能自带的脚本 AI 本来就得能跑，那条路封不死。所以定位是**拦得住忘，拦不住铁了心要绕**，绕过会在审计日志里留痕。想关掉或想锁更死，见「卸载」末尾两节。
 
-**只在 Claude Code 上生效。** codex 有几乎同构的 hooks，但它的 `tool_input` 里没有 `file_path`（在 apply_patch 补丁文本里），我们的钩子会一律读到空然后放行——**门禁静默失效但不报错**，所以没往那边挂。opencode 走 in-process JS 插件，需要另写桥接层。**在这两端只有技能，没有门禁。**
+**Claude Code 和 Codex 上都能拦，OpenCode 上只有技能。** Codex 读的是本目录的 `.codex-plugin/plugin.json`，**装完必须在 Codex 里跑一次 `/hooks` 把这几条钩子逐条信任**——没信任的钩子会被直接跳过且不报错；之后改过 `hooks/hooks.json` 还要再信任一次（Codex 按钩子定义算哈希记账）。另外 Codex 的拦截框没有"允许一次"，所以"只是撞了目录名的陌生项目"那一档在 Codex 上按放行处理、只记一条审计，免得把不相干的项目卡死。OpenCode 只认它自己的 JS 插件，从不读这套配置，那端门禁不存在。
 
 ## 安装
 
 必需 Claude Code、Python 3.7+、git。可选 pandoc（导出 docx）、edirect（PubMed 检索，技能会在需要时提示装法）。
 
+### 一条命令装完（macOS / Linux / Git Bash）
+
+装 Claude Code 一端：
+
 ```bash
-git clone https://github.com/wsxwj123/scholar-skills.git
-mkdir -p ~/.claude/skills
-cp -R scholar-skills/*/ ~/.claude/skills/
+git clone https://github.com/wsxwj123/scholar-skills.git /tmp/scholar-skills && mkdir -p ~/.claude/skills && for d in /tmp/scholar-skills/*/; do cp -R "${d%/}" ~/.claude/skills/; done && rm -rf /tmp/scholar-skills && echo "装好了，现在重启 Claude Code"
 ```
 
-Windows PowerShell：
+三端一起装（多装的两端只有技能，没有门禁）：
+
+```bash
+git clone https://github.com/wsxwj123/scholar-skills.git /tmp/scholar-skills && for t in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do mkdir -p "$t"; for d in /tmp/scholar-skills/*/; do cp -R "${d%/}" "$t"/; done; done && rm -rf /tmp/scholar-skills && echo "三端装好了，现在重启 Claude Code"
+```
+
+### Windows PowerShell
 
 ```powershell
+git clone https://github.com/wsxwj123/scholar-skills.git $env:TEMP\scholar-skills
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.claude\skills"
-Copy-Item -Recurse "scholar-skills\*" "$env:USERPROFILE\.claude\skills\"
+Get-ChildItem "$env:TEMP\scholar-skills" -Directory -Force |
+  Where-Object { $_.Name -ne '.git' } |
+  ForEach-Object { Copy-Item -Recurse -Force $_.FullName "$env:USERPROFILE\.claude\skills\" }
+Remove-Item -Recurse -Force "$env:TEMP\scholar-skills"
 ```
 
-**然后重启 Claude Code。** 钩子在启动时加载，不重启等于没装，且不会报错。
+只拷子目录，不把仓库根的 README 之类扫进技能目录。
 
-更新就是 `git pull` 之后重跑上面那条 `cp`，再重启一次。
+Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否则钩子跑不起来（见「装不上的两个常见原因」）。
+
+### 懒得敲命令：把下面这段丢给你的 AI
+
+复制整段发给 Claude Code / Codex / 任何能跑命令的 AI，让它替你装：
+
+```
+帮我装 https://github.com/wsxwj123/scholar-skills 这个技能包。
+
+要求：
+1. clone 到临时目录，把仓库根下的每个子目录（general-sci-writing、review-writing、
+   nsfc-proposal、sci2doc、revise-sci、reviewer-response-sci、reviewer-simulator、
+   polish-sci、idea-bomb、academic-gate，共 10 个）整个拷进我这台机器的全局技能目录。
+   我用哪些客户端你先问我，对应目录是：
+     Claude Code  → ~/.claude/skills/
+     Codex        → ~/.codex/skills/
+     OpenCode     → ~/.config/opencode/skills/
+2. 一个都别漏，尤其 academic-gate —— 它是流程门禁插件，漏了就只有技能没有拦截。
+3. 装完删掉临时目录，然后告诉我：
+   - 要重启一次客户端才生效（钩子在启动时加载，不重启等于没装，而且不会报错）
+   - 重启后怎么验证（跑 claude plugin list 看有没有 academic-gate@skills-dir）
+4. 别改我的 ~/.claude/settings.json，也别改任何已有配置。这个包不需要改配置。
+5. 如果我的机器上已经装过旧版，直接覆盖即可，不用备份（内容都在 GitHub 上）。
+```
+
+更新的话，把上面那段里的"装"换成"更新到最新版"，AI 会重跑同样的流程。
+
+**装完必须重启一次客户端。** 钩子在启动时加载，不重启等于没装，且不会报错。
 
 ### 验证装上了
 
