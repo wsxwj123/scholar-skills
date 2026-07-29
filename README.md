@@ -37,7 +37,7 @@
 
 判定逻辑只有一份（`context_guard_core.py`），三个钩子共用，避免状态卡说 A、门禁判 B。
 
-**这不是防绕过的锁。** 拦得住忘，拦不住铁了心要绕（shell 里写文件的形态无穷，黑名单原理上不完备）。绕过会在审计日志里留痕。
+**这不是防绕过的锁。** 对 AI 直接写文件那条路（Write / Edit / MultiEdit / NotebookEdit / apply_patch）它是完备的：大小写变体、`..`、`~`、相对路径、空字节、补丁头这类花样实测全部拦下。但 AI 用 shell 命令写文件的形态无穷，黑名单原理上堵不完，而且技能自带的脚本 AI 本来就得能跑，那条路封不死。所以定位是**拦得住忘，拦不住铁了心要绕**，绕过会在审计日志里留痕。想关掉或想锁更死，见「卸载」末尾两节。
 
 **只在 Claude Code 上生效。** codex 有几乎同构的 hooks，但它的 `tool_input` 里没有 `file_path`（在 apply_patch 补丁文本里），我们的钩子会一律读到空然后放行——**门禁静默失效但不报错**，所以没往那边挂。opencode 走 in-process JS 插件，需要另写桥接层。**在这两端只有技能，没有门禁。**
 
@@ -114,6 +114,32 @@ rm -rf ~/.claude/academic-gate
 再打开 `~/.claude/settings.json`，把 `hooks.PreToolUse` 里那个命令含 `academic_gate_hook.py` 的对象删掉。
 
 残留本身无害（它只在识别出学术项目时才管事，别的目录一律放行），只是每次写文件会被白调起来一次。
+
+### 不想删，只想关拦截
+
+新建 `~/.claude/academic-gate.local.json`：
+
+```json
+{ "enforcement_enabled": false, "note": "我自己盯流程" }
+```
+
+拦截停了，状态卡提醒和技能自己的流程脚本照常。恢复就删掉这个文件，或把值改成 `true`。
+
+只有 JSON 的 `false` 才算关。文件不存在、JSON 坏了、值写成字符串 `"false"`、读不出来——一律按"保护开着"处理，坏文件不会静默把保护关掉。当前是开是关，跑一次任一技能的开局脚本就会打印出来（关闭时它会告诉你开关在哪、什么时候改的、你写的理由）。
+
+这个文件在写保护清单里，AI 改不动：你关了它不会被 AI 打开，你开着它也不会被 AI 关掉。
+
+### 反过来：想锁得更死
+
+门禁自己的文件 AI 用写文件工具改不动，但 shell 那条路堵不完（见开头那段）。两个不依赖我们这层黑名单的办法：
+
+```bash
+touch ~/.claude/academic-gate.local.json && chmod 444 ~/.claude/academic-gate.local.json
+```
+
+文件里留一个 `{}` 就行——保护照常开着，同时这个文件谁也写不进去。
+
+另一个是用 Claude Code 自带的 `permissions.deny`，按路径禁掉对门禁目录和这个开关文件的 `Write` / `Edit` / `Bash`。怎么配看官方文档，我们不替你改 `settings.json`。
 
 ### codex / opencode
 
