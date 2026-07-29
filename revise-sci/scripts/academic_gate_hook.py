@@ -25,6 +25,9 @@ apply_patch）时，按下面的顺序决策：
 - 三端共用：路径归一化在 core 的 extract_file_paths()（Codex 的 tool_input 里
   没有 file_path，改文件的信息全在 apply_patch 补丁文本里）；解析不出路径时
   **不走静默路径**，留审计 rule="path-parse-failed"。
+- Codex 上 ask 折成 **allow + 审计**（见 _is_codex 与 main 里的分支）：那端不支持
+  ask，会判钩子失败然后照常执行工具。弱档本就是"撞名的陌生项目"，硬拦保护力不增
+  而误伤巨大（那端没有"允许一次"）；不静默由审计兑现。Claude Code 侧 ask 不变。
 
 stdin: PreToolUse 事件 JSON。stdout: 命中时一个决策 JSON，放行时完全为空。
 """
@@ -205,6 +208,35 @@ def _emit_context(text: str) -> None:
         pass
 
 
+def _infra_guard(payload: dict, tool_name: str) -> bool:
+    """门禁自身文件的写保护。命中即 deny，返回 True。
+
+    🔴 位置铁律：调用点必须在 `core.load_registry()` **之前**。把它放进 _judge 或
+    放在读注册表之后，AI 只要先把 gate_registry.json 写成 `{}`，main() 就在读注册表
+    那一步返回了 —— 一票废掉包括这条保护在内的一切。本判定因此不依赖注册表、不依赖
+    项目根、不依赖分档，是整个钩子里最不依赖状态的一条。
+    """
+    if tool_name not in WRITE_TOOLS:
+        return False          # 只拦写不拦读
+    for raw in core.infra_target_strings(payload):
+        try:
+            cat = core.protected_infra(raw, payload.get("cwd"))
+        except Exception:
+            cat = "unparsable"   # 判据自己炸了也不放行（本条唯一 fail-closed）
+        if not cat:
+            continue
+        reason = (core.REASON_INFRA_SWITCH if cat == "killswitch"
+                  else core.REASON_INFRA.format(
+                      target=core.sanitize_field(raw, "text", 200)))
+        _emit("deny", reason)     # 先出决策，再写审计：审计失败不得改变决策
+        core.audit_append(None, event="PreToolUse", tool=tool_name,
+                          rule=core.INFRA_RULE, decision="deny", skill="",
+                          target=core.sanitize_field(raw, "text", 180),
+                          detail="%s tool" % cat)
+        return True
+    return False
+
+
 def _judge(path: Path, registry: dict):
     """对一个目标路径做一次判定。返回 None=放行，否则 (decision, reason, 审计字段)。"""
     ev = core.detect_for_path(path, registry)
@@ -295,6 +327,22 @@ def _handle_parse_failure(payload: dict, tool_name: str) -> None:
             core.push_notice(key, NOTICE_PARSE_FAILED_LATER.format(tool=tool_name))
 
 
+def _is_codex(payload: dict) -> bool:
+    """这一次调用是不是 Codex 发来的。**只认一个信号**：tool_name == "apply_patch"。
+
+    依据（Codex 官方 hooks 文档）：matcher 可以写 apply_patch/Edit/Write 三种别名，
+    但**钩子输入里的 tool_name 恒为 "apply_patch"**。Claude Code 侧不存在这个工具名，
+    且我们 hooks.json 的 matcher 是 Write|Edit|MultiEdit|NotebookEdit，Claude Code 上
+    根本不会有 tool_name="apply_patch" 的调用抵达本脚本 → 这个信号不会误伤现役行为。
+
+    没用"file_path 缺失"当信号：那和"字段恰好为空"分不清。也没用环境变量——Codex 给
+    插件钩子设 PLUGIN_ROOT/PLUGIN_DATA（Claude Code 只设 CLAUDE_PLUGIN_ROOT），可以当
+    备用信号，但它只在"以插件形式安装"时存在，而那时 tool_name 已经够用了，白加一条
+    误判面。若哪天 Codex 改了 tool_name，PLUGIN_ROOT 是现成的补充信号。
+    """
+    return payload.get("tool_name") == "apply_patch"
+
+
 def main() -> None:
     try:
         payload = json.load(sys.stdin)
@@ -302,11 +350,18 @@ def main() -> None:
         return                            # 读不到输入：放行
     if not isinstance(payload, dict):
         return
+    tool_name = payload.get("tool_name")
+    tool_name = tool_name if isinstance(tool_name, str) else ""
+
+    # 顺序铁律：infra 保护 → 用户开关 → 原有门禁。前两步都在读注册表之前。
+    if _infra_guard(payload, tool_name):
+        return
+    if core.enforcement_disabled():
+        return                            # 用户关了拦截层：本层全放行（infra 保护不受影响）
+
     registry = core.load_registry()
     if not registry.get("skills"):
         return                            # 无注册表：放行（既有行为不变）
-    tool_name = payload.get("tool_name")
-    tool_name = tool_name if isinstance(tool_name, str) else ""
 
     paths = core.extract_file_paths(payload)
     if not paths:
@@ -326,6 +381,18 @@ def main() -> None:
         if verdict is None:
             continue
         decision, reason, root, rule, skill, target, detail = verdict
+        if decision == "ask" and _is_codex(payload):
+            # Codex 不支持 ask（那端会判钩子失败然后照常执行工具）。折成放行而不是拦：
+            # ask 只出在弱证据档 = "只是撞了通用目录名的陌生项目"，真正在用本技能的项目
+            # 有状态签名、走强证据档、在 Codex 上照拦不误。硬拦弱档保护力一点没多，代价
+            # 却是把陌生项目卡死——Codex 的拦截框没有"允许一次"，唯一出路是去 /hooks 停
+            # 掉整个插件。放行对陌生项目本就是正确默认；原来担心的"静默"由这条审计兑现。
+            # rule 保持 "F8-weak-ask"：它在 core.NO_ROOT_RULES 白名单里，改名会让这一档
+            # （root=None，只能落 CLAUDE_PLUGIN_DATA）的留痕被静默丢弃。
+            core.audit_append(root, event="PreToolUse", tool=tool_name or "Write",
+                              rule=rule, decision="allow", skill=skill, target=target,
+                              detail=(detail + " codex 无 ask 档按放行").strip())
+            continue                      # 同一段 patch 里的其余文件照判（可能有强档命中）
         _emit(decision, reason)           # 先出决策，再写审计：审计失败不得影响决策
         core.audit_append(root, event="PreToolUse", tool=tool_name or "Write",
                           rule=rule, decision=decision, skill=skill,

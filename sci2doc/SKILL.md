@@ -1,6 +1,6 @@
 ---
 name: sci2doc
-version: 2.27.5
+version: 2.28.1
 description: 用于将SCI论文材料转化为中文博士或硕士学位论文草稿，执行严格的章节结构、原子化Markdown工作流、门禁检查和版本回滚。当用户提到博士论文、硕士论文、学位论文、毕业论文、SCI转论文、doctoral thesis、master thesis、dissertation 时优先调用。
 ---
 
@@ -338,7 +338,7 @@ python3 scripts/extract_docx_images.py --manuscript /path/to/source.docx --proje
 
 **章节字数协商在此阶段完成（不在 init 后）：** 基于各章实际承载内容（实验数量/图表数量/方法复杂度），与用户协商每章字数目标，写入 profile 的 `chapter_targets`，再执行 Step 1 init。
 
-> **[章节结构签字·强制门禁落锁]** 用户在对话里明确确认上面的研究主线 / 章节结构映射表后（且**仅在此之后**），运行开局 `env_preflight.py` 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径）落盘签字。注意 `env_preflight.py` 在会话开场就运行（即本 Step 0.5 签字之前，见本文件开头第 1 条握手；它文档虽列在 Step 1，实际执行在最前），所以此刻 `SIGNOFF_CMD` 早已拿到，不存在签字时还没拿到命令的次序歧义：即 `python "<sci2doc>/scripts/structure_signoff_gate.py" confirm --root <项目根> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会物理拦截任何对 `atomic_md/*/*.md`（学位论文各章正文）的写入**（这是防跳步的硬门，不是提示词纪律）。这道拦截 hook 由 `env_preflight.py` 开工时经本技能 `scripts/install_gate_hook.py`（vendored）自动安装并校验，它先把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里，单独分发的技能也能自装（带备份与回滚），门禁状态 active 即在岗；若报 degraded / error（如缺 `_shared`），物理拦截不可用，签字仅留痕、无强制，需人工守住「未签字不写正文」。若后续章节结构又改，改完让用户重新确认并重跑本命令覆盖签字。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
+> **[章节结构签字·强制门禁落锁]** 用户在对话里明确确认上面的研究主线 / 章节结构映射表后（且**仅在此之后**），运行开局 `env_preflight.py` 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径）落盘签字。注意 `env_preflight.py` 在会话开场就运行（即本 Step 0.5 签字之前，见本文件开头第 1 条握手；它文档虽列在 Step 1，实际执行在最前），所以此刻 `SIGNOFF_CMD` 早已拿到，不存在签字时还没拿到命令的次序歧义：即 `python "<sci2doc>/scripts/structure_signoff_gate.py" confirm --root <项目根> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会在工具层拦下（deny）任何对 `atomic_md/*/*.md`（学位论文各章正文）的写入**（这是防跳步的硬门，不是提示词纪律：写文件类工具一律 deny，经 shell 的写入另有一条 Bash 钩子拦，任何绕行都会记进项目根的 `.academic_gate_audit.jsonl` 供用户复核）。这道拦截 hook 由 `env_preflight.py` 开工时经本技能 `scripts/install_gate_hook.py`（vendored）自动安装并校验，它先把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里，单独分发的技能也能自装（带备份与回滚），门禁状态 active 即在岗；若报 degraded / error（如缺 `_shared`），拦截层不在岗，签字仅留痕、无强制，需人工守住「未签字不写正文」。若后续章节结构又改，改完让用户重新确认并重跑本命令覆盖签字。**签字与它签的那份大纲绑定**：节号/标题/层级/顺序任一变化（含只增不删的细化扩展），下次写正文会被门禁拦下并逐条列出哪几节变了，须由用户重新确认后重跑本命令；进度、统计、时间戳这类变动不触发重签。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
 >
 > 注意：本签字闸管的是**章节结构确认**，与 `## Style Selection Gate`（样式/格式确认，阻断 init 与 docx 导出）是**两道独立的门**，各管各的，别混淆或相互替代。
 

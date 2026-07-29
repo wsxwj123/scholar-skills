@@ -89,12 +89,37 @@ def _review_state(root: Path, sid: str) -> str:
     return "passed=true" if passed else "passed≠true"
 
 
+def _outline_readable(root: Path) -> bool:
+    """这个项目的大纲这会儿还取得出结构投影吗。
+
+    直接复用签字门禁的 build_fingerprint（同目录 vendored），不另写一套"大纲在哪"
+    的判据——两套判据迟早各说各话。取不出/import 不到一律按"读得出"处理：
+    状态卡是 fail-open 的，宁可少说一句，也不误报"大纲没了"。
+    """
+    try:
+        import structure_signoff_gate as ssg
+        return ssg.build_fingerprint(root) is not None
+    except Exception:
+        return True
+
+
 def _signoff_line(root: Path) -> str:
     try:
         obj = json.loads((root / "structure_signoff.json").read_text(encoding="utf-8"))
         ok = isinstance(obj, dict) and bool(obj.get("confirmed"))
-        return ("结构签字：structure_signoff.json 存在，confirmed=%s"
+        line = ("结构签字：structure_signoff.json 存在，confirmed=%s"
                 % ("true" if ok else "false"))
+        # 存量签字没有大纲绑定信息（升级前落的）——照常放行，但要把这个事实说出来，
+        # 否则用户以为"签字绑着大纲"，实际改了纲也不会有人拦。只描述项目事实，
+        # 不描述拦不拦（INTERFACE §8.10）。
+        if ok and not isinstance(obj.get("outline_fingerprint"), dict):
+            line += "（已确认，未绑定大纲；下次 confirm 会自动绑定）"
+        elif ok and not _outline_readable(root):
+            # 绑过大纲、但这次读不出那份大纲（被挪走/删了/坏了）。签字文件看着还在，
+            # 绑定关系实际已经落空；不说出来的话，用户和模型两侧都以为还绑着。
+            # 同样只描述项目事实，不描述拦不拦（INTERFACE §8.10）。
+            line += "（已绑定大纲，但本次读不出大纲文件）"
+        return line
     except FileNotFoundError:
         return "结构签字：structure_signoff.json 不存在"
     except Exception:
@@ -111,8 +136,15 @@ def _snapshot(root: Path, skill: str, registry: dict) -> dict:
 def _full_card(root: Path, ev, registry: dict, snap: dict, notice: str) -> str:
     ver = core.plugin_version()
     root_s = core.sanitize_field(str(root), "text", 200)
-    lines = [
-        "[学术项目状态卡 · academic-gate v%s 从项目文件读出，非会话记忆]" % ver,
+    lines = ["[学术项目状态卡 · academic-gate v%s 从项目文件读出，非会话记忆]" % ver]
+    # 🔴 这一句必须待在卡片前部的不可截断区：_fit 从末尾往回砍，排在后面的话
+    # "开态有、关态无"这条断言会因为卡片变长而在无关处失灵。
+    # 用户关掉拦截层时整行删除（那时它是假话），且**不新增任何"当前不拦"的陈述**——
+    # 状态卡的读者是模型，把"现在没人管你"喂给被约束方是反效果。
+    if not core.enforcement_disabled():
+        lines.append("本项目存在已声明完成但无盲检标记的节时，"
+                     "academic-gate 会拦下新正文文件的写入。")
+    lines += [
         "项目根：%s" % root_s,
         "技能：%s" % core.sanitize_field(ev.skill, "ident"),
         _signoff_line(root),
@@ -135,7 +167,6 @@ def _full_card(root: Path, ev, registry: dict, snap: dict, notice: str) -> str:
         lines.append("已声明完成但无盲检标记的节：%s"
                      % "、".join(core.sanitize_list(snap["pending"], "ident")))
     lines.append("本项目的盲检命令：%s" % core.verify_command(ev.skill, root))
-    lines.append("本项目存在已声明完成但无盲检标记的节时，academic-gate 会拦下新正文文件的写入。")
     if ev.unknown:
         lines.append("未知项：%s。" % "；".join(core.sanitize_list(ev.unknown, "text", 120)))
     if notice:
@@ -205,6 +236,14 @@ def run() -> None:
     notice = core.pop_notice(str(cwd_real)) if event == "UserPromptSubmit" else ""
 
     registry = core.load_registry()
+    if core.registry_unreadable() and event in ("SessionStart", "UserPromptSubmit"):
+        # 注册表读不出来 = 认不出任何项目 = 后面什么都不会说。不留这一行的话，
+        # `chmod 000 gate_registry.json` 就成了"一声不吭地让门禁整体失效"。
+        # 只陈述基础设施坏了这个事实，不说拦不拦（INTERFACE §8.10）。
+        _emit(event, "[学术门禁 v%s] 门禁读不出自己的技能清单文件 %s"
+                     "（文件在，但打不开或内容不可用，常见原因是权限被改或文件损坏）。"
+                     "请用户检查该文件。" % (core.plugin_version(), core.REGISTRY_NAME))
+        return
     ev = core.detect(cwd_real, registry)
     if ev.tier != "strong" or ev.root is None:
         # 非学术项目零打扰；唯一例外是有待报要捎话。

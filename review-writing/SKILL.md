@@ -1,6 +1,6 @@
 ---
 name: review-writing
-version: 2.28.1
+version: 2.29.1
 description: "Universal assistant for writing high-impact academic literature reviews (Nature/Cell/Lancet level). Supports real-time Zotero integration, outline persistence, and multi-mode reference management. Use when writing a comprehensive review article requiring systematic search, synthesis, and citation management. 触发词：写综述、文献综述、综述写作、literature review、review article、改综述、完善综述、继续写综述、improve review。"
 triggers:
   - "写综述"
@@ -535,7 +535,7 @@ Format: `[review] Phase X.Step: <description>`. 📖 消息表 + Rollback 命令
    > ```
    > 修改后须更新 `outline.md`，重新确认 Zotero 集合树（`--init` 是幂等的），并用 Git Checkpoint 记录版本。**不得因回修提纲而删除已完成节次的已有文献入库记录。**
 
-   > **[结构签字·强制门禁落锁]** 用户在对话里明确确认提纲后（且**仅在此之后**），运行 Phase 0.5 `init_project.py` 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径与项目根）落盘签字，即 `python "<review-writing>/scripts/structure_signoff_gate.py" confirm --root <项目根> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会物理拦截任何对 `drafts/section_*.md` 的写入**（这是防跳步的硬门，不是提示词纪律）。该 hook 由 Phase 0 `init_project.py` 开工时经本技能 vendored 的 `install_gate_hook.py`（在 `scripts/` 下）自动安装并校验，它先把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里，单独分发的技能也能自装（备份原 settings / 只追加不覆写 / 校验失败即回滚），init 回显 `门禁保护[active]` 即在岗生效；若回显 `[installed]`，表示首次安装成功、settings.json 已写入，但 hook 需【重启一次本会话】后才加载生效（无法热生效）；若回显 `[degraded]` 或 `[error]`（安装/校验未通过，如缺 `_shared`），物理拦截不可用、降级为提示词纪律，签字仅留痕、无强制，需人工守住「未签字不写 `drafts/section_*.md`」。若后续回修提纲（上方迭代闸允许），改完让用户重新确认并重跑本命令覆盖签字。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
+   > **[结构签字·强制门禁落锁]** 用户在对话里明确确认提纲后（且**仅在此之后**），运行 Phase 0.5 `init_project.py` 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径与项目根）落盘签字，即 `python "<review-writing>/scripts/structure_signoff_gate.py" confirm --root <项目根> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会在工具层拦下（deny）任何对 `drafts/section_*.md` 的写入**（这是防跳步的硬门，不是提示词纪律：写文件类工具一律 deny，经 shell 的写入另有一条 Bash 钩子拦，任何绕行都会记进项目根的 `.academic_gate_audit.jsonl` 供用户复核）。该 hook 由 Phase 0 `init_project.py` 开工时经本技能 vendored 的 `install_gate_hook.py`（在 `scripts/` 下）自动安装并校验，它先把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里，单独分发的技能也能自装（备份原 settings / 只追加不覆写 / 校验失败即回滚），init 回显 `门禁保护[active]` 即在岗生效；若回显 `[installed]`，表示首次安装成功、settings.json 已写入，但 hook 需【重启一次本会话】后才加载生效（无法热生效）；若回显 `[degraded]` 或 `[error]`（安装/校验未通过，如缺 `_shared`），拦截层不在岗、降级为提示词纪律，签字仅留痕、无强制，需人工守住「未签字不写 `drafts/section_*.md`」。若后续回修提纲（上方迭代闸允许），改完让用户重新确认并重跑本命令覆盖签字。**签字与它签的那份大纲绑定**：节号/标题/层级/顺序任一变化（含只增不删的细化扩展），下次写正文会被门禁拦下并逐条列出哪几节变了，须由用户重新确认后重跑本命令；进度、统计、时间戳这类变动不触发重签。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
 
 4. **规划贯穿全文的概念框架图（提纲确认后，Phase 1.7 内完成）：**
    在 `figures/figure_index.md` 中注册一条 `Figure 0`（概念框架图），要求：
@@ -644,6 +644,8 @@ for each section in outline.md (e.g., section ID = "2.1"):
 
 **Per-subsection density（按标题层级，prewrite_gate check3 硬拦）:** level = section_id 段数+1（`2.1`=三级、`2.1.1`=四级）。硬地板：三级叶子节 ≥6 条、四级叶子节 ≥3 条，其余层级 ≥1；低于地板 prewrite_gate exit 1 禁止开写。容器父节（大纲里还有更深子节的节，如 `2.1` 下有 `2.1.1`）本身不承载文献，放宽到 ≥1。软目标：三级 ≥10、四级 ≥5，未达只进 warnings 提示补足、不阻断。
 
+**数量与"做没做"是两根轴，不重复**：条数够不够由 check3（上面这段）管；本节的系统主检索**跑没跑过**由 prewrite_gate 的 `section_search_done` 管——它只看本节有没有 `tmp/papers_X_X.json`（非空数组）或 `data/search_log.json` 里归属本节的条目，**不设任何数量阈值**。所以领域本来就小、这节只搜到两篇，只要检索跑过就照常放行；反过来，把 Phase 1.5 探索检索那批文献挨个打上节号凑够条数，`section_search_done` 照样拦。
+
 **Chinese writing mode:** Search tools identical to English mode. Read language setting from outline.md.
 
 ### Phase 2.5: Dedup + Global ID Assignment
@@ -704,7 +706,7 @@ If pending_sections is empty → all sections complete; proceed to Phase 4.
 
 ### Per-Section Cycle
 
-0. **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写本 section 前必须先跑 `python3 scripts/prewrite_gate.py --section X.X --root .`，exit≠0 禁止开写。它统一硬检查：上一节完成（上一节 ∈ `state.json.completed_sections`）、大纲就位（`outline.md` 含本节标题）、素材就位（`data/synthesis_matrix.json` 本节文献矩阵按标题层级达硬地板：三级叶子≥6/四级叶子≥3/容器父节≥1；软目标三级≥10、四级≥5 未达只 warn 不拦）、上一节占位符清零（`drafts/` 无 `CITE_PENDING`/`DATA_PENDING`/`【待`）；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记。**盲检subagent确实跑不起来时**，用 `--allow-manual-review "<理由>"` 显式人工放行（仅放行盲检项、留痕审计，见规则 10 的逃生口）；不加则门禁默认硬拦行为不变。PASS 时脚本会注明"仅覆盖形式层，语义正确性未自动核验"。Polish Mode `keep` 节跳过本节循环故无需跑。
+0. **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写本 section 前必须先跑 `python3 scripts/prewrite_gate.py --section X.X --root .`，exit≠0 禁止开写。它统一硬检查：上一节完成（上一节 ∈ `state.json.completed_sections`）、大纲就位（`outline.md` 含本节标题）、素材就位（`data/synthesis_matrix.json` 本节文献矩阵按标题层级达硬地板：三级叶子≥6/四级叶子≥3/容器父节≥1；软目标三级≥10、四级≥5 未达只 warn 不拦）、上一节占位符清零（`drafts/` 无 `CITE_PENDING`/`DATA_PENDING`/`【待`）；**本节系统主检索做过**（`section_search_done`：本节有 `tmp/papers_X_X.json` 非空数组，或 `data/search_log.json` 里有 `section` 等于本节的条目；两条取 OR，**只判做没做、不设数量阈值**；容器父节自动跳过。缺证据 exit 1，出路是补跑 Phase 2 的逐节检索，或本节确实无需检索时加 `--allow-no-search "<理由>"` 显式声明——留痕进检索台账，一次声明该节永久放行）；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记。**盲检subagent确实跑不起来时**，用 `--allow-manual-review "<理由>"` 显式人工放行（仅放行盲检项、留痕审计，见规则 10 的逃生口）；不加则门禁默认硬拦行为不变。PASS 时脚本会注明"仅覆盖形式层，语义正确性未自动核验"。Polish Mode `keep` 节跳过本节循环故无需跑。
 
 1. **Load context:**
    ```
@@ -956,7 +958,7 @@ Write Mode has no `pending_sections` field so this gate is a no-op (no key → e
      ```
      > **分隔符类 `[.:：]` 必须含全角冒号**：`## Figure 0：概念框架图` 这种全角注册行若被筛掉就**根本进不了语料**，④ 护栏 3 的回查再怎么写也看不到它（对该形态是死代码），而 Figure 0 是要求每节都引的框架图 —— 一条写歪的注册行会稳定产一条假阳。收进语料后第 1 层**仍认不出**它（英文 `Figure N` 题注正则只认半角，中文 `图 N` 才认全角），`caption_found` 仍为 `false`，由护栏 3 逐条回查兜住。
      > **该修正的已知副作用（无害，但别当成 bug 查）**：全角注册行既然不被题注正则识别，就**不会进 `caption_rows`**，于是会被当成一条标题、多抽出一条 `number=null` 的**假 section 锚**（实测 `SEC [(None,'Figure 0：概念框架图'), ('2.1','Results')]`）。这使「喂题注前后 `sections` 逐条相同」这条不变式**只在全部注册行都用半角分隔符时成立**。假 section 无编号，且第 2 层通读时一眼能看出那是图题注不是小节标题 → **不产假阳**，只是 `outline.json` 的候选清单多一条噪声。
-     **只取匹配 `^## Figure N:` 的注册标题行、绝不 `cat` 整份登记表**（整份会多出一条假 section「Figure Index」，且 `- Type:`/`- Section:`/`- Key Message:`/`- Caption:`/`- Node mapping:` 五类登记字段行会被当成正文里的图/节引用）。**表题注就写在正文里、不需要合并，别把表也塞进本流程。** 落点固定 `tmp/xref_corpus.md`、`outline.json` 落项目根，**两者绝不落 `drafts/`**（`drafts/section_*.md` 是 managed_globs，写进去会被 signoff hook 物理拦截）；本步只读 `exports/`，**不写 `exports/` 下任何文件**（正文修改只发生在 HALT 后的用户裁决环节）。
+     **只取匹配 `^## Figure N:` 的注册标题行、绝不 `cat` 整份登记表**（整份会多出一条假 section「Figure Index」，且 `- Type:`/`- Section:`/`- Key Message:`/`- Caption:`/`- Node mapping:` 五类登记字段行会被当成正文里的图/节引用）。**表题注就写在正文里、不需要合并，别把表也塞进本流程。** 落点固定 `tmp/xref_corpus.md`、`outline.json` 落项目根，**两者绝不落 `drafts/`**（`drafts/section_*.md` 是 managed_globs，写进去会被 signoff hook 拦下）；本步只读 `exports/`，**不写 `exports/` 下任何文件**（正文修改只发生在 HALT 后的用户裁决环节）。
      - **错误契约**：`figures/figure_index.md` 缺失 → `grep` 空匹配 exit 1 属正常，语料退化为纯正文、**不得因这个非零退出码中断本步**（图类会因锚不可用自动整类 skip）；`exports/Final_Review.md` 缺失 → 报错并停（Step 4 还没跑，属流程错序），不得产出空语料静默通过。登记表有 N 条注册项而只有 M 条进锚 → 在本步 advisory 里列出"注册 N 条、进锚 M 条"，提示用户按 `## Figure N: Title` 模板修正。**计数口径（写死，免各跑各的）**：**N = `figures/figure_index.md` 里所有 `^##` 开头且含 `Figure` + 数字的注册标题行数**（不论用什么分隔符，含 `-`、破折号、无分隔符等一切写法）；**M = 上面 `grep` 实际命中的行数**（即真正进语料的题注行数）。`N > M` 就报，差的那 N−M 条逐条列出原行，让用户看得见哪一行写歪了。
    - **② 第 1 层 确定性结构锚**：
      ```bash
