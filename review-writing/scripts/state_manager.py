@@ -1200,6 +1200,13 @@ def update_state(payload_path, merge=True):
             except Exception as e:
                 print(f"Error writing to {filename}: {e}")
 
+    # 🔴 只有真写成功过至少一个 key 才删 payload。此前无条件 os.remove：payload 里
+    # 一个 key 都没被认出（打了 Warning 之后）照样删，用户手写的内容当场蒸发。
+    if not updated_files:
+        print("Error: payload 中无可识别的 key，未做任何更新，输入文件已保留："
+              f"{payload_path}（合法 key: {', '.join(sorted(STATE_FILES))}）")
+        sys.exit(1)
+
     print(f"Successfully updated: {', '.join(updated_files)}")
 
     try:
@@ -1282,6 +1289,24 @@ def complete_section(section, state_path="state.json"):
                 bucket.remove(section)
     _atomic_write_text(state_path, json.dumps(state, indent=2, ensure_ascii=False))
     print(f"✅ state.json: {section} → completed_sections")
+
+
+def complete_search(section, state_path="state.json"):
+    """Add `section` to searched_sections (Phase 2 检索完成标记), preserving other keys.
+
+    Phase 2 每节检索完打这个标记；写作完成仍走 complete_section/completed_sections。
+    两个字段分开，Phase 3 的「Skip completed sections」与 prewrite_gate 的
+    prev_section_done 才不会被检索标记喂饱（P0-2）。Idempotent；存量 state 无
+    searched_sections 键时视为空列表自动创建，不报错。
+    """
+    state = _load_workflow_state(state_path)
+    searched = state.setdefault("searched_sections", [])
+    if not isinstance(searched, list):
+        raise SystemExit("Error: searched_sections is not a list in state.json")
+    if section not in searched:
+        searched.append(section)
+    _atomic_write_text(state_path, json.dumps(state, indent=2, ensure_ascii=False))
+    print(f"✅ state.json: {section} → searched_sections")
 
 
 def set_root_key(key, state_path="state.json"):
@@ -1551,7 +1576,11 @@ def main():
         "set-phase",
         help="Set workflow phase in state.json (preserves all other keys). Replaces inline phase-update Python in Phase 1/2.5/3/4.",
     )
-    setphase_parser.add_argument("--phase", type=_parse_phase, required=True, help="Phase to set (0,1,1.5,1.6,2,3,4,5)")
+    # help 从 VALID_PHASES 生成，不手写：手写那版漏了 1.7（SKILL.md Phase 1.7 正让用户
+    # 跑 --phase 1.7），照 --help 办事的人会以为它非法。新增 phase 只改常量即可。
+    setphase_parser.add_argument(
+        "--phase", type=_parse_phase, required=True,
+        help="Phase to set (%s)" % ",".join(sorted(VALID_PHASES, key=float)))
     setphase_parser.add_argument(
         "--completed",
         choices=["true", "false"],
@@ -1566,6 +1595,13 @@ def main():
     )
     completesec_parser.add_argument("--section", required=True, help="Section ID, e.g. '2.1'")
     completesec_parser.add_argument("--state", default="state.json", help="Path to workflow state.json (default: state.json)")
+
+    completesearch_parser = subparsers.add_parser(
+        "complete-search",
+        help="Add a section to searched_sections in state.json (Phase 2 检索完成标记), preserving other keys.",
+    )
+    completesearch_parser.add_argument("--section", required=True, help="Section ID, e.g. '2.1'")
+    completesearch_parser.add_argument("--state", default="state.json", help="Path to workflow state.json (default: state.json)")
 
     setrootkey_parser = subparsers.add_parser(
         "set-root-key",
@@ -1712,6 +1748,8 @@ def main():
         set_phase(args.phase, completed=completed, state_path=args.state)
     elif args.command == "complete-section":
         complete_section(args.section, state_path=args.state)
+    elif args.command == "complete-search":
+        complete_search(args.section, state_path=args.state)
     elif args.command == "set-root-key":
         set_root_key(args.key, state_path=args.state)
     elif args.command == "init-index":

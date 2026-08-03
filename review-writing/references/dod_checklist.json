@@ -4,7 +4,7 @@
   "gates": {
     "manuscript-dod": {
       "title": "节末 DoD 自检（落盘前委托独立子代理盲检）",
-      "applies_when": "每个正文章节落盘前；⑫⑬⑭仅 Review type = systematic 时检查，其余类型标 na 并注明",
+      "applies_when": "每个正文章节落盘前；R12/R13/R14 仅 Review type = systematic 时检查，其余类型标 na 并注明（此处刻意不用圈码字符，GBK 控制台编不出会让 pack 当场崩）",
       "items": [
         {
           "id": "R1",
@@ -14,9 +14,15 @@
         },
         {
           "id": "R2",
-          "name": "citation_guard 已通过",
-          "check": "本节新增引用已过 citation_guard.py（白名单 pubmed-cli / paper-search，禁 websearch / tavily），guard 返回 exit 0；可对照 data/citation_guard_report.json 确认",
+          "name": "引文来源合规与格式核验（离线）",
+          "check": "本项仅核 provider 白名单（pubmed-cli / paper-search 允许，websearch / tavily 禁止）与字段格式完整性，**不证明文献真实存在**——脚本带 --offline，此模式下不联网、任何格式完整的条目都会判 verified（编造的 DOI+PMID 照样过）。文献真实性由 Phase 2 入库时的联网 citation_guard（SKILL.md Phase 2 Step 6，不带 --offline）与 Phase 4 终检负责，本项通过不得被当成「文献已核实」。核后可对照 data/citation_guard_report.json 的 report.online_check 判断这份报告是联网跑的还是离线跑的。",
           "script": "python3 scripts/citation_guard.py --offline --index data/literature_index.json"
+        },
+        {
+          "id": "R2b",
+          "name": "联网核验已生效",
+          "check": "证明本节引文**真的被联网核验过**，而不是只跑过 R2 的离线格式核（R2 的 --offline 判不出编造文献）。三条同时成立才算过：① data/citation_guard_report.json 存在且结构可读；② 该报告是联网跑的（report.online_check 为 true，注意字段嵌在 report 键下，不在顶层；SKILL.md 用 --log 与 --report 同路径时顶层会是 report/manual_review_queue/runs 三键，取 report 或 runs 末条均可）；③ 本节 related_sections 命中的每条 literature_index 条目都带 verification_details.checked_at（联网核验时由 --write-back 逐条落盘；report 顶层的 checked_at 只是单次运行时间戳，证明不了逐条覆盖，不得拿它顶替）。任一不成立即 fail，提示「本节引文未经联网核验，请勿声明通过」——补跑 SKILL.md Phase 2 Step 6 的联网 citation_guard（不带 --offline、带 --write-back）后重核。文件缺失 / 结构对不上 / online_check 非 true 一律判 fail（fail-safe 方向是收紧，不给「查不到就当过」的口子）。",
+          "script": "python3 scripts/check_online_verified.py --section X.X"
         },
         {
           "id": "R3",
@@ -32,7 +38,7 @@
         {
           "id": "R5",
           "name": "去 AI 合规",
-          "check": "硬要求（命中即判不通过）：零禁用词/AI 套话 + 无生僻词/造词 + 无 scare quotes + 无解释性冒号 + 无 trailing -ing 从句 + 同概念同段一致称谓。软建议（只提示、不作为 R5 判不通过依据）：单句 ≤30 词、被动 ≤30%、装饰性破折号——这些在 style_checker 里已降级为 info、不阻断、不扣分，命中时提醒作者按节奏酌情调整即可（见 references/writing_guidelines.md §4）。先跑 style_checker.py 量化兜底：high/medium 项须改掉，info 软项择优即可。",
+          "check": "硬要求（命中即判不通过）：零禁用词/AI 套话 + 无生僻词/造词 + 无 scare quotes + 无解释性冒号 + 无 trailing -ing 从句 + 同概念同段一致称谓 + 破折号不超配额（每千词 2 个、单文件底线 2 个；超出即密集滥用，style_checker 置 hard_fail）。软建议（只提示、不作为 R5 判不通过依据）：单句 ≤30 词、被动 ≤30%、配额内的装饰性破折号——这些在 style_checker 里是 info、不阻断、不扣分，命中时提醒作者按节奏酌情调整即可（见 references/writing_guidelines.md §4）。先跑 style_checker.py 量化兜底：high/medium 项须改掉，info 软项择优即可。",
           "script": "python3 scripts/style_checker.py --file <本节文件> --passive-max 0.30"
         },
         {

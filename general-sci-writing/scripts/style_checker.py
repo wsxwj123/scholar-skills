@@ -52,6 +52,18 @@ FORBIDDEN_PATTERNS = [
 # ── Anti-AI: em-dash, scare quotes, explanatory colon ────────────────────────
 # Em-dash (U+2014 —) used decoratively in prose (not in code/URLs/math).
 EM_DASH_RE = re.compile(r"(?<!\d)—(?!\d)")
+# 破折号配额：正常学术散文每千词 0–2 个 em dash，AI 生成文本显著更高。按密度而非
+# 绝对数，否则整篇导入的长稿（8000 词）必然误伤。短文件给 2 个底线。
+# 口径与 review-writing/scripts/style_checker.py 保持一致（同一缺陷 rw 已先修）。
+# ponytail: 阈值是启发式(每千词 2 个 + 底线 2)，真稿反馈说误报/漏报再调这两个数。
+EM_DASH_PER_1K_WORDS = 2
+EM_DASH_MIN_ALLOWANCE = 2
+
+
+def em_dash_allowance(total_words: int) -> int:
+    """本文件允许的 em dash 个数（超出即判密集滥用）。"""
+    return max(EM_DASH_MIN_ALLOWANCE,
+               int(max(0, total_words) / 1000 * EM_DASH_PER_1K_WORDS))
 # Scare quotes: double-quoted phrase of 1-4 words not preceded by numeric citation
 # context, to catch "synergistic", "perfect storm", etc.
 SCARE_QUOTE_RE = re.compile(r'(?<!\[)(?<!\d)"([A-Za-z][^"]{1,40})"(?!\s*:)')
@@ -360,17 +372,29 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
             "detail": f"{bullet_count} bullet/numbered list lines detected in prose body.",
         })
 
-    # ── 7. Decorative em-dash (硬门禁, 禁止使用) ─────────────────────────────
-    # 破折号(—/——)硬门禁、禁止使用：进 issues(计入 score 扣分)并置 hard_fail，
-    # 无论总分高低一律 fail-close，不放行。
+    # ── 7. Decorative em-dash (按密度判，不再一个就毙) ────────────────────────
+    # em dash 在英文学术写作里是合法标点（插入语/同位补充），单个出现不是 AI 腔；
+    # 判 AI 腔的是**密度**。原实现 >=1 即 hard_fail，把正常稿判成不合格，用户只能
+    # 删掉合法标点来讨好检查。改为超出配额才算问题、配额内只提示（与 rw 同口径）。
     em_dash_count = len(EM_DASH_RE.findall(prose))
-    if em_dash_count >= 1:
+    em_dash_budget = em_dash_allowance(total_words)
+    if em_dash_count > em_dash_budget:
         result["issues"].append({
             "type": "decorative_em_dash",
-            "severity": "high",
-            "detail": f"{em_dash_count} em-dash(es) (—/——) detected. 禁止使用破折号(硬门禁)，用逗号/句号/重构替代。",
+            "severity": "high",  # 超配额 = 密集滥用，计入 score 并置 hard_fail
+            "detail": (f"{em_dash_count} em-dash(es) (—/——) in {total_words} words "
+                       f"(配额 {em_dash_budget}). 破折号密集滥用是 AI 腔特征，"
+                       f"删到配额内：用逗号/句号/重构替代。"),
         })
         result["hard_fail"] = True
+    elif em_dash_count:
+        result["issues"].append({
+            "type": "decorative_em_dash",
+            "severity": "info",  # 配额内：只提示，不扣分、不阻断
+            "detail": (f"{em_dash_count} em-dash(es) (—/——) in {total_words} words "
+                       f"(配额 {em_dash_budget}，未超)。合法用法无需处理；"
+                       f"若是当停顿/强调用的装饰性破折号，建议改写。"),
+        })
 
     # ── 8. Scare quotes (硬门禁, 禁止使用: 引号暗示新概念) ─────────────────────
     # 去AI必禁三项之一。与破折号同级：命中即 hard_fail 一票否决，不放行。
@@ -418,9 +442,12 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     # ── Score calculation ─────────────────────────────────────────────────────
     score = 100
     for issue in result["issues"]:
-        if issue["severity"] == "high":
+        sev = issue["severity"]
+        if sev == "info":
+            continue  # info 软项（如配额内破折号）：只提示，不扣分（与 rw 同口径）
+        if sev == "high":
             score -= 15
-        elif issue["severity"] == "medium":
+        elif sev == "medium":
             score -= 8
         else:
             score -= 3

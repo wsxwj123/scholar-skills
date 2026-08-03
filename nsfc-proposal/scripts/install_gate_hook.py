@@ -26,6 +26,15 @@ registry(hook 的开关+版本提交点)最后落盘:中途被杀只造成暂时
 """
 from __future__ import annotations
 
+import sys as _sys
+try:  # Windows GBK 控制台/管道捕获下 emoji print 防 UnicodeEncodeError
+    # 调用方(init_project/env_preflight)用 capture_output=True 拉本脚本的一行 JSON,
+    # 崩了会被外层 except 全吞 → 一行门禁状态都不打印,用户完全看不到门禁没装上。
+    _sys.stdout.reconfigure(encoding="utf-8")
+    _sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import json
 import os
 import shutil

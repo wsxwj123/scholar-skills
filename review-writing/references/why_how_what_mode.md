@@ -3,7 +3,8 @@
 > Loaded when `Review type = why-how-what` (Phase 0). A middle weight between a one-line
 > quick summary and a full narrative review: structure each paper across three layers and
 > compare them in a single matrix. No PRISMA, no RoB, no GRADE. Lighter than narrative —
-> no enforced ≥150-citation floor, no multi-section storyline; the deliverable is the
+> no citation-count target at all (not even the soft range the main flow suggests),
+> no multi-section storyline; the deliverable is the
 > comparison matrix plus a short synthesis paragraph per dimension.
 
 ---

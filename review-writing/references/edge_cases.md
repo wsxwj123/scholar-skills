@@ -10,7 +10,7 @@
 | API key forgotten (cross-session) | outline.md stores lib_id only; ask api_key at start |
 | Zotero Web API rate limit | PyZotero auto-waits; batch add ≤50 items per call |
 | Zotero --dedup gid 失同步 | --dedup 只改 Zotero 标签，不更新 literature_index.json。正常流程不需要 --dedup（--add-batch 已去重）。如果手动运行了 --dedup，必须用 --get-section 逐节获取新 gid 并手动同步到 literature_index.json |
-| Mid-search crash | state.json `completed_sections` tracks progress; resume skips done |
+| Mid-search crash | state.json `searched_sections` tracks search progress; resume skips done |
 | Section <10 papers found | Warn, prompt user to broaden keywords, continue |
 | NCBI_API_KEY set | Auto-use for 10 req/s rate limit |
 | Chinese review | One-time CNKI notice at Phase 0 end; no repeated prompts |

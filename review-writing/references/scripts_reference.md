@@ -7,7 +7,7 @@ All scripts are in `[project]/scripts/` (copied from skill directory during Phas
 | Script | Purpose | Mode |
 |--------|---------|------|
 | `zotero_manager.py` | Zotero Web API: init, add, dedup, get-section, export BibTeX | Zotero |
-| `state_manager.py` | Workflow state.json (`set-phase`/`complete-section`/`set-root-key`), None-mode index ops (`init-index`/`append-literature`), canonical dedup + reindex | All / None |
+| `state_manager.py` | Workflow state.json (`set-phase`/`complete-section`/`complete-search`/`set-root-key`), None-mode index ops (`init-index`/`append-literature`), canonical dedup + reindex | All / None |
 | `citation_utils.py` | **Import-only library, no CLI.** Shared citation-token parser (`extract_citation_ids`, `parse_citation_group`) imported by `citation_guard.py`, `validate_citations.py`, `check_global_citation_sequence.py`, `export_bibtex.py`. Never invoke directly — `python3 scripts/citation_utils.py` will run and exit silently. | All |
 | `export_bibtex.py` | BibTeX export from literature_index.json | None/EndNote |
 | `matrix_manager.py` | Section-claim evidence matrix: bootstrap + focus | None |
@@ -28,9 +28,13 @@ python3 scripts/state_manager.py reindex \
 # set-phase (all modes — Phase 2.5/3/4): set workflow phase in state.json, preserving every other key.
 python3 scripts/state_manager.py set-phase --phase 4 --completed true   # --completed optional (Phase 4 final)
 
-# complete-section (all modes — Phase 2/3): add a section to completed_sections AND drop it from any
+# complete-section (all modes — Phase 3 写完本节): add a section to completed_sections AND drop it from any
 # pending_sections bucket (Polish Mode), preserving other keys. Idempotent.
 python3 scripts/state_manager.py complete-section --section 2.1
+
+# complete-search (all modes — Phase 2 检索完本节): add a section to searched_sections, preserving other
+# keys. Idempotent; 存量 state 无该键视为空列表。检索完成 ≠ 写作完成，Phase 2 禁用 complete-section。
+python3 scripts/state_manager.py complete-search --section 2.1
 
 # set-root-key (Zotero mode — Phase 1 Step 6): set zotero_root_key in state.json, preserving other keys.
 python3 scripts/state_manager.py set-root-key --key ROOT_KEY
@@ -82,8 +86,8 @@ python3 scripts/state_manager.py append-search-log \
   --n-hits 342 --n-screened 18
 ```
 
-> `set-phase` / `complete-section` / `set-root-key` operate on the workflow `state.json` (the `{phase,
-> completed_sections, mode, pending_sections, zotero_root_key, citations_imported}` record), which is
+> `set-phase` / `complete-section` / `complete-search` / `set-root-key` operate on the workflow `state.json` (the `{phase,
+> completed_sections, searched_sections, mode, pending_sections, zotero_root_key, citations_imported}` record), which is
 > **disjoint** from the `STATE_FILES` map (`progress.json`/`storyline.md`/`literature_index.json`/…) that
 > `load`/`update`/`reindex` touch — so these commands cannot affect dedup/reindex. They replace the repeated
 > inline "load json → set key → write" Python that previously lived in Phase 1/2/2.5/3/4. Default path is

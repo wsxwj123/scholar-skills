@@ -32,7 +32,7 @@
         {
           "id": "G5",
           "name": "去AI",
-          "check": "无 trailing_ing_clause / forbidden_ai_phrases / decorative_em_dash / scare_quotes / explanatory_colon;英文单句≤30词;被动比例按文体(原创50-70%)",
+          "check": "无 trailing_ing_clause / forbidden_ai_phrases / scare_quotes / explanatory_colon;破折号不超配额(每千词2个、单文件底线2个,超出即 decorative_em_dash 置 hard_fail;配额内为 info 不阻断);英文单句≤30词;被动比例按文体(原创50-70%)",
           "script": "python scripts/style_checker.py --file <本节文件> --threshold 70"
         },
         {

@@ -77,8 +77,8 @@ meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | g
 
 ### Three Additional AI-Marker Bans
 
-**1. Decorative em-dashes (—): hard gate, banned**
-- **Banned:** Using — or —— as a pause, supplement, or emphasis device (e.g., "The result was clear, cells died"). Em-dashes are prohibited; style_checker flags any em-dash as a `high` issue and sets hard_fail, failing the gate regardless of score.
+**1. Decorative em-dashes (—): discouraged; hard gate only when overused**
+- **Discouraged:** Using — or —— as a pause, supplement, or emphasis device (e.g., "The result was clear, cells died"). A single em-dash is legitimate academic punctuation; what marks AI prose is **density**. style_checker allows a budget of 2 per 1,000 words (minimum 2 per file): within budget it reports an `info` note only (no score penalty, no gate failure); **above budget** it raises a `high` issue and sets hard_fail, failing the gate regardless of score.
 - **Allowed:** Hyphens in compound modifiers (dose-dependent), numeric ranges (1990–2005), and en-dashes in structured labels.
 - **Fix:** Recast as a comma, period, or separate sentence. "The result was clear—cells died" → "The result was clear: cells died at 48 h."
 

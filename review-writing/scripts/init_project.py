@@ -26,6 +26,7 @@ except Exception:
     pass
 import argparse
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -48,6 +49,8 @@ REQUIRED_SCRIPTS = [
     "delegate_review.py",  # Phase 3 section-dod 盲检委托 pack/verify
     "style_checker.py",  # 去 AI 风格检测
     "proofread.py",  # Phase 3 R21 字符级机器硬门禁(可阻断)
+    "check_online_verified.py",  # DoD R2b 判据(本节引文是否真过了联网核验)
+    "compile_manuscript.py",  # Phase 4 Step 4/4d 跨平台合并（替 bash 的 cat / grep）
     "consolidate_references.py",  # Phase 4 合并参考文献为单一列表
     "export_docx.py",  # Phase 5d 最终 docx 交付物(需 templates/reference.docx)
     "structure_signoff_gate.py",  # vendored: 结构签字硬门(SIGNOFF_CMD)
@@ -55,17 +58,24 @@ REQUIRED_SCRIPTS = [
     "citation_claim_check.py",  # vendored: 承重论点↔引文核证(CITATION_CHECK_CMD)
 ]
 
+# scripts/ 下的 .json 分两类：**分发资产**（门禁清单）和**运行时产物**
+# （hook_heartbeat.json —— 门禁钩子每次触发都会写，内容是"上一个用户正在写哪份稿"）。
+# .py 侧可以全量镜像（新脚本自动跟上，漏拷会当场报错），.json 侧必须反过来走白名单：
+# 漏拷分发资产是响的失败（脚本立刻报缺文件），误拷运行时产物是哑的失败（把别人的
+# 工作痕迹静默塞进新项目）。默认不拷才是安全侧。新增要分发的 json 就往这里加一条。
+DISTRIBUTED_JSON = {"gate_registry.json"}
+
 STATE_JSON = '{"phase": 0, "completed_sections": [], "zotero_root_key": "", "authors": []}\n'
 
 OUTLINE_TEMPLATE = """# Review Configuration (READ THIS FILE at the start of every phase)
 
 ## Parameters
-- Title: [user input]
+- Title: {title}
 - Target Journal: [user input]
 - Language: [English / Chinese]
 - Reference Manager: [Zotero / None / EndNote]
 - Word Count Target: [EN: 7,000–10,000 words / CN: 15,000–20,000 chars]
-- Citation Requirements: ≥150 total (Original≥80, Review≥50, Preprint≥20)
+- Citation Requirements（软目标，非硬门禁，按学科填实际值）: 生物医学/临床约 120–200、工程/CS 约 60–120、人文社科按传统定；以覆盖领域主线为准，不凑数。类型按论点性质择用、非固定配额：背景/综述性论述用 Review，机制/实验结论必须引 Original（不得用 Review 顶替），临床结论引 Clinical Trial，新兴论点确无正式发表时才引 Preprint（标 [Preprint]，按需非强制）。
 - Discipline: [Medical-Biomedical / CS-AI / Interdisciplinary]
 
 ## Environment (filled after detection, read directly in later phases)
@@ -92,6 +102,25 @@ OUTLINE_TEMPLATE = """# Review Configuration (READ THIS FILE at the start of eve
 """
 
 
+_ILLEGAL_DIR_CHARS = '<>:"/\\|?*'
+
+
+def _safe_dirname(title: str) -> str:
+    """把综述标题变成各平台都合法的文件夹名。
+
+    学术标题带冒号是常态（"Deep Learning: A Review"），Windows 下 : ? * < > | " /
+    全非法、macOS 下 / 非法 —— 原样当目录名会在 Phase 0.5 当场 OSError。
+    这里只清目录名；**原始标题完整写进 outline.md 的 Title 字段**（目录名可以脏，
+    标题不能丢）。控制字符一并清掉（路径注入 + 终端转义两防）。
+    """
+    cleaned = "".join("-" if (ch in _ILLEGAL_DIR_CHARS or ord(ch) < 32) else ch
+                      for ch in (title or ""))
+    cleaned = re.sub(r"[-\s]{2,}", "-", cleaned).strip()
+    # Windows 不允许结尾是点或空格；"." / ".." 会指向父目录，必须挡掉
+    cleaned = cleaned.strip(" .")[:120].strip(" .-")
+    return cleaned or "review-project"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Phase 0.5 project scaffolding")
     parser.add_argument("--title", required=True, help="Review title (becomes project folder name)")
@@ -101,7 +130,11 @@ def main() -> None:
 
     base = pathlib.Path(args.base).expanduser().resolve()
     skill_dir = pathlib.Path(args.skill_dir).expanduser().resolve()
-    proj = base / args.title
+    dirname = _safe_dirname(args.title)
+    proj = base / dirname
+    if dirname != args.title:
+        print(f"ℹ️  标题含文件名非法字符，目录名用清洗后的 {dirname!r}"
+              f"（原标题 {args.title!r} 已完整写进 outline.md 的 Title 字段）")
 
     for d in ["drafts", "exports", "scripts", "data", "tmp", "figures"]:
         (proj / d).mkdir(parents=True, exist_ok=True)
@@ -115,11 +148,17 @@ def main() -> None:
     # bootstrap itself). Root-causes whitelist drift — SKILL.md adding/renaming a
     # script (or an import dependency) can never silently miss a copy again.
     copied = 0
-    for src in sorted((skill_dir / "scripts").glob("*.py")) + sorted((skill_dir / "scripts").glob("*.json")):
+    for src in sorted((skill_dir / "scripts").glob("*.py")):
         if src.name.startswith("test_") or src.name == "init_project.py":
             continue
         shutil.copy(src, proj / "scripts" / src.name)
         copied += 1
+    # json 侧走白名单（见 DISTRIBUTED_JSON）。
+    for name in sorted(DISTRIBUTED_JSON):
+        src = skill_dir / "scripts" / name
+        if src.is_file():
+            shutil.copy(src, proj / "scripts" / name)
+            copied += 1
 
     # REQUIRED_SCRIPTS kept as a minimum-viable-set assertion: full copy should
     # already include them; if any is absent the skill install is broken.
@@ -136,12 +175,21 @@ def main() -> None:
         shutil.copy(ref_docx, proj / "templates" / "reference.docx")
 
     print(f"✅ Project created at: {proj}")
-    print(f"   Copied {copied} scripts (full scripts/*.py mirror)")
+    print(f"   Copied {copied} files (all scripts/*.py + whitelisted json: "
+          f"{', '.join(sorted(DISTRIBUTED_JSON))})")
 
-    # state.json + outline.md
-    (proj / "state.json").write_text(STATE_JSON, encoding="utf-8")
-    (proj / "outline.md").write_text(OUTLINE_TEMPLATE, encoding="utf-8")
-    print("✅ Wrote state.json + outline.md")
+    # state.json + outline.md —— 已存在就保留（同 figure_index.md 的守卫）。
+    # 无条件覆盖会让重跑 init 把 {"phase":3,"completed_sections":[...]} 打回 phase 0、
+    # 把写好的大纲换成空模板，等于整个项目进度静默清零。
+    # Title 用原始标题（含冒号等目录名放不下的字符），不用清洗过的目录名。
+    outline_text = OUTLINE_TEMPLATE.format(title=args.title)
+    for name, content in (("state.json", STATE_JSON), ("outline.md", outline_text)):
+        path = proj / name
+        if path.exists():
+            print(f"⏭️ {name} 已存在，保留原文件（如需重建请手动删除）")
+        else:
+            path.write_text(content, encoding="utf-8")
+            print(f"✅ Wrote {name}")
 
     # Git auto-checkpoint init (skip if git not available)
     if shutil.which("git"):
@@ -194,21 +242,32 @@ def _install_gate_hook(proj) -> None:
             print("   签字仅留痕、无强制拦截，需人工守住「未签字不写正文」。")
             print("   修复：重装完整技能仓库，或补回 _shared/install_gate_hook.py。")
         # 以下三条命令均指本地 vendored 副本，不依赖 _shared，故 installer 缺失时照常打印。
+        # 解释器用 sys.executable：硬写 "python" 在纯净 macOS 上 command not found
+        # （SKILL.md 开篇已注明 macOS 12.3 起系统不再自带 python），而 SIGNOFF_CMD
+        # 是解锁 Phase 3 正文写作的硬门，打不出能跑的命令等于把用户堵死。
+        py = sys.executable or "python3"
         signoff = scripts_dir / "structure_signoff_gate.py"
         if signoff.is_file():
-            print(f'SIGNOFF_CMD: python "{signoff}" confirm --root "{proj}" --note "<用户确认原话>"')
+            print(f'SIGNOFF_CMD: "{py}" "{signoff}" confirm --root "{proj}" --note "<用户确认原话>"')
         else:
             print('⚠️ 缺 scripts/structure_signoff_gate.py(vendored 副本)——跑 python3 _shared/sync_vendored.py --sync 或重装完整技能包')
         journal = scripts_dir / "session_journal.py"
         if journal.is_file():
-            print(f'RESUME_CMD: python "{journal}" resume --root "{proj}"')
+            print(f'RESUME_CMD: "{py}" "{journal}" resume --root "{proj}"')
         else:
             print('⚠️ 缺 scripts/session_journal.py(vendored 副本)——跑 python3 _shared/sync_vendored.py --sync 或重装完整技能包')
         citecheck = scripts_dir / "citation_claim_check.py"
         if citecheck.is_file():
-            print(f'CITATION_CHECK_CMD: python "{citecheck}" --root "{proj}"')
+            print(f'CITATION_CHECK_CMD: "{py}" "{citecheck}" --root "{proj}"')
         else:
             print('⚠️ 缺 scripts/citation_claim_check.py(vendored 副本)——跑 python3 _shared/sync_vendored.py --sync 或重装完整技能包')
+        # references/ 不镜像进项目，四道 DoD 盲检门的 --checklist 必须用技能目录绝对路径。
+        # SKILL.md 里所有 `--checklist "[DOD_CHECKLIST]"` 都用这里打印的值，全程沿用。
+        dod = scripts_dir.parent / "references" / "dod_checklist.json"
+        if dod.is_file():
+            print(f'DOD_CHECKLIST: {dod}')
+        else:
+            print('⚠️ 缺 references/dod_checklist.json——四道 DoD 盲检门无法运行，重装完整技能包')
     except Exception:
         pass
 

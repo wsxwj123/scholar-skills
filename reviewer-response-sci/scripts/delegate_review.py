@@ -18,6 +18,16 @@ checklist JSON 是 DoD 清单的唯一机器可读真源(SKILL.md 散文与之�
 
 from __future__ import annotations
 
+import sys as _sys
+try:  # Windows GBK 控制台/管道捕获下 emoji print 防 UnicodeEncodeError
+    # pack 输出必含 emoji：checklist 里标 severity:soft 的项会被加上 "🟡软项"，
+    # 而 manuscript-dod 的 R20/R22 恒为软项 → 每节 pack 必然命中。崩了 pack 就
+    # 出不来，.review_pass/ 落不下，下一节被 prewrite_gate 硬拦 = Phase 3 锁死。
+    _sys.stdout.reconfigure(encoding="utf-8")
+    _sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import argparse
 import json
 import sys

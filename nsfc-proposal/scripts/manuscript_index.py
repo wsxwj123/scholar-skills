@@ -25,7 +25,12 @@ from typing import Any
 # identical across host skills. is_heading / looks_like_reference_entry use the
 # local implementations below so index results are independent of each host
 # skill's (forked) common.py and the file can be byte-shared across skills.
-from docx import Document
+#
+# python-docx is imported lazily inside read_docx_paragraphs: importers that only
+# ever handle .md (structure_outline on tmp/xref_corpus.md, review-writing Phase 4d)
+# must not hard-fail at import time on a machine without python-docx. Pure-.md paths
+# never touch Document; .docx paths raise the same ImportError, just later and with
+# an actionable message.
 
 
 def normalize_ws(text: str) -> str:
@@ -43,6 +48,12 @@ def write_text(path: Path, text: str) -> None:
 
 
 def read_docx_paragraphs(path: Path) -> list[dict[str, Any]]:
+    try:
+        from docx import Document
+    except ImportError as exc:  # 只有真处理 .docx 才需要它
+        raise SystemExit(
+            f"读取 {path.name} 需要 python-docx，但本机没装：{exc}。"
+            "装它：pip install python-docx（纯 .md 流程不需要）") from exc
     doc = Document(str(path))
     rows: list[dict[str, Any]] = []
     for i, paragraph in enumerate(doc.paragraphs):

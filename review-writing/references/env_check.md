@@ -1,4 +1,4 @@
-# Phase 0.2 — Full Environment Check (9 steps, Step 0–8)
+# Phase 0.2 — Full Environment Check (10 steps, Step 0–8 + 3b)
 
 ## SKILL_DIR Auto-Detection ("Other" clients)
 
@@ -64,6 +64,19 @@ print('✅ Zotero found' if p and p.exists() else f'❌ Zotero not found at {p}'
 # PyZotero library
 python3 -c "import pyzotero; print('✅')" 2>/dev/null || echo "❌ run: pip install pyzotero"
 ```
+
+**Step 3b: python-docx（Polish Mode 必需 / Write Mode 建议 — always check）**
+```bash
+python3 -c "import docx; print('✅ python-docx available')" 2>/dev/null || echo "❌ python-docx 未装 — run: pip install python-docx"
+```
+缺它的后果（先知道再决定装不装，别等写完正文才发现）：
+
+| 模式 | 缺 python-docx 会怎样 | 路由 |
+|---|---|---|
+| **Polish Mode** | **阻断**：Step 1 `extract_headings.py` 读用户交来的 `.docx` 草稿直接失败，整条润色流程起不来 | 必须装；不装就让用户先把草稿另存为 `.md`/`.txt` 再进 |
+| **Write Mode** | Phase 0–3 全程用不到（纯 `.md`）；只有 Phase 4d 处理 `.docx` 或 Phase 5d 前后需要 docx 侧读取时才用到。`manuscript_index.py` 已改惰性 import，纯 `.md` 路径（`tmp/xref_corpus.md`）不装也照常跑 | 建议现在装；不装则记 `python_docx: false`，遇到 docx 输入时停下提示用户安装 |
+
+> Phase 5d 的 `export_docx.py` 走的是 **pandoc**（另一条依赖），与 python-docx 无关；pandoc 缺失时该脚本自报错。
 
 **Step 4: PubMed edirect (Medical/Bio discipline)**
 ```python

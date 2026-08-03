@@ -30,7 +30,9 @@ CLI：python3 prewrite_gate.py --section <section_id> --root <project_root>
    <root>/.review_pass/MANUAL_REVIEW_AUDIT.log；不是静默跳过。理由为空即拒绝放行。
 
 降级 warning（不阻断）：
-- 缩略词一致：review 无独立 abbreviation 脚本 → skip 并注明
+- 缩略词一致：跑 abbreviation_consistency.py 扫 drafts/（重复定义 / 未定义就用 /
+  Title 含缩写）。命中只进 warnings 不阻断——这是全稿口径问题，Phase 4 合并前清零即可，
+  开写前硬拦会把人堵在门口。脚本缺失/执行失败才 skip(ok=None)，note 写真实原因。
 
 输出：stdout 一行 JSON {"ok":bool,"section":...,"checks":[...],"warnings":[...]}
 任一硬检查失败额外打印 PREWRITE_GATE: FAIL + 原因 并 exit 1。
@@ -43,6 +45,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -282,6 +285,34 @@ def draft_files(root):
     return sorted(os.path.join(d, f) for f in os.listdir(d) if f.endswith(".md"))
 
 
+def abbreviation_check(root, warnings):
+    """跑同目录的 abbreviation_consistency.py 扫 drafts/，结果落进 checks 的一项。
+
+    降级 warning 档（不进 failures）：缩略语一致性是全稿口径（B3 全文统一），
+    到 Phase 4 统一清零即可；开写前硬拦会把人堵在门口，而问题多半出在别的节。
+    脚本真缺失时才 ok=None，且 note 写真实原因——不再写"脚本不存在"这种反事实的话。
+    """
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "abbreviation_consistency.py")
+    if not os.path.isfile(script):
+        return {"name": "abbreviation", "ok": None,
+                "note": f"abbreviation_consistency.py not found at {script}; skip"}
+    drafts_dir = os.path.join(root, "drafts")
+    try:
+        proc = subprocess.run(
+            [sys.executable or "python3", script, "--drafts-dir", drafts_dir],
+            capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"name": "abbreviation", "ok": None,
+                "note": f"abbreviation_consistency.py 执行失败({exc.__class__.__name__}: {exc}); skip"}
+    detail = (proc.stdout + proc.stderr).strip()
+    if proc.returncode == 0:
+        return {"name": "abbreviation", "ok": True, "detail": detail}
+    warnings.append(
+        f"缩略语一致性未通过（不阻断开写，Phase 4 合并前必须清零）：{detail}")
+    return {"name": "abbreviation", "ok": False, "detail": detail}
+
+
 def scan_placeholders(files):
     hits = []
     for fp in files:
@@ -511,8 +542,8 @@ def main():
     else:
         checks.append({"name": "placeholders", "ok": True})
 
-    # ---- 缩略词：review 无独立脚本 → skip ----
-    checks.append({"name": "abbreviation", "ok": None, "note": "no standalone abbreviation script in review-writing; skip"})
+    # ---- 缩略词一致（降级 warning，不阻断） ----
+    checks.append(abbreviation_check(root, warnings))
 
     ok = not failures
     print(json.dumps({"ok": ok, "section": section, "checks": checks,

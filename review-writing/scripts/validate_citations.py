@@ -380,7 +380,14 @@ def main():
         or (args.fail_on_incomplete and bool(incomplete_entries))
     )
     # 诚实化：PASS 只代表引文簿记与可达性过关，不代表论点被文献支持。
-    if not should_fail:
+    # 🔴 联网核验失败时绝不打含 "PASS" 的文案：PASS 那行明写"DOI·PMID 可解析"，
+    # 而 live_failures>0 恰恰说明解析不了（编造 DOI 走 --live 但没加 --fail-on-live
+    # 就会看到 LIVE-FAIL 紧跟一行 PASS，是最容易被误读成通过的形态）。
+    if live_failures > 0:
+        print(f"[SCOPE] 存在 {live_failures} 条联网核验失败，未通过——"
+              "DOI/PMID 无法解析的条目必须核实或剔除；"
+              "加 --fail-on-live 可让本脚本对此直接非零退出。")
+    elif not should_fail:
         print(
             "[SCOPE] PASS 仅覆盖引文簿记与可达性（编号唯一/无孤儿/DOI·PMID 可解析/字段完整）；"
             "论点是否被文献支持、结论科学价值未核验。")
