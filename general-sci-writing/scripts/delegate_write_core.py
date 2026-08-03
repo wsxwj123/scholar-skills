@@ -38,6 +38,9 @@ import sys
 # sci2doc/GSW/RW 默认 section 形态（点分数字）；nsfc 走 config 覆盖为 ^P\d+$。
 SECTION_RE = re.compile(r"^\d+(\.\d+)*$")
 KEY_RE = re.compile(r"\[@([A-Za-z0-9:_\-]+)\]")
+# md 大纲标题行：`## 1.1 标题` / `### 1. Introduction`（rw 的 outline.md）。编号后的
+# 分隔符（`.`/`、`/`:`/空格/`-`）吃掉，余下作 title。无编号的标题（`## Parameters`）不是节。
+MD_SECTION_RE = re.compile(r"^(#{2,})\s+(\d+(?:\.\d+)*)[.、:：\-\s]*(.*)$")
 # 裸数字引用：[5] / [5,6] / [5-7]（中文标记 [数据来源]/[图] 等不含数字，不命中）
 BARE_NUM_RE = re.compile(r"\[\s*\d+(\s*[-,，]\s*\d+)*\s*\]")
 
@@ -75,11 +78,43 @@ def _index_id_field(config):
     return (config or {}).get("index_id_field", "id")
 
 
+def _outline_from_md(path, config):
+    """md 大纲（rw 的 outline.md，唯一大纲真源）：按 `##+ <编号> <标题>` 抽节。
+
+    只给 id + title。md 里没有 core_argument / load_bearing_claims 这些概念——rw 的
+    承重标记在 claim_evidence.json 的 is_load_bearing 上，是另一套，故这两个字段一律
+    留空由核心按缺省处理，绝不在这里编内容。
+    编号级别不筛（`1` 与 `1.1` 都收），与 section_regex 允许的形态一致；prewrite_gate
+    只收带点的子节是它自己的顺序链需要（章号会卡死 1.1 的"上一节"判定），口径不同是有意的。
+    """
+    oid = _outline_id_field(config)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    secs = []
+    for line in lines:
+        m = MD_SECTION_RE.match(line)
+        if m:
+            secs.append({oid: m.group(2), "title": m.group(3).strip()})
+    return secs
+
+
 def load_outline(root, config=None):
-    """从 config 指定的大纲文件（默认 project_state.json / storyline.json）读 sections 列表。"""
+    """从 config 指定的大纲文件（默认 project_state.json / storyline.json）读 sections 列表。
+
+    候选里的 .md 走标题行解析（rw 的 outline.md）；其余按 JSON 读。同 JSON 分支一样，
+    解析不出节就继续试下一个候选。
+    """
     for fn in _outline_files(config):
         p = os.path.join(root, fn)
         if os.path.isfile(p):
+            if fn.lower().endswith(".md"):
+                secs = _outline_from_md(p, config)
+                if secs:
+                    return secs
+                continue
             try:
                 data = load_json(p)
             except Exception:
@@ -394,6 +429,26 @@ def _fail1(msg):
     sys.exit(1)
 
 
+def _norm_key(v):
+    """引用键归一：两侧都转成可比的字符串形式。
+
+    markdown 里 [@key] 抽出来永远是 str，而账本主键各家类型不同（rw global_id /
+    gsw citation_number 是 int，nsfc id 是 "L-001" 字符串）——不归一则 "105" not in {105}
+    恒真，数字键条条被误判"无法解析"。
+    只认 str 与真 int；None / bool / 其它类型一律返回 None 由调用方丢弃：None 若被
+    str() 成 "None"，正文写 [@None] 就会撞上缺主键的账本条目而蒙混过关（fail-closed 破口）。
+    """
+    if isinstance(v, str):
+        return v
+    if isinstance(v, int) and not isinstance(v, bool):
+        return str(v)
+    return None
+
+
+def _norm_keys(values):
+    return {k for k in (_norm_key(v) for v in values) if k is not None}
+
+
 def cmd_verify_write(args, config):
     section = args.section
     root = args.root
@@ -455,8 +510,8 @@ def cmd_verify_write(args, config):
         if not (nr.get("doi") or nr.get("pmid")):
             _fail1("new_refs 条目缺 DOI 和 PMID")
 
-    verified_ids = {e.get(id_field) for e in lit if e.get("verified", True)}
-    lit_section_keys = {item.get("key") for item in lit_section}
+    verified_ids = _norm_keys(e.get(id_field) for e in lit if e.get("verified", True))
+    lit_section_keys = _norm_keys(item.get("key") for item in lit_section)
     valid_cite = verified_ids | lit_section_keys
     new_key_set = {nr.get("key") for nr in new_refs}
 
@@ -473,10 +528,10 @@ def cmd_verify_write(args, config):
         _fail1("section_id 不匹配")
 
     # V7：new_claims 的 ref_key 可解析（纯结构，非承重语义门）
-    all_ids = {e.get(id_field) for e in lit} | new_key_set
+    all_ids = _norm_keys(e.get(id_field) for e in lit) | new_key_set
     for nc in new_claims:
         rk = nc.get("ref_key")
-        if rk not in all_ids:
+        if _norm_key(rk) not in all_ids:
             _fail1("new_claims 的 ref_key 无法解析: %s" % rk)
 
     print(json.dumps({"ok": True, "section": section,

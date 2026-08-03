@@ -29,12 +29,14 @@ Step 0.1: 收集基本信息
   ├─ 学科代码
   ├─ 项目类型（面上/青年/重点等）
   ├─ 研究属性（自由探索类 / 目标导向类）
-  ├─ 科学问题属性【独立必填，≠研究属性，四选一】
+  ├─ 科学问题属性【独立必填，≠研究属性，四选一；仅国自然项目】
   │   ├─ 鼓励探索、突出原创
   │   ├─ 聚焦前沿、独辟蹊径
   │   ├─ 需求牵引、突破瓶颈
   │   └─ 共性导向、交叉融通
-  │   └─ 写入 profile science_problem_attribute；未选定 Phase 7 gate-check 报 failed_at=profile
+  │   ├─ 写入 profile science_problem_attribute；未选定 Phase 7 gate-check 报 failed_at=profile
+  │   └─ 非国自然项目（structure_profile.json 声明 funding_scheme: "other"，见 Step 0.4b）
+  │       此项不再必填、gate-check 不再因它阻断，并记入报告「未执行的检查」（见07）
   ├─ 项目周期（默认4年）
   ├─ 经费总额
   └─ 合作单位数量（≤2）
@@ -62,12 +64,38 @@ Step 0.4: 协商各节字数
   ├─ 自动校验：各节之和是否在18000-25000总量范围内
   └─ 写入 proposal_profile.json 的 word_targets.user_agreed
 
+Step 0.4b: 结构确认与自检项协商（仅非国自然/自定义模板项目；国自然项目跳过本 Step）
+  ├─ 结构确认（五步链，完整流程与 AI 侧纪律以 SKILL.md Phase 0「模板结构提取」为准）：
+  │   ├─ ① 脚本投影：structure_profile.py extract-text --source <用户模板文件>（只读原件）
+  │   ├─ ② AI 读投影提章节 → tmp/structure_draft.json（章节名只许逐字节照抄原文；
+  │   │     认不出结构就直说"请手工填"并给最小样例，绝不编）
+  │   ├─ ③ 脚本核验：structure_profile.py verify（任一章节名对不上原文 → 整批拒收 exit 3，
+  │   │     不写任何文件）→ 全过产 tmp/structure_candidate.json
+  │   ├─ ④ 用户逐条确认章节表（含核对脚本猜的文件名 filename_autogen）
+  │   └─ ⑤ structure_profile.py confirm 落盘 <项目根>/structure_profile.json
+  │       ⚠️ 用户确认前 AI 不得运行 confirm；已有真源时 confirm 拒绝覆盖（exit 2），
+  │          重提须用户显式要求并加 --replace（覆盖前打新旧 diff，旧版进 history）
+  ├─ 自检项协商（用户明确要求关掉某些不适用的自检项时才做；不表态 = 文件不存在 = 全项都跑）：
+  │   ├─ 逐条与用户确认关哪条、为什么，确认后写 data/dod_selection.json：
+  │   │   {"schema_version": "1.0", "confirmed": true,
+  │   │    "disabled": [{"gate": "p1-dod", "id": "N8", "reason": "非国自然项目无科学问题属性"}],
+  │   │    "added": []}
+  │   │   （confirmed 必须为 true；未经用户确认不得落盘这份文件）
+  │   ├─ 被关的每一项都会出现在评审/润色报告的「未执行的检查」里（见07），不会假装查过
+  │   └─ 盲检接线：此后每个 Phase 的盲检按 SKILL.md 三步命令模板第 0 步执行——先跑
+  │       dod_project.py project 投影出 tmp/dod_active_<gate>.json，pack 与 verify 的
+  │       --checklist 都换用这份投影产物，被关的项不进盲检任务包；
+  │       没有 dod_selection.json 的项目照旧用全量清单，行为不变
+  └─ 命令细节（structure_profile.py 四个子命令 / dod_project.py 投影）见 references/08 §2.8-2.9
+
 Step 0.5: 初始化项目
   ├─ state_manager.py init
   ├─ state_manager.py profile（写入所有配置）
   ├─ 创建目录结构
   ├─ 创建空的 consistency_map.json
   ├─ 创建空的 literature_index.json
+  ├─ （init 不会创建 structure_profile.json / dod_selection.json——这两份只在
+  │    Step 0.4b 经用户确认后由对应命令/协商写入，任何自动修复路径都不碰它们）
   └─ snapshot("phase0_init")
 ```
 

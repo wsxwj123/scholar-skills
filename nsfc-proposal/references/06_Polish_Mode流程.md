@@ -68,7 +68,7 @@ python3 scripts/split_headings.py --text tmp/draft_import.md --headings tmp/head
 ```
 
 - **原子落 `sections/`**（gate_registry 已登记 `sections/*.md`）；切 `text[o_i:o_{i+1}]` 逐字节，图注（is_caption）随区间内不外切。
-- **原子名反映该节实际标题文本**（如 "2 研究内容" → `section_2_研究内容.md`），适配任意基金模板/待润色材料，**不硬套国自然固定 P1-P4**；认不出编号的裸中文序号节由 index 兜底命名，仍产唯一名不崩不丢。国自然 P1-P4 语义名的桥接留"模板驱动第1期"由结构真源统一处理，本轮不做。
+- **原子名反映该节实际标题文本**（如 "2 研究内容" → `section_2_研究内容.md`），适配任意基金模板/待润色材料，**不硬套国自然固定 P1-P4**；认不出编号的裸中文序号节由 index 兜底命名，仍产唯一名不崩不丢。**原子名不做 P1-P4 改名桥接——语义由结构真源接管**：需要按模板管住顺序/必需件时，把拆分产物登记进 `<项目根>/structure_profile.json`（`chapters[].filename` 就填这些原子名；须经用户逐条确认后 `confirm` 落盘，五步链见 SKILL.md Phase 0「模板结构提取」）。落盘后：合并顺序按真源 `chapters[].order`、`validate-order` 必需件按真源 `required: true` 集合、`prewrite_gate` 的写作顺序与 section→文件匹配按真源 filename（传入 section 是某个 filename 的前缀即命中）。没有真源时：merge 收 `sections/` 全部现场文件、按文件名数字键排序（`section_2 < section_2.1 < section_10`，不是 shell 字典序），被排除的（figure_prompts.md / P2 父子同在的子文件 / 空文件）逐一报进输出 JSON 的 `excluded[]`，不静默丢。
 
 **0.3.3 无标题路（headless：.pdf / 无 Word 标题样式的 .docx / 纯 .txt）——HALT 兜底**：`trusted==false` 时**不派拆分、不派 LLM、不写任何 atom 到 `sections/`**，向用户输出明确停止信号 + 提示"未检出可靠标题层级，请将草稿转成带 `#`/Word 标题样式的 .md/.docx 重传，或补标题后再拆"。**绝不静默乱拆。**（headless 是国自然常见交付形态——.txt 粘贴 / 手打"一、立项依据"不套样式的 docx；后续若需打通 headless LLM 拆分路，再 vendored `split_subagent_prompt.md`。）
 

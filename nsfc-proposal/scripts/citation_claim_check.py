@@ -299,6 +299,12 @@ def main() -> int:
     blockers: list[str] = []       # exit 2（沿用原承重核证 + G0b 防伪/纪律硬拦）
     soft_blockers: list[str] = []  # exit 1（preprint 未标注）
     warnings: list[str] = []       # exit 0，仅提示
+    # 机械纪律的执行台账：article_type 只有 PMID 路径才填得上，只有 DOI 的条目一律
+    # unknown，纪律因此会大面积静默哑火。不硬拦（拿不到 PMID 是常态），但"没查"
+    # 必须可统计、看得见，否则用户会以为全查过了。
+    discipline_checked = 0
+    discipline_skipped = 0
+    discipline_skipped_refs: list[str] = []
     for r in rows:
         blockers.extend(_row_blockers(r))
         if not r.get("is_load_bearing"):
@@ -316,12 +322,18 @@ def main() -> int:
                 if _norm(quote) not in _norm(ledger_ab):
                     blockers.append(f"evidence_quote 非账本 abstract 子串: {ref}")
 
-        # G0b 机械纪律（claim_kind × article_type，任一字段未就绪 → 只 warning）
+        # G0b 机械纪律（claim_kind × article_type，任一字段未就绪 → 只 warning + 记账）
         if ckind in ("", "unknown") or atype in ("", "unknown"):
             warnings.append(f"claim_kind/article_type 未就绪, 跳过机械纪律: {ref}")
-        elif ckind in ("mechanism", "efficacy") and atype in REVIEW_TYPES:
-            blockers.append(f"承重机制/疗效声明不得挂综述: {ref}")
-        # efficacy 挂 meta_analysis/clinical_trial → 合法上位证据，放行（no-op）
+            discipline_skipped += 1
+            if ref not in discipline_skipped_refs:
+                discipline_skipped_refs.append(ref)
+        else:
+            # 两个字段都就绪才算"真查过一条"（含判定为合法而放行的那些）
+            discipline_checked += 1
+            if ckind in ("mechanism", "efficacy") and atype in REVIEW_TYPES:
+                blockers.append(f"承重机制/疗效声明不得挂综述: {ref}")
+            # efficacy 挂 meta_analysis/clinical_trial → 合法上位证据，放行（no-op）
 
         # preprint 标注：正文引了该 ref 但缺 [Preprint] 标记 → soft fail(exit1)
         if atype == "preprint":
@@ -341,7 +353,11 @@ def main() -> int:
         "blockers": blockers,
         "soft_blockers": soft_blockers,
         "warnings": warnings,
-        "counts": {"total": len(rows), "load_bearing": load_bearing, "contradict": contradict},
+        "counts": {"total": len(rows), "load_bearing": load_bearing, "contradict": contradict,
+                   "discipline_checked": discipline_checked,
+                   "discipline_skipped": discipline_skipped},
+        # 哪些 ref 因 claim_kind/article_type 未就绪而没走机械纪律（去重、保序）
+        "discipline_skipped_refs": discipline_skipped_refs,
         "cache_reuse": reuse,
     }
     if blockers:
@@ -351,6 +367,16 @@ def main() -> int:
         print("")
     else:
         print("✅ 引文核证通过：承重论点均有真摘要支撑且已人工确认（背景句请在上表批量核对）。")
+    if discipline_skipped:
+        # 一句话说清"这次有多少没查"，别让人以为全查过了。逐条 ⚠️ 在下面，
+        # 200 条时那堆 warning 就是噪音，这一行才是用户真正要看见的。
+        total_disc = discipline_checked + discipline_skipped
+        head = "、".join(discipline_skipped_refs[:5])
+        more = f" 等 {len(discipline_skipped_refs)} 篇" if len(discipline_skipped_refs) > 5 else ""
+        print(f"🟡 机械纪律未执行 {discipline_skipped}/{total_disc} 条承重引用："
+              f"claim_kind 或 article_type 未就绪（article_type 只有走 PMID 的文献才填得上，"
+              f"只有 DOI 的条目一律 unknown）。这些引用的「机制/疗效声明不得挂综述」未被检查："
+              f"{head}{more}")
     if soft_blockers:
         print("🟠 预印本标注缺失（需在正文引用处补 [Preprint] 标记）：")
         for s in soft_blockers:

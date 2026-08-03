@@ -1,6 +1,6 @@
 ---
 name: review-writing
-version: 2.29.2
+version: 2.29.6
 description: "Universal assistant for writing high-impact academic literature reviews (Nature/Cell/Lancet level). Supports real-time Zotero integration, outline persistence, and multi-mode reference management. Use when writing a comprehensive review article requiring systematic search, synthesis, and citation management. 触发词：写综述、文献综述、综述写作、literature review、review article、改综述、完善综述、继续写综述、improve review。"
 triggers:
   - "写综述"
@@ -36,6 +36,13 @@ why_how_what_note: |
 ---
 
 # General Literature Review Writing Specialist
+
+**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
+- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
+- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
+- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
+- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
+- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
 ## Quick Reference Card
 

@@ -18,7 +18,28 @@ import subprocess
 from pathlib import Path
 
 GITIGNORE = ".DS_Store\nThumbs.db\n__pycache__/\n*.pyc\nlogs/\n*.lock\n*.tmp\n"
+IGNORE_MARK = "# --- added by skill git_checkpoint ---"
 IDENT = ["-c", "user.name=skill", "-c", "user.email=skill@local"]
+
+
+def ensure_gitignore(root: Path) -> str:
+    """三态：created / appended / unchanged。
+    用户已有 .gitignore 时绝不整写（2026-08-03 缺陷：此前无条件 write_text
+    抹掉用户文件，而 git 刚要 init、没有任何历史可回退）——只把缺失的必需
+    条目追加到末尾（段前带标记注释），原有内容一行不动；全齐则一字不动。"""
+    path = root / ".gitignore"
+    if not path.exists():
+        path.write_text(GITIGNORE, encoding="utf-8")
+        return "created"
+    text = path.read_text(encoding="utf-8", errors="replace")
+    have = {ln.strip() for ln in text.splitlines()}
+    missing = [e for e in GITIGNORE.splitlines() if e not in have]
+    if not missing:
+        return "unchanged"
+    lead = "" if (not text or text.endswith("\n")) else "\n"
+    with path.open("a", encoding="utf-8") as f:
+        f.write(lead + IGNORE_MARK + "\n" + "\n".join(missing) + "\n")
+    return "appended"
 
 
 def git_ok():
@@ -45,7 +66,7 @@ def cmd_init(root: Path) -> int:
     if inside_other_repo(root):
         print("inside_other_repo: skip git, snapshot-only")
         return 0
-    (root / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
+    print(f"gitignore_{ensure_gitignore(root)}")
     subprocess.run(["git", "init"], cwd=str(root), check=True, capture_output=True)
     subprocess.run(["git", "add", "-A"], cwd=str(root), check=True)
     subprocess.run(

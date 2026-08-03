@@ -33,9 +33,14 @@ import json
 import os
 import sys
 
+try:  # structure_profile 与本改造同批上线；老项目自包含拷贝里可能缺失 -> 按内置默认跑
+    import structure_profile as _structure_profile
+except ImportError:
+    _structure_profile = None
+
 PLACEHOLDER_TOKENS = ("CITE_PENDING", "DATA_PENDING", "【待")
 
-# 固定写作顺序
+# 固定写作顺序（内置默认；结构真源缺失/章节表缺省时用它，INTERFACE §4.3）
 SECTION_ORDER = ["P1", "P2", "P3_1", "P3_2", "P3_3", "P3_4"]
 
 # section_id -> sections/ 文件名前缀（用 glob 匹配真实文件名后缀）
@@ -59,13 +64,67 @@ def _load_json(path):
         return None
 
 
-def section_file(root, section_id):
-    """返回 sections/<prefix>*.md 第一个匹配文件路径，无则 None。"""
+def _load_profile(root):
+    """结构真源（三态回落由 structure_profile.load 内部处理，不抛不 exit）。"""
+    if _structure_profile is None:
+        return None
+    return _structure_profile.load(root)
+
+
+def _resolve_scope(root):
+    """唯一裁定函数的调用垫片（INTERFACE §6.1）。模块缺失 -> 空 scope。"""
+    if _structure_profile is None or root is None:
+        return {"active": [], "skipped": []}
+    return _structure_profile.resolve_scope(root)
+
+
+def _profile_chapters(prof):
+    """真源里受管的章节表：按 order 升序；prof 无效或 chapters 键缺省 -> None（走内置默认）。"""
+    if not isinstance(prof, dict):
+        return None
+    chapters = prof.get("chapters")
+    if not isinstance(chapters, list) or not chapters:
+        return None
+    return sorted((c for c in chapters if isinstance(c, dict)), key=lambda c: c.get("order", 0))
+
+
+def effective_section_order(prof):
+    """写作顺序（§4.3）：有真源且 chapters 有内容 -> 按 order 升序取 filename 的 stem；
+    否则 -> 内置常量 SECTION_ORDER。"""
+    chapters = _profile_chapters(prof)
+    if chapters is None:
+        return list(SECTION_ORDER)
+    return [os.path.splitext(str(c.get("filename", "")))[0] for c in chapters]
+
+
+def section_file(root, section_id, prof=None):
+    """section -> sections/ 文件路径（§4.3）。
+
+    有真源时：传入 section 是某个 chapters[].filename 的前缀即命中（P1 命中 P1_立项依据.md），
+    多个命中取 order 最靠前的；不命中再回落常量前缀表 + glob。无真源：常量前缀表 + glob。
+    """
+    chapters = _profile_chapters(prof)
+    if chapters is not None:
+        for c in chapters:
+            filename = str(c.get("filename", ""))
+            if filename and filename.startswith(section_id):
+                return os.path.join(root, "sections", filename)
     prefix = SECTION_FILE_PREFIX.get(section_id)
     if not prefix:
         return None
     matches = sorted(glob.glob(os.path.join(root, "sections", f"{prefix}*.md")))
     return matches[0] if matches else None
+
+
+def placeholder_scan_targets(root, prof):
+    """占位符全扫回落集（§4.3）：无真源 -> sections/P*.md（现役行为）；
+    有真源且 chapters 受管 -> chapters[].filename 集合；chapters 键缺省 -> sections/*.md。"""
+    if isinstance(prof, dict):
+        chapters = _profile_chapters(prof)
+        if chapters is not None:
+            return [os.path.join(root, "sections", str(c.get("filename", ""))) for c in chapters]
+        return sorted(glob.glob(os.path.join(root, "sections", "*.md")))
+    return sorted(glob.glob(os.path.join(root, "sections", "P*.md")))
 
 
 def file_nonempty(path):
@@ -179,21 +238,27 @@ def main():
     if not os.path.isdir(root):
         print(f"PREWRITE_GATE: FAIL root not a directory: {root}")
         print(json.dumps({"ok": False, "section": section, "checks": [],
-                          "warnings": []}, ensure_ascii=False))
+                          "warnings": [], "skipped_checks": []}, ensure_ascii=False))
         return 1
 
-    known_section = section in SECTION_ORDER
+    prof = _load_profile(root)
+    # §6.3 出口 6：本进程自己调一次唯一裁定函数（纯函数，结论与其他出口必然相同）
+    skipped_checks = list(_resolve_scope(root).get("skipped") or [])
+    v_rules_off = "HRCK-V-RULES" in {e.get("id") for e in skipped_checks}
+    order = effective_section_order(prof)
+
+    known_section = section in order
     if not known_section:
-        warnings.append(f"section {section!r} not in fixed order {SECTION_ORDER}; prev/gate checks degraded")
+        warnings.append(f"section {section!r} not in fixed order {order}; prev/gate checks degraded")
 
     # ---- check 1: 上一节完成 ----
     if known_section:
-        idx = SECTION_ORDER.index(section)
+        idx = order.index(section)
         if idx == 0:
             checks.append({"name": "prev_section_done", "ok": True, "note": "first section, skip"})
         else:
-            prev = SECTION_ORDER[idx - 1]
-            prev_fp = section_file(root, prev)
+            prev = order[idx - 1]
+            prev_fp = section_file(root, prev, prof)
             if file_nonempty(prev_fp):
                 checks.append({"name": "prev_section_done", "ok": True, "prev": prev})
             else:
@@ -204,7 +269,11 @@ def main():
 
     # ---- check 2: consistency_map 就位（链路已登记） ----
     cm_nonempty, has_m = consistency_map_nonempty(root)
-    if cm_nonempty:
+    if v_rules_off:
+        # §5.1 HRCK-V-RULES 关掉：不再硬要求 consistency_map 非空
+        checks.append({"name": "consistency_map", "ok": None,
+                       "note": "HRCK-V-RULES disabled (funding_scheme=other); not required"})
+    elif cm_nonempty:
         checks.append({"name": "consistency_map", "ok": True})
     else:
         failures.append("data/consistency_map.json missing or empty (H/O/RC/KSQ not registered)")
@@ -220,7 +289,11 @@ def main():
             checks.append({"name": "experimental_design", "ok": False})
     # P2 起 consistency_map 须含 M
     if section in ("P2", "P3_1", "P3_2", "P3_3", "P3_4"):
-        if has_m:
+        if v_rules_off:
+            # §5.1 HRCK-V-RULES 关掉：不再硬要求含 M 条目
+            checks.append({"name": "methodologies_M", "ok": None,
+                           "note": "HRCK-V-RULES disabled (funding_scheme=other); not required"})
+        elif has_m:
             checks.append({"name": "methodologies_M", "ok": True})
         elif section == "P2":
             # P2 正是产出 M 的阶段，开写前 M 可能尚空 → 降级 warning
@@ -234,8 +307,8 @@ def main():
     # nsfc 盲检按 Phase(p1/p2/p3/...)粒度，P3_1..P3_4 同属 P3 Phase 一次性盲检，
     # 内部子节间无独立盲检契约 → 同 Phase 内 prev 不硬校验。仅 P2→需 P1、
     # P3_1→需 P2 这类跨 Phase 边界硬校验上一 Phase 的盲检通过标记。
-    if known_section and SECTION_ORDER.index(section) > 0:
-        prev = SECTION_ORDER[SECTION_ORDER.index(section) - 1]
+    if known_section and order.index(section) > 0:
+        prev = order[order.index(section) - 1]
         same_phase = prev.split("_")[0] == section.split("_")[0]
         if same_phase:
             checks.append({"name": "blind_review", "ok": True,
@@ -253,16 +326,16 @@ def main():
     elif known_section:
         checks.append({"name": "blind_review", "ok": True, "note": "first section, N/A"})
 
-    # ---- check 4: 占位符清零（上一节文件；P1 无上一节则扫已写的 sections/*.md） ----
+    # ---- check 4: 占位符清零（上一节文件；无上一节则按 §4.3 的范围全扫） ----
     files_to_scan = []
     if known_section:
-        idx = SECTION_ORDER.index(section)
+        idx = order.index(section)
         if idx > 0:
-            prev_fp = section_file(root, SECTION_ORDER[idx - 1])
+            prev_fp = section_file(root, order[idx - 1], prof)
             if prev_fp:
                 files_to_scan = [prev_fp]
     if not files_to_scan:
-        files_to_scan = sorted(glob.glob(os.path.join(root, "sections", "P*.md")))
+        files_to_scan = placeholder_scan_targets(root, prof)
     placeholder_hits = scan_placeholders(files_to_scan)
     if placeholder_hits:
         detail = ", ".join(f"{fn}:{tok}" for fn, tok in placeholder_hits)
@@ -272,9 +345,9 @@ def main():
         checks.append({"name": "placeholders", "ok": True})
 
     # ---- check: new_refs 并表核验 + 残留新键（节边界，硬要求4-A，INTERFACE §4.1） ----
-    if known_section and SECTION_ORDER.index(section) > 0:
-        prev = SECTION_ORDER[SECTION_ORDER.index(section) - 1]
-        prev_fp = section_file(root, prev)
+    if known_section and order.index(section) > 0:
+        prev = order[order.index(section) - 1]
+        prev_fp = section_file(root, prev, prof)
         nr_failures = check_new_refs_merged(root, prev, prev_fp)
         if nr_failures:
             failures.extend(nr_failures)
@@ -289,7 +362,8 @@ def main():
 
     ok = not failures
     print(json.dumps({"ok": ok, "section": section, "checks": checks,
-                      "warnings": warnings}, ensure_ascii=False))
+                      "warnings": warnings,
+                      "skipped_checks": skipped_checks}, ensure_ascii=False))
     if not ok:
         for reason in failures:
             print(f"PREWRITE_GATE: FAIL {reason}")

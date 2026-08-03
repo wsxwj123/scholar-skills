@@ -10,7 +10,7 @@
 |---|---|
 | `general-sci-writing` | 从零写 SCI 研究论文 |
 | `review-writing` | 写文献综述 |
-| `nsfc-proposal` | 国自然申请书（2026 模板） |
+| `nsfc-proposal` | 国自然申请书（2026 模板）；也支持省基金/校级/企业课题等自定义章节结构，见下 |
 | `sci2doc` | SCI 论文转中文学位论文 |
 | `revise-sci` | 按审稿意见改稿，出回复信 + 修订稿 |
 | `reviewer-response-sci` | 只写审稿回复，不动主稿 |
@@ -20,6 +20,16 @@
 | `academic-gate` | 流程门禁插件，见下 |
 
 技能靠 frontmatter 的 description 自动触发，不用记命令。说"帮我写 SCI 论文"就进 general-sci-writing。每家可以单独装，装一家就只拿一家。
+
+### 不是国自然的本子也能写
+
+`nsfc-proposal` 原本把国自然 2026 的章节结构写死在代码里，拿它写省基金或校级课题就会按错的结构查，一堆误报。现在改成从你的模板文件里读：
+
+把模板（`.docx` / `.md` / `.pdf` / `.txt`）给它 → AI 读出章节名 → **摆给你逐条核对** → 你确认后才生效。此后合并顺序、必需章节、字数上限都按你确认的那份走。没给模板文件就还是国自然默认，行为一个字不变。
+
+AI 认出的每个章节名都要能在原文里逐字节找到，对不上就整批拒收、不落盘——防的是它顺手编一个看着合理的结构。另外可以关掉不适用的自检项（比如"科学问题属性"只有国自然才有），**关掉的项会出现在评审报告的「未执行的检查」里，不会假装查过**。
+
+⚠️ 这几道是写给 AI 的纪律，不是脚本闸门：脚本不校验"是谁写的"这份结构文件。详见 `nsfc-proposal/SKILL.md` 里标注的已知限制。
 
 ### 门禁插件在干什么
 
@@ -107,7 +117,7 @@ Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否�
 claude plugin list          # 应出现 academic-gate@skills-dir
 ```
 
-再在项目目录里开个会话，AI 那边会收到一张状态卡（你在对话里通常看不见，问它一句"当前项目状态卡说了什么"就知道）。
+再在项目目录里开个会话，AI 那边会收到一张状态卡（你在对话里通常看不见，问它一句"当前项目状态卡说了什么"就知道）。状态卡开头会打出门禁版本号（形如 `academic-gate v0.9.1`），据此可判断装的是不是最新版。
 
 **钩子起不来时的表现和没装完全一样，不报错、不提示。** 唯一判别法就是上面这两条。看不到就当没保护，按流程人工盯。
 
@@ -116,6 +126,8 @@ claude plugin list          # 应出现 academic-gate@skills-dir
 **没重启，或目录放错了。** 必须在 `~/.claude/skills/` 下，不是 `~/.claude/plugins/`。
 
 **Windows 上 `python3` 可能是空壳。** Windows 自带一个 0 字节的 `python3` 占位程序，装了真 Python 也可能还排在 PATH 前面。`python3 --version` 没有正常输出就去 设置 → 应用 → 应用执行别名 关掉 `python3.exe`。另外钩子命令是 POSIX 写法（`exec "$(command -v python3 || command -v python)"`），纯 cmd/PowerShell 起不来，装 Git for Windows 一般能解决。
+
+**技能脚本的解释器名也一样。** 文档里的示例命令统一写 `python3`，但 Windows 上常常只有 `python`（而干净的 macOS 只有 `python3`，写死哪个都会在另一边跑不了）。各技能的 SKILL.md 已写明：AI 执行脚本前先探测一次，`python3` 不通就换 `python`。AI 若照抄命令报 `python3: command not found`，直接告诉它"这台机器只有 python"即可。
 
 ### 它会往哪写文件
 
@@ -194,7 +206,7 @@ cd ~/.config/opencode/skills  && rm -rf <目录>...   # opencode
 
 误拦、漏拦、状态卡内容不对、装不上，都欢迎开 issue。误拦优先修。
 
-有 1447 条自动化测试覆盖行为契约，但测试证不了"用起来真的治忘、真的不烦"，这部分待实测。
+有 1700 多条自动化测试覆盖行为契约，但测试证不了"用起来真的治忘、真的不烦"，这部分待实测。
 
 ## 授权
 

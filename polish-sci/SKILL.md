@@ -1,10 +1,17 @@
 ---
 name: polish-sci
-version: 2.25.0
+version: 2.25.1
 description: 纯论文润色全管道。输入一份已写完的稿子(无审稿意见),逐段提升语言表达,绝不改内容/数据/结论。触发词：润色、polish、语言润色、润色论文、polish paper、language polish、proofread manuscript、母语化、润色稿子。路由说明：与revise-sci区分,revise-sci由审稿意见驱动、只改被点名片段;polish-sci无意见、全文逐段润色覆盖每一段。与general-sci-writing区分,gsw从零写新稿,polish-sci只润色现成稿。
 ---
 
 # Polish-Sci
+
+**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
+- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
+- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
+- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
+- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
+- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
 > 🔁 **每次进入/续写先接续**:开工或换会话续写前,先跑 `env_preflight` 打印的 **RESUME_CMD**(`python <polish-sci>/scripts/session_journal.py resume --root <project_root>`),把接续报告贴给用户并打一次接续握手(确认进度到哪、之前的要求都读了、下一步做什么),等用户确认再动手。用户中途插入任何临时要求,立刻用 **LOG_CMD**(`session_journal.py log --root <project_root> --note "<原话>"`)记进 `decisions_log.md`,后续会话必读必守。
 

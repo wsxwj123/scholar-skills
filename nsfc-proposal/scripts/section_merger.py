@@ -10,6 +10,12 @@ import re
 import subprocess
 from pathlib import Path
 
+try:
+    import structure_profile  # 同目录；INTERFACE §1-§3 的三态回落在它内部处理
+except ImportError:  # structure_profile.py 尚未落地/半安装 → 一律走内置默认
+    structure_profile = None
+
+# 内置国自然 2026 章节清单（结构真源缺失时的 fallback，INTERFACE §0；勿删）
 ORDER = [
     "00_摘要_中文.md",
     "00_摘要_英文.md",
@@ -26,24 +32,52 @@ ORDER = [
     "REF_参考文献.md",
 ]
 
+# merge 的排除名单（INTERFACE §4.2 reason=not_a_chapter；当前只有 figure_prompts.md）
+NOT_A_CHAPTER = {"figure_prompts.md"}
+
+
+def _sort_key(name: str) -> list:
+    """INTERFACE §4.1 排序键：按 (\\d+(?:\\.\\d+)*) 切段；
+    数字段 → (0, (int, …))，非数字段 → (1, str)。认小数点：2.2 < 2.2.1 < 2.10。"""
+    key = []
+    for part in re.split(r"(\d+(?:\.\d+)*)", name):
+        if not part:
+            continue
+        if re.fullmatch(r"\d+(?:\.\d+)*", part):
+            key.append((0, tuple(int(x) for x in part.split("."))))
+        else:
+            key.append((1, part))
+    return key
+
+
+def _load_profile(root) -> dict | None:
+    """读 <root>/structure_profile.json。缺失/损坏/非法/未确认 → None（走内置默认）。"""
+    if structure_profile is None:
+        return None
+    return structure_profile.load(str(root))
+
 
 def _p2_children(sections_dir: Path) -> list[Path]:
-    pats = sorted(sections_dir.glob("P2_*.md"))
-    children = [p for p in pats if p.name != "P2_研究内容.md"]
-
-    def key(p: Path):
-        m = re.match(r"P2_([0-9.]+)_", p.name)
-        if not m:
-            return (999,)
-        return tuple(int(x) for x in m.group(1).split("."))
-
-    return sorted(children, key=key)
+    children = [p for p in sections_dir.glob("P2_*.md") if p.name != "P2_研究内容.md"]
+    return sorted(children, key=lambda p: _sort_key(p.name))
 
 
-def validate_order(sections_dir: Path) -> dict:
+def validate_order(sections_dir: Path, profile: dict | None = None) -> dict:
     present = {p.name for p in sections_dir.glob("*.md")}
-    required = set(ORDER) - {"P2_研究内容.md"}
 
+    if profile is not None:
+        chapters = profile.get("chapters") or []
+        if chapters:
+            # INTERFACE §4.2：必需件集 = required == true 的 filename 集合
+            wanted = {c.get("filename") for c in chapters if c.get("required") is True}
+            missing = sorted(x for x in wanted if x not in present)
+            return {"ok": not missing, "missing": missing, "present_count": len(present)}
+        if profile.get("funding_scheme", "nsfc") == "other":
+            # 非国自然 + 章节表缺省 → 必需件集为空，ok 恒 true
+            return {"ok": True, "missing": [], "present_count": len(present)}
+        # nsfc + 章节表缺省 → 同无真源，落到内置默认
+
+    required = set(ORDER) - {"P2_研究内容.md"}
     missing = sorted(x for x in required if x not in present)
     if "P2_研究内容.md" not in present:
         p2_parts = _p2_children(sections_dir)
@@ -57,30 +91,74 @@ def validate_order(sections_dir: Path) -> dict:
     }
 
 
-def merge(sections_dir: Path, output_path: Path) -> list[str]:
-    merged: list[str] = []
-    used = []
-    for name in ORDER:
-        p = sections_dir / name
-        if name == "P2_研究内容.md" and not p.exists():
-            for c in _p2_children(sections_dir):
-                merged.append(c.read_text(encoding="utf-8").strip())
-                used.append(c.name)
-            continue
-        if p.exists():
-            merged.append(p.read_text(encoding="utf-8").strip())
-            used.append(name)
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n\n\f\n\n".join(x for x in merged if x), encoding="utf-8")
-    return used
+def _collect(sections_dir: Path) -> tuple[list[str], list[dict]]:
+    """收 sections/*.md 全部现场文件（INTERFACE §4.2 + §9-12「清单外就丢」已废止），
+    减 not_a_chapter 与 p2_parent_present 两类；empty 在 merge 读内容时判。"""
+    present = sorted((p.name for p in sections_dir.glob("*.md")), key=_sort_key)
+    p2_parent = "P2_研究内容.md" in present
+    names: list[str] = []
+    excluded: list[dict] = []
+    for n in present:
+        if n in NOT_A_CHAPTER:
+            excluded.append({"file": n, "reason": "not_a_chapter"})
+        elif p2_parent and n.startswith("P2_") and n != "P2_研究内容.md":
+            excluded.append({"file": n, "reason": "p2_parent_present"})
+        else:
+            names.append(n)
+    return names, excluded
 
 
-def merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -> list[str]:
+def _apply_profile_order(names: list[str], profile: dict | None) -> list[str]:
+    """chapters 有内容 → 表内按 order 升序在前（同 order 按 §4.1 键稳定），
+    表外按 §4.1 键排末尾；无真源 / chapters 缺省 → 保持 §4.1 键序。"""
+    chapters = (profile or {}).get("chapters") or []
+    if not chapters:
+        return names
+    present = set(names)
+    head: list[str] = []
+    listed: set[str] = set()
+    ordered = sorted(chapters, key=lambda c: (c.get("order", 0), _sort_key(str(c.get("filename", "")))))
+    for c in ordered:
+        fn = c.get("filename")
+        if fn in present and fn not in listed:
+            head.append(fn)
+            listed.add(fn)
+    tail = [n for n in names if n not in listed]  # names 已按 §4.1 键有序
+    return head + tail
+
+
+def merge(sections_dir: Path, output_path: Path, profile: dict | None = None) -> tuple[list[str], list[dict]]:
+    """合并现场文件。返回 (merged_files, excluded)。
+    merged_files 语义 = 进了产物的文件：空文件不进，记 excluded reason=empty（§4.2 已拍板）。"""
+    names, excluded = _collect(sections_dir)
+    names = _apply_profile_order(names, profile)
+
     merged: list[str] = []
     used: list[str] = []
+    for name in names:
+        text = (sections_dir / name).read_text(encoding="utf-8").strip()
+        if not text:
+            excluded.append({"file": name, "reason": "empty"})
+            continue
+        merged.append(text)
+        used.append(name)
 
-    allowed = set(ORDER) | {"P2"}
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text("\n\n\f\n\n".join(merged), encoding="utf-8")
+    return used, excluded
+
+
+def _merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -> tuple[list[str], list[dict], int]:
+    """merge --only。返回 (merged_files, excluded, found)。
+    found = 解析到现场文件的条数（含空文件）；=0 时 CLI 报「一个都没命中」exit 2。"""
+    merged: list[str] = []
+    used: list[str] = []
+    excluded: list[dict] = []
+    found = 0
+
+    # INTERFACE §4.2：allowed = sections/ 下现场存在的文件名 ∪ {P2_研究内容.md}
+    #（并入 P2 是为了父件不在场时别名仍能展开细粒度子文件）
+    allowed = {p.name for p in sections_dir.glob("*.md")} | {"P2_研究内容.md"}
     normalized: list[str] = []
     for item in selected:
         key = item.strip()
@@ -88,13 +166,20 @@ def merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -
             continue
         if key == "P2":
             normalized.append("P2_研究内容.md")
-            continue
-        if key.endswith(".md"):
-            normalized.append(key)
-        elif key in ORDER:
+        elif key.endswith(".md"):
             normalized.append(key)
         else:
             normalized.append(f"{key}.md")
+
+    def _take(path: Path) -> None:
+        nonlocal found
+        found += 1
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            excluded.append({"file": path.name, "reason": "empty"})
+            return
+        merged.append(text)
+        used.append(path.name)
 
     for name in normalized:
         if name not in allowed:
@@ -102,16 +187,19 @@ def merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -
         p = sections_dir / name
         if name == "P2_研究内容.md" and not p.exists():
             for c in _p2_children(sections_dir):
-                merged.append(c.read_text(encoding="utf-8").strip())
-                used.append(c.name)
+                _take(c)
             continue
         if p.exists():
-            merged.append(p.read_text(encoding="utf-8").strip())
-            used.append(name)
+            _take(p)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n\n\f\n\n".join(x for x in merged if x), encoding="utf-8")
-    return used
+    output_path.write_text("\n\n\f\n\n".join(merged), encoding="utf-8")
+    return used, excluded, found
+
+
+def merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -> list[str]:
+    """兼容壳：保留旧签名/返回值（既有调用方与自测用）。CLI 走 _merge_selected。"""
+    return _merge_selected(sections_dir, selected, output_path)[0]
 
 
 # 正文参考文献角标：纯数字方括号，形如 [1] / [2,3] / [4-6] / [2，3]（全角逗号）。
@@ -239,43 +327,58 @@ def merge_docx(md_path: Path, docx_path: Path) -> dict:
     return {"ok": True, "output": str(docx_path), "citations_superscripted": superscripted}
 
 
+def _resolve_root(args) -> str:
+    """INTERFACE §9-1：--root 默认 = --sections-dir 的父目录（merge-docx 无 sections-dir，默认 .）。"""
+    if getattr(args, "root", None):
+        return args.root
+    return str(Path(getattr(args, "sections_dir", "sections")).parent)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
+
+    root_help = "项目根（结构真源 structure_profile.json 所在目录；默认 = --sections-dir 的父目录）"
 
     p_merge = sub.add_parser("merge")
     p_merge.add_argument("--sections-dir", default="sections")
     p_merge.add_argument("--output", default="output/申请书_合并.md")
     p_merge.add_argument("--only", default="", help="Comma-separated section filenames or aliases, e.g. P1_立项依据.md,P2,REF_参考文献.md")
+    p_merge.add_argument("--root", default=None, help=root_help)
 
     p_docx = sub.add_parser("merge-docx")
     p_docx.add_argument("--input", default="output/申请书_合并.md")
     p_docx.add_argument("--output", default="output/申请书_合并.docx")
+    p_docx.add_argument("--root", default=None, help=root_help)
 
     p_valid = sub.add_parser("validate-order")
     p_valid.add_argument("--sections-dir", default="sections")
+    p_valid.add_argument("--root", default=None, help=root_help)
 
     args = parser.parse_args()
 
     if args.cmd == "validate-order":
-        print(json.dumps(validate_order(Path(args.sections_dir)), ensure_ascii=False, indent=2))
+        profile = _load_profile(_resolve_root(args))
+        print(json.dumps(validate_order(Path(args.sections_dir), profile), ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "merge":
         sections_dir = Path(args.sections_dir)
         if args.only.strip():
+            # --only 是用户显式点名，不读结构真源、不做章节校验（现役行为不变）
             selected = [x.strip() for x in args.only.split(",") if x.strip()]
-            used = merge_selected(sections_dir, selected, Path(args.output))
-            if not used:
+            used, excluded, found = _merge_selected(sections_dir, selected, Path(args.output))
+            if not found:
                 print(json.dumps({"ok": False, "error": "no selected sections found", "only": selected}, ensure_ascii=False, indent=2))
                 return 2
         else:
-            valid = validate_order(sections_dir)
+            profile = _load_profile(_resolve_root(args))
+            valid = validate_order(sections_dir, profile)
             if not valid["ok"]:
                 print(json.dumps(valid, ensure_ascii=False, indent=2))
                 return 2
-            used = merge(sections_dir, Path(args.output))
-        print(json.dumps({"ok": True, "output": args.output, "merged_files": used}, ensure_ascii=False, indent=2))
+            used, excluded = merge(sections_dir, Path(args.output), profile)
+        print(json.dumps({"ok": True, "output": args.output, "merged_files": used, "excluded": excluded}, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "merge-docx":

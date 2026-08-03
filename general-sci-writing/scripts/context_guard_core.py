@@ -37,6 +37,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import stat
 import sys
 import time
@@ -46,7 +47,8 @@ from pathlib import Path
 
 # 与 academic-gate/.claude-plugin/plugin.json 的 version 保持一致；插件目录不在
 # 身边（vendored 到 _shared/ 或单技能 scripts/）时用这个常量兜底。
-FALLBACK_PLUGIN_VERSION = "0.9.0"
+# 一致性由 tests/unit/test_academic_gate_version_lock.py 守着，漂了会红。
+FALLBACK_PLUGIN_VERSION = "0.9.1"
 
 MAX_ROOT_DEPTH = 8           # 向上找根的层数上限（INTERFACE §2.6）
 NONEMPTY_PROBE = 1024        # _nonempty 只读首 1 KB，绝不整读正文
@@ -1041,17 +1043,37 @@ def skill_scripts_dir(skill: str) -> str | None:
     return None
 
 
+def _interpreter() -> str:
+    """挑吐给 AI 的命令用的解释器名：探测 PATH 上真实存在的裸名，两个都不在时
+    退 sys.executable 绝对路径兜底。写死 python3 的命令在只有 python 的
+    Windows 上照抄就是断的——与 verify_command docstring 讲的路径引号是同一条
+    道理，给跑不起来的命令比不给还糟。
+
+    🔴 口径必须与 install_gate_hook._interpreter() 完全一致（先 python3 再
+    python，理由见那边 docstring：按探测不按平台猜）。两边是有意的小重复而非
+    互相 import：install_gate_hook 是自愈/修复工具，职责含重新部署损坏的本文件，
+    修复工具 import 被修复对象 = 被修对象坏掉时修复工具跟着炸。4 行纯逻辑的
+    重复由 tests/unit/test_interpreter_probe_lock.py 三分支逐一断相等锁死。"""
+    for name in ("python3", "python"):
+        if shutil.which(name):
+            return name
+    return sys.executable or "python3"
+
+
 def verify_command(skill: str, root=None, with_root: bool = True) -> str:
     """本项目的盲检命令（真实路径，禁止吐 <技能安装目录> 这种占位符字面量）。
 
-    路径先清洗、再 shlex.quote：用户目录里带空格是常态（`~/Desktop/claude/custom
-    skills`），不加引号的话 AI 照抄这条命令就是断的 —— 给了个跑不起来的命令，
-    比不给还糟。
+    路径先清洗、再 shlex.quote：用户目录里带空格是常态（如 `~/Documents/My Papers`），
+    不加引号的话 AI 照抄这条命令就是断的 —— 给了个跑不起来的命令，比不给还糟。
+    解释器名同理：运行时探测（_interpreter），不写死 python3。
     """
     d = skill_scripts_dir(skill)
     if d:
-        cmd = "python3 %s verify --section <节号>" % shlex.quote(
-            "%s/delegate_review.py" % d)
+        # 兜底的 sys.executable 绝对路径可能含空格，与脚本路径同取向 quote；
+        # 裸名 quote 后原样不变
+        cmd = "%s %s verify --section <节号>" % (
+            shlex.quote(_interpreter()),
+            shlex.quote("%s/delegate_review.py" % d))
     else:
         cmd = "本技能 scripts/ 下的 delegate_review.py verify --section <节号>"
     if with_root and root is not None:

@@ -1,6 +1,6 @@
 ---
 name: reviewer-simulator
-version: 2.29.4
+version: 2.29.5
 description: 用于模拟高标准学术同行评审，对医学、生物、药学等领域稿件进行法医式检查、目标期刊契合度评估和证据锚定批评，输出结构化中文审稿报告。当用户提到模拟审稿、帮我审稿、预审、审稿报告、做reviewer、审一下这篇文章、投稿前自查、审稿人会怎么挑刺、这篇能不能中、peer review、simulate reviewer、review manuscript 时优先调用。注意与 reviewer-response-sci（用于回复审稿意见）区分：本技能是模拟审稿人写审稿意见，后者是针对已收到的审稿意见撰写回复。
 ---
 
@@ -12,6 +12,13 @@ description: 用于模拟高标准学术同行评审，对医学、生物、药�
 **最终输出形式必须是一个独立的 HTML 文件，可见文案必须为简体中文。**
 - 模板来源（只读）：`assets/report_template.html`（技能安装目录，**禁止写入**）
 - 输出路径（每次运行新建）：写到**用户当前工作目录**（CWD），文件名 `report_YYYYMMDD_[稿件题目关键词].html`；如用户指定了输出目录则用其指定路径。绝不写进技能安装目录下的 `assets/`。
+
+**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
+- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
+- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
+- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
+- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
+- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
 **【接续与握手·每次进入/续写先做】** 每次进入本技能或续写既有审稿任务，**先跑 `RESUME_CMD`**（`python ~/.claude/skills/reviewer-simulator/scripts/session_journal.py resume --root <项目根>`，可直接复制运行）读回上次进度与用户历次要求，把接续报告原样贴给用户完成握手，再动手。**用户中途插入任何临时要求，立即用 `LOG_CMD`**（`python ~/.claude/skills/reviewer-simulator/scripts/session_journal.py log --root <项目根> --note "<用户原话>"`）记一条，避免跨 session 丢失。首次全新任务无接续记录时，resume 会提示"暂无"，照常开工即可。
 </CRITICAL_INSTRUCTIONS>

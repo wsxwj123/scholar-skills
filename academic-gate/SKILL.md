@@ -1,5 +1,6 @@
 ---
 name: academic-gate
+version: 0.9.1
 description: 学术写作技能的结构签字流程门禁说明（含总开关、强度边界与已知限制）。本目录同时是一个插件——Claude Code 放进 ~/.claude/skills/ 重启一次即自动加载；Codex 读本目录的 .codex-plugin/plugin.json，装完需跑一次 /hooks 信任。PreToolUse 钩子拦截"未确认大纲就写正文"。当用户问门禁为什么拦我、怎么解锁、怎么确认结构签字、门禁没生效怎么办时使用。
 ---
 

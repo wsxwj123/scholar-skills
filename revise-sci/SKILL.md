@@ -1,6 +1,6 @@
 ---
 name: revise-sci
-version: 2.27.4
+version: 2.27.5
 description: 退稿/返修全管道，同时出逐条回复信+修改后正文docx+Patch修订。触发词：改稿、修改稿子、修订正文、退稿改进、返修、revise manuscript、major revision、minor revision、revise and resubmit、point-by-point response、revised manuscript。路由说明：与reviewer-response-sci区分，本技能同时改主稿+出回复包，后者只出回复不改稿；与gsw区分，gsw写新稿，本技能专处理已有稿子的审稿意见驱动修改。
 ---
 
@@ -22,6 +22,13 @@ The manuscript atomizer recognizes numbered section headings such as `1`, `1.1`,
 > 3. **覆盖看对照表**：交付前 AI 应给「意见 × 是否回复 × 是否改稿 × 结局」对照表。「改稿」列为空**但结局标 `push_back`（有意驳回不改）**的是正常的，不是漏；真正的漏是：某条既没回复、结局又不是 `completed`/`push_back`/`需作者确认`。分清「有意不改」和「漏改」。
 > 4. **缺证据写"需作者确认"是正常的**：AI 没有你的数据/实验时应写「需作者确认」等你补，这不是 bug，请你补齐，别当故障报错。
 > 5. **门禁 PASS 只保形式**：门禁只查格式/覆盖/红线这类机械项，**改得对不对、说理通不通，得你自己核**，别把 PASS 当"改对了"。
+
+**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
+- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
+- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
+- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
+- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
+- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
 ## 跨会话接续（每次开局先跑，与监工卡是两件事）
 

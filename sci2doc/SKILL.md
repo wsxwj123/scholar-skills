@@ -1,6 +1,6 @@
 ---
 name: sci2doc
-version: 2.28.1
+version: 2.28.3
 description: 用于将SCI论文材料转化为中文博士或硕士学位论文草稿，执行严格的章节结构、原子化Markdown工作流、门禁检查和版本回滚。当用户提到博士论文、硕士论文、学位论文、毕业论文、SCI转论文、doctoral thesis、master thesis、dissertation 时优先调用。
 ---
 
@@ -17,6 +17,13 @@ This skill is process-first, not one-shot generation.
 The workflow is built around:
 - `state_manager.py` for anti-forgetfulness, token budgeting, gate checks, snapshot/rollback
 - `atomic_md_workflow.py` for atomic subsection markdown files, numbering validation, merge, self-check, section-level snapshot
+
+**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
+- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
+- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
+- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
+- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
+- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
 ## 接续与决定日志（每次启动本技能先跑）
 

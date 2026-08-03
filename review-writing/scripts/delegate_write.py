@@ -20,7 +20,10 @@ __all__ = ["BARE_NUM_RE", "KEY_RE", "SECTION_RE", "CONFIG", "main"]
 CONFIG = {
     "family": "review-writing",
     "section_regex": r"^\d+(\.\d+)*$",
-    "outline_files": ["project_state.json", "storyline.json"],
+    # rw 的大纲真源是 outline.md（state_manager.STATE_FILES["storyline"]），从不产出
+    # project_state.json / storyline.json——原先照抄 sci2doc 的那两个文件名，rw 这条路
+    # 从来没通过。核心已支持 .md 候选（按 `##+ 编号 标题` 抽节）。
+    "outline_files": ["outline.md"],
     "outline_id_field": "section_id",
     "index_path": "data/literature_index.json",   # rw 文献库在 data/ 下，list
     "index_shape": "root_list",

@@ -111,8 +111,58 @@ PASSIVE_RE = re.compile(
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z\[])")
 
 # ── Reference/figure/heading filters ─────────────────────────────────────────
-REF_LINE_RE = re.compile(r"^\d+\.\s+\w+.*?\d{4}", re.MULTILINE)
+# NOTE: there is deliberately no per-line reference format regex any more.
+# Real drafts mix at least five entry styles ("1. Author…2020", "- [12] …",
+# "1. [99] Author…" with or without a year, bare "[99] …"), and any whitelist
+# leaks the ones it does not know — that leak was the single largest false-
+# positive source (bullets / explanatory colons read out of bibliography
+# entries). Once we know we are inside a reference block we drop every line
+# until the block is closed; see _extract_prose.
 HEADING_RE = re.compile(r"^#+\s+", re.MULTILINE)
+# Heading text (after stripping leading #/space) that marks a reference section.
+REF_HEADING_RE = re.compile(r"^(?:References|参考文献|Bibliography)", re.IGNORECASE)
+# A standalone reference label line that is not a markdown heading
+# ("References" / "**References**" / "参考文献：" / "Bibliography").
+# Anchored at both ends on purpose: a prose sentence that merely starts with
+# "References were formatted per…" must NOT open the block, otherwise the
+# whole rest of the file would be swallowed.
+#
+# ReDoS fix (2026-08-03) — do NOT turn this back into a regex. It used to be
+#   ^\**\s*(?:References|参考文献|Bibliography)\s*\**\s*[:：]?\s*$
+# where the adjacent optional quantifiers (\s* \** \s*) all compete for the
+# same whitespace run: cubic backtracking on near-miss lines. Measured with a
+# single .match() call:
+#   "References" + " "*400  + "x"  →  0.067 s
+#   "References" + " "*800  + "x"  →  0.512 s
+#   "References" + " "*1600 + "x"  →  4.035 s   (≈×8 per doubling)
+# The trigger shape is real: PDF/HTML-to-text TOC lines are exactly
+# "References" + <long space run> + <page number>, and a few dozen of them
+# hang the checker for minutes → users skip the check → silent failure.
+# Merging segments into character classes ([\s*]*[:：]?[\s*]*$) is NOT a fix
+# either: still O(n²), 29 s measured. Hence a plain left-to-right consumer —
+# each greedy strip below is equivalent to the regex because no later segment
+# can accept the characters an earlier segment consumes.
+_REF_LABEL_KEYWORDS = ("references", "参考文献", "bibliography")
+
+
+def _is_reference_label_line(stripped: str) -> bool:
+    """Linear-time, semantics-preserving replacement for the retired regex."""
+    s = stripped.lstrip("*")            # ^\**
+    s = s.lstrip()                      # \s*
+    for kw in _REF_LABEL_KEYWORDS:      # (?:References|参考文献|Bibliography), re.I
+        # Compare a fixed-length slice, lowercased: indices stay in the
+        # original string even for rare chars whose lower() changes length.
+        if s[: len(kw)].lower() == kw:
+            s = s[len(kw):]
+            break
+    else:
+        return False
+    s = s.lstrip()                      # \s*
+    s = s.lstrip("*")                   # \**
+    s = s.lstrip()                      # \s*
+    if s[:1] in (":", "："):            # [:：]?
+        s = s[1:]
+    return not s.lstrip()               # \s*$
 FIGURE_LEGEND_RE = re.compile(r"^(?:Figure|Fig\.?|Table)\s+\d", re.IGNORECASE | re.MULTILINE)
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 CITATION_RE = re.compile(r"\[\d+(?:[,\-\s]*\d+)*\]")
@@ -127,23 +177,34 @@ def _extract_prose(text: str) -> str:
     for line in lines:
         stripped = line.strip()
         if not stripped:
-            in_ref_block = False
+            # Keep in_ref_block as-is: a reference section commonly has blank
+            # lines between entries, and standard Markdown always puts one
+            # between the "References" label and the first entry. Closing on a
+            # blank line meant the block never survived past its own label.
             prose_lines.append("")
             continue
         if HEADING_RE.match(stripped):
-            in_ref_block = False
+            # A "## References"/"参考文献"/"Bibliography" heading opens the ref
+            # block; any other heading closes it. Without this, the heading
+            # branch swallowed "## References" first and unconditionally reset
+            # in_ref_block, so the block could never open at all.
+            heading_text = HEADING_RE.sub("", stripped, count=1).strip()
+            in_ref_block = bool(REF_HEADING_RE.match(heading_text))
+            continue
+        if _is_reference_label_line(stripped):
+            in_ref_block = True
+            continue
+        if in_ref_block:
+            # Inside a reference block every line is bibliography, whatever its
+            # entry format. Only a non-reference heading (branch above) closes
+            # the block. Trade-off: prose placed after a reference list without
+            # its own heading is dropped, which can only hide style issues
+            # (false negatives) — the old format whitelist produced dozens of
+            # false positives per draft instead, which is the worse failure.
             continue
         if stripped.startswith("---"):
             continue
         if FIGURE_LEGEND_RE.match(stripped):
-            continue
-        if re.match(r"^(References|参考文献)", stripped, re.IGNORECASE):
-            in_ref_block = True
-            continue
-        if in_ref_block and REF_LINE_RE.match(stripped):
-            continue
-        if in_ref_block and not stripped:
-            in_ref_block = False
             continue
         prose_lines.append(line)
     return "\n".join(prose_lines)

@@ -25,6 +25,18 @@ import diagnosis_engine
 import citation_validator
 import word_counter
 
+try:  # structure_profile 与本改造同批上线；老项目自包含拷贝里可能缺失 -> 按「没关任何项」跑
+    import structure_profile as _structure_profile
+except ImportError:
+    _structure_profile = None
+
+
+def _resolve_scope(root) -> dict[str, Any]:
+    """唯一裁定函数的调用垫片（INTERFACE §6.1）。root=None 或模块缺失 -> 空 scope。"""
+    if _structure_profile is None or root is None:
+        return {"active": [], "skipped": []}
+    return _structure_profile.resolve_scope(root)
+
 
 DEFAULT_PROFILE = {
     "project_type": "面上项目",
@@ -301,10 +313,11 @@ def sync_all(root: Path) -> dict[str, Any]:
 
 
 
-def _sync_semantic_ok(semantic: dict[str, Any]) -> bool:
+def _sync_semantic_ok(semantic: dict[str, Any], skip_v_rules: bool = False) -> bool:
+    # skip_v_rules: HRCK-V-RULES 被关掉时（§5.1），sync 语义分支不再因 V 规则 ERROR 判负
     if semantic.get("strict_mode"):
         return (
-            (not semantic.get("cm_has_error"))
+            (skip_v_rules or not semantic.get("cm_has_error"))
             and bool(semantic.get("has_context_blocks"))
             and bool(semantic.get("has_history"))
             and bool(semantic.get("p1_verified"))
@@ -419,8 +432,18 @@ def gate_check(
         p1_path=p1_file,
         ref_path=ref_file,
         page_limit=int(profile.get("page_limit", 30)),
+        root=root,
     )
     review_ok = review.get("pass_status") == "pass" and int(review.get("d_count", 0)) == 0 and int(review.get("c_count", 0)) <= 3
+
+    # §5.1 关掉的检查按 skipped_checks 豁免（裁定在 full_review 内的 resolve_scope，这里只消费）
+    skipped_checks = review.get("skipped_checks", [])
+    skipped_ids = {e.get("id") for e in skipped_checks}
+    if "SPA-REQUIRED" in skipped_ids:
+        profile_ok = True  # 科学问题属性四选一不再必填，failed_at 不再取 "profile"
+    if "HRCK-V-RULES" in skipped_ids:
+        semantic_ok = _sync_semantic_ok(sync_status["semantic"], skip_v_rules=True)
+        sync_ok = exists_ok and fresh_ok and semantic_ok
 
     overall_ok = profile_ok and sync_ok and citation_ok and literature_ok and matrix_ok and review_ok
     if not profile_ok:
@@ -477,6 +500,8 @@ def gate_check(
             "page_estimate": review.get("page_estimate"),
             "page_limit": review.get("page_limit"),
         },
+        # §6.3 出口 1：review["skipped_checks"] 原样搬，恒存在（没关任何项时为 []）
+        "skipped_checks": skipped_checks,
     }
 
 
@@ -625,10 +650,44 @@ def _check_spa_justification(spa: str | None, p1_text: str) -> dict[str, Any]:
     }
 
 
+_WORD_TARGET_PREFIX = {
+    # proposal_profile.word_targets 键 -> 章节文件名前缀（§4.4：有真源时 recommended_max 从对应章 word_max 取）
+    "p1_rationale": "P1_",
+    "p2_content": "P2_",
+    "p3_foundation": "P3_1_",
+    "p4_other": "P4_",
+}
+
+
+def _apply_structure_word_targets(root: Path, word_targets: dict[str, Any]) -> dict[str, Any]:
+    """有结构真源且对应章声明了 word_max 时，覆盖 recommended_max；该章无 word_max -> 保持现值。"""
+    if _structure_profile is None:
+        return word_targets
+    prof = _structure_profile.load(root)
+    chapters = (prof or {}).get("chapters") if isinstance(prof, dict) else None
+    if not isinstance(chapters, list) or not chapters:
+        return word_targets
+    out = dict(word_targets)
+    for key, prefix in _WORD_TARGET_PREFIX.items():
+        tgt = out.get(key)
+        if not isinstance(tgt, dict):
+            continue
+        for ch in chapters:
+            if isinstance(ch, dict) and str(ch.get("filename", "")).startswith(prefix) \
+                    and isinstance(ch.get("word_max"), int):
+                out[key] = {**tgt, "recommended_max": ch["word_max"]}
+                break
+    return out
+
+
 def build_write_cycle(root: Path, section: str, token_budget: int | None = None) -> dict[str, Any]:
     profile = load_json(root / "proposal_profile.json", DEFAULT_PROFILE)
     cm = consistency_mapper.load_map(root / "data/consistency_map.json")
     lit = load_json(root / "data/literature_index.json", {"metadata": {}, "entries": []})
+    # §5.1 SPA-JUSTIFY：声明 other 后 P1 节的论证关键词提示也置 null
+    spa_justify_off = "SPA-JUSTIFY" in {
+        e.get("id") for e in (_resolve_scope(root).get("skipped") or [])
+    }
 
     sec_path = _section_file(root, section)
     section_text = sec_path.read_text(encoding="utf-8") if sec_path.exists() else ""
@@ -668,12 +727,13 @@ def build_write_cycle(root: Path, section: str, token_budget: int | None = None)
         "profile": {
             "mode": profile.get("mode"),
             "page_limit": profile.get("page_limit"),
-            "word_targets": profile.get("word_targets", {}),
+            "word_targets": _apply_structure_word_targets(root, profile.get("word_targets", {})),
         },
-        # SPA-WARN：仅在撰写P1时检查科学问题属性论证（WARN级，不硬卡）
+        # SPA-WARN：仅在撰写P1时检查科学问题属性论证（WARN级，不硬卡）。
+        # 键恒存在（§9 裁决 8）：非 P1 节本就为 null；SPA-JUSTIFY 关掉后 P1 节也置 null。
         "spa_justification_check": (
             _check_spa_justification(profile.get("science_problem_attribute"), section_text)
-            if sec_path.stem.startswith("P1")
+            if sec_path.stem.startswith("P1") and not spa_justify_off
             else None
         ),
     }
@@ -856,6 +916,7 @@ def main() -> int:
             p1_path=root / "sections/P1_立项依据.md",
             ref_path=root / "sections/REF_参考文献.md",
             page_limit=int(profile.get("page_limit", 30)),
+            root=root,
         )
         out = root / args.output
         out.parent.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,58 @@ import citation_validator
 import consistency_mapper
 import humanizer_zh
 import word_counter
+
+try:  # structure_profile 与本改造同批上线；老项目自包含拷贝里可能缺失 -> 按「没关任何项」跑
+    import structure_profile as _structure_profile
+except ImportError:
+    _structure_profile = None
+
+
+def _resolve_scope(root) -> dict[str, Any]:
+    """唯一裁定函数的调用垫片（INTERFACE §6.1）。root=None 或模块缺失 -> 空 scope。"""
+    if _structure_profile is None or root is None:
+        return {"active": [], "skipped": []}
+    return _structure_profile.resolve_scope(root)
+
+
+def _load_structure_profile(root) -> dict[str, Any] | None:
+    """读结构真源（三态回落由 structure_profile.load 内部处理，不抛不 exit）。"""
+    if _structure_profile is None or root is None:
+        return None
+    return _structure_profile.load(root)
+
+
+def _abstract_limits(prof: dict[str, Any] | None) -> tuple[int | None, int | None, dict[str, Any] | None]:
+    """D-10 摘要字数上限（INTERFACE §4.4）。返回 (中文上限, 英文上限, skipped 条目或 None)。
+
+    - 无真源 / chapters 键缺省（章节表不受管）: 400/300，与改造前逐字节一致
+    - 有真源、chapters 声明了对应章且带 word_max: 用声明值
+    - 有真源、chapters 受管但摘要章无 word_max 键（或未列出该章）: 上限为 None ->
+      D-10 grade 置 null、不计入 d_count/c_count、进 skipped_checks。绝不悄悄按 400 判。
+    """
+    chapters = (prof or {}).get("chapters") if isinstance(prof, dict) else None
+    if not isinstance(chapters, list) or not chapters:
+        return 400, 300, None
+    by_name = {c.get("filename"): c for c in chapters if isinstance(c, dict)}
+
+    def limit_of(filename: str) -> int | None:
+        ch = by_name.get(filename)
+        if isinstance(ch, dict) and isinstance(ch.get("word_max"), int):
+            return ch["word_max"]
+        return None
+
+    cn_max = limit_of("00_摘要_中文.md")
+    en_max = limit_of("00_摘要_英文.md")
+    if cn_max is None or en_max is None:
+        missing = [n for n, v in (("00_摘要_中文.md", cn_max), ("00_摘要_英文.md", en_max)) if v is None]
+        skip = {
+            "id": "D-10",
+            "name": "摘要质量（字数上限）",
+            "reason": "structure_profile.chapters 未声明 word_max: %s" % ", ".join(missing),
+            "status": "未执行",
+        }
+        return cn_max, en_max, skip
+    return cn_max, en_max, None
 
 
 # 诚实化声明：D-01/D-02/D-04 是无法机械评判的实质维度，本引擎只报统计、不给质量等级。
@@ -104,6 +157,8 @@ def _global_dimensions(
     consistency: dict[str, Any],
     citation_matrix: dict[str, Any] | None,
     page_limit: int,
+    hrck_dims_off: bool = False,
+    abstract_limits: tuple[int | None, int | None] | None = None,
 ) -> dict[str, dict[str, Any]]:
 
     # D-01 科学意义与立项依据 —— 仅统计，不评质量等级（字数/引用数是可灌水的机械代理，
@@ -117,8 +172,10 @@ def _global_dimensions(
     in_count = len(cm.get("innovations", []))
     d02_stats = {"创新点条目数": in_count}
 
-    # D-03 研究方案合理性
-    d03 = "A" if consistency.get("V-03", {}).get("pass") and consistency.get("V-06", {}).get("pass") else "D"
+    # D-03 研究方案合理性（HRCK-DIMS 关掉时置 null，不计入计数，§5.1）
+    d03 = None if hrck_dims_off else (
+        "A" if consistency.get("V-03", {}).get("pass") and consistency.get("V-06", {}).get("pass") else "D"
+    )
 
     # D-04 可行性 —— 仅统计可行性证据条数及来源合规，不评质量（证据够不够硬须专家判断）
     f_count = len(cm.get("feasibility_evidence", []))
@@ -126,10 +183,14 @@ def _global_dimensions(
 
     # D-05 四维对应完整性
     core_rules = ["V-01", "V-02", "V-03", "V-05", "V-06"]
-    d05 = "A" if all(consistency.get(r, {}).get("pass") for r in core_rules) else "D"
+    d05 = None if hrck_dims_off else (
+        "A" if all(consistency.get(r, {}).get("pass") for r in core_rules) else "D"
+    )
 
     # D-06 跨节逻辑一致性
-    d06 = "A" if consistency.get("V-08", {}).get("pass") and consistency.get("V-10", {}).get("pass") else "C"
+    d06 = None if hrck_dims_off else (
+        "A" if consistency.get("V-08", {}).get("pass") and consistency.get("V-10", {}).get("pass") else "C"
+    )
 
     # D-07 写作风格
     style_issues = sum(r["style"]["count"] + r["rhythm"]["count"] for r in section_reports)
@@ -147,14 +208,22 @@ def _global_dimensions(
         sections_dir / "B3_预算说明_其他来源.md",
     ]
     budget_present = all(p.exists() for p in budget_files)
-    d09 = "A" if budget_present and consistency.get("V-09", {}).get("pass") else ("C" if budget_present else "D")
+    if hrck_dims_off:
+        # V-09 那一半随 HRCK-DIMS 关掉；budget_present 那一半照常生效（§5.2 红线）
+        d09 = "A" if budget_present else "D"
+    else:
+        d09 = "A" if budget_present and consistency.get("V-09", {}).get("pass") else ("C" if budget_present else "D")
 
-    # D-10 摘要质量
+    # D-10 摘要质量（上限来自结构真源，缺省 400/300；上限不可判时 grade 置 null，§4.4）
+    cn_max, en_max = abstract_limits if abstract_limits is not None else (400, 300)
     abs_cn = (sections_dir / "00_摘要_中文.md").read_text(encoding="utf-8") if (sections_dir / "00_摘要_中文.md").exists() else ""
     abs_en = (sections_dir / "00_摘要_英文.md").read_text(encoding="utf-8") if (sections_dir / "00_摘要_英文.md").exists() else ""
     abs_cn_words = word_counter.count_text(abs_cn)
     abs_en_words = len((abs_en or "").split())
-    d10 = "A" if abs_cn_words <= 400 and abs_en_words <= 300 and abs_cn_words > 0 and abs_en_words > 0 else "C"
+    if cn_max is None or en_max is None:
+        d10 = None
+    else:
+        d10 = "A" if abs_cn_words <= cn_max and abs_en_words <= en_max and abs_cn_words > 0 and abs_en_words > 0 else "C"
 
     _stat_note = "统计信息，不代表质量；实质判断须专家或委托盲检，本引擎不做实质评判。"
     dims = {
@@ -179,7 +248,17 @@ def full_review(
     p1_path: Path | None = None,
     ref_path: Path | None = None,
     page_limit: int = 30,
+    root=None,
 ) -> dict[str, Any]:
+    # 裁定只发生在这一处（INTERFACE §6.2）：出口 1-5 的 skipped_checks 都源自这一次调用
+    scope = _resolve_scope(root)
+    skipped_checks = list(scope.get("skipped") or [])
+    skipped_ids = {e.get("id") for e in skipped_checks}
+    hrck_dims_off = "HRCK-DIMS" in skipped_ids
+
+    prof = _load_structure_profile(root)
+    cn_max, en_max, d10_skip = _abstract_limits(prof)
+
     section_reports = diagnose_all(sections_dir, consistency_path)
     total_words = sum(r["word_count"] for r in section_reports)
     pages = word_counter.estimate_pages(total_words)
@@ -194,13 +273,19 @@ def full_review(
         ref_text = ref_path.read_text(encoding="utf-8") if ref_path.exists() else ""
         citation_matrix = citation_validator.matrix_check(p1_text, idx, ref_text)
 
-    dimensions = _global_dimensions(sections_dir, cm, section_reports, consistency, citation_matrix, page_limit)
-    # D-01/D-02/D-04 为纯统计项（无 grade），不计入等级/门控计算
-    grades = [d["grade"] for d in dimensions.values() if "grade" in d]
+    dimensions = _global_dimensions(
+        sections_dir, cm, section_reports, consistency, citation_matrix, page_limit,
+        hrck_dims_off=hrck_dims_off, abstract_limits=(cn_max, en_max),
+    )
+    if d10_skip is not None:
+        skipped_checks.append(d10_skip)
+    # D-01/D-02/D-04 为纯统计项（无 grade）、grade=null 的跳过维度，均不计入等级/门控计算
+    grades = [d["grade"] for d in dimensions.values() if d.get("grade") is not None]
     d_count = sum(1 for g in grades if g == "D")
     c_count = sum(1 for g in grades if g == "C")
 
-    avg_score = sum(_grade_to_score(g) for g in grades) / len(grades)
+    # D-07/D-08 恒有 grade，grades 实际非空；max(...,1) 仅防未来维度调整出除零
+    avg_score = sum(_grade_to_score(g) for g in grades) / max(len(grades), 1)
     overall_grade = _score_to_grade(avg_score)
 
     if d_count > 0:
@@ -228,7 +313,25 @@ def full_review(
         "page_estimate": pages,
         "total_words": total_words,
         "page_limit": page_limit,
+        # §6.4：恒存在。没关任何检查时为 []，与「忘了写」可区分
+        "skipped_checks": skipped_checks,
     }
+
+
+def _render_skipped(report: dict[str, Any]) -> list[str]:
+    """「未执行的检查」小节（§6.3 出口 4/5 共用，绝不各写各的）。
+
+    skipped_checks 为空时返回 []（§9 裁决 7：空节是噪音，md 不出现该标题；
+    JSON 里该键仍恒存在为 []）。非空时置于报告最末尾，避开
+    _export_polish_review 里 lines[-1].startswith("## 七") 的判断。
+    """
+    items = report.get("skipped_checks") or []
+    if not items:
+        return []
+    lines = ["", "## 未执行的检查"]
+    for e in items:
+        lines.append("- %s %s：未执行（%s）" % (e.get("id", ""), e.get("name", ""), e.get("reason", "")))
+    return lines
 
 
 def export_markdown(report: dict[str, Any], title: str = "NSFC申请书评审报告") -> str:
@@ -276,6 +379,7 @@ def export_markdown(report: dict[str, Any], title: str = "NSFC申请书评审报
         lines.append(f"- orphan_entries: {cm.get('orphan_entries')}")
         lines.append(f"- order_match: {cm.get('order_match')}")
 
+    lines.extend(_render_skipped(report))  # §6.3 出口 4：报告最末尾
     return "\n".join(lines)
 
 
@@ -339,6 +443,7 @@ def _export_polish_review(report: dict[str, Any]) -> str:
         lines.append(f"   - 动作: {act['action']}")
         lines.append(f"   - 验收: {act['acceptance']}")
 
+    lines.extend(_render_skipped(report))  # §6.3 出口 5（润色报告，初稿漏掉的那个）：报告最末尾
     return "\n".join(lines)
 
 
@@ -437,6 +542,14 @@ def _build_fix_actions(report: dict[str, Any]) -> list[dict[str, str]]:
     return actions
 
 
+def _default_root(args: argparse.Namespace) -> str:
+    """--root 缺省 = --sections-dir 的父目录（与 §9 裁决 1 的 merge 规则同口径；
+    --sections-dir 缺省为相对路径 sections，其父目录即 cwd，与「默认 .」一致）。"""
+    if args.root:
+        return args.root
+    return os.path.dirname(os.path.abspath(args.sections_dir))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -458,10 +571,14 @@ def main() -> int:
     p_full.add_argument("--ref", default="sections/REF_参考文献.md")
     p_full.add_argument("--output", default="data/diagnosis_report.json")
     p_full.add_argument("--page-limit", type=int, default=30)
+    p_full.add_argument("--root", default=None,
+                        help="项目根（读 structure_profile.json / data/dod_selection.json）；缺省取 --sections-dir 的父目录")
 
     p_export = sub.add_parser("export-report")
     p_export.add_argument("--input", default="data/diagnosis_report.json")
     p_export.add_argument("--output", default="data/diagnosis_report.md")
+    p_export.add_argument("--root", default=".",
+                          help="项目根（与其余出口 CLI 对齐；渲染取报告内已裁定的 skipped_checks）")
 
     p_polish = sub.add_parser("polish-review")
     p_polish.add_argument("--sections-dir", default="sections")
@@ -472,6 +589,8 @@ def main() -> int:
     p_polish.add_argument("--json-output", default="data/diagnosis_report.json")
     p_polish.add_argument("--md-output", default="data/polish_review_report.md")
     p_polish.add_argument("--page-limit", type=int, default=30)
+    p_polish.add_argument("--root", default=None,
+                          help="项目根（读 structure_profile.json / data/dod_selection.json）；缺省取 --sections-dir 的父目录")
 
     args = parser.parse_args()
 
@@ -493,6 +612,7 @@ def main() -> int:
             p1_path=Path(args.p1),
             ref_path=Path(args.ref),
             page_limit=args.page_limit,
+            root=_default_root(args),
         )
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -518,6 +638,7 @@ def main() -> int:
             p1_path=Path(args.p1),
             ref_path=Path(args.ref),
             page_limit=args.page_limit,
+            root=_default_root(args),
         )
         json_out = Path(args.json_output)
         md_out = Path(args.md_output)
