@@ -149,6 +149,19 @@ def _install_gate_hook() -> None:
             print(f'CITATION_CHECK_CMD: python "{citation_check}" --root <project_root>')
         else:
             print("⚠️ 缺少 scripts/citation_claim_check.py(vendored 副本),对应功能不可用;跑 python3 _shared/sync_vendored.py --sync 或重新安装完整技能包")
+        # references/ 从不拷进项目(SKILL.md §1 只拷 scripts/templates/configs),故凡是
+        # 要"传给 shell 命令 / 交给子代理"的 references 文件,都在这里给绝对路径;
+        # 相对路径在项目根 cwd 下必然找不到(delegate_review 会 exit 2,盲检标记落不下,
+        # 下一节被 prewrite_gate 硬拦 = 锁死)。
+        refs = here.parent / "references"
+        for token, fname in (("DOD_CHECKLIST", "dod_checklist.json"),
+                             ("PREP_PROMPT", "prep_subagent_prompt.md"),
+                             ("WRITER_PROMPT", "section_writer_prompt.md")):
+            target = refs / fname
+            if target.is_file():
+                print(f"{token}: {target}")
+            else:
+                print(f"⚠️ 缺少 references/{fname},{token} 不可用;重新安装完整技能包")
     except Exception:
         pass
 

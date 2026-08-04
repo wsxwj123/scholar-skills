@@ -421,10 +421,14 @@ def verify_all(
     # Crossref/PubMed. entry_is_fresh_verified only returns True when the RAW
     # entry has verified is True, so a downgraded/unverified entry (e.g. one
     # carrying mcp_unresolved) is never short-circuited and still re-verifies
-    # below; the require_mcp downgrade further down is therefore not bypassed.
+    # below. require_mcp/require_online are handed down so a cache produced by a
+    # LOOSER run (offline / no MCP evidence) cannot short-circuit a stricter one —
+    # otherwise the require_mcp downgrade further down never gets a chance to fire.
     out: list[dict[str, Any]] = []
     for e in entries:
-        if core.entry_is_fresh_verified(e, mcp_ttl_days, now_utc):
+        if core.entry_is_fresh_verified(e, mcp_ttl_days, now_utc,
+                                        require_mcp=require_mcp,
+                                        require_online=bool(online_check)):
             out.append(dict(e))
             continue
         out.append(

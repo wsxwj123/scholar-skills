@@ -15,8 +15,8 @@
         {
           "id": "RV-G2",
           "name": "citation_guard 双重核验",
-          "check": "本轮新增引用已过 citation_guard 双重核验（provider trace + identifier/title 一致性），ok=true 且无 manual_review 条目",
-          "script": "python scripts/citation_guard.py"
+          "check": "本轮新增引用已过 citation_guard 双重核验（provider trace + identifier/title 一致性），ok=true 且无 manual_review 条目。🔴 必须带 --live：不带 --live（或带 --offline）就是不联网，此时任何条目一律记为未核验、guard_verified 恒 false，这道门本来就过不去，也证明不了文献真实存在。网络不通导致验不过 = 「没验成」，必须当 fail，不得当通过。",
+          "script": "python scripts/citation_guard.py --live --paper-search-results <paper_search_results.json> --project-root ."
         },
         {
           "id": "RV-G3",

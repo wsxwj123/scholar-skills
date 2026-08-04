@@ -177,7 +177,11 @@ def main() -> int:
     parser.add_argument("--paper-search-results", required=True)
     parser.add_argument("--project-root", required=True)
     parser.add_argument("--live", action="store_true")
-    parser.add_argument("--offline", action="store_true")
+    parser.add_argument(
+        "--offline", action="store_true",
+        help="强制跳过联网核验，本次结果一律记为未核验（guard_verified 恒 false）。"
+             "只用于测试或网络故障应急，不是交付口径。注意不加 --live 时本来就不联网，"
+             "同样拿不到核验通过，交付前必须 --live 重跑")
     parser.add_argument("--allow-unverified", action="store_true")
     parser.add_argument(
         "--fail-on-unverified",

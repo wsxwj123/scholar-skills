@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """R2b「联网核验已生效」的机器判据。
 
-为什么需要：R2 的 `citation_guard.py --offline` 在离线模式下 http_ok 恒 True，任何
-**格式完整**的条目都判 verified（编造 DOI + 编造 PMID + 齐全 source_provider/source_id
-实测 exit 0）。而 `verified` 字段住在 AI 可自由编辑的 literature_index.json 里，
-Windows 上 edirect 常失效时这条 DoD 仍会报绿。本脚本查的是「联网那道到底跑没跑过、
+为什么需要：R2 的 `citation_guard.py --offline` 一次联网核验都不做，只能给出
+「格式没查出硬伤」，所有条目一律记为未核验（verified 恒 false、report.status
+为 unverified），编造 DOI + 编造 PMID 的条目在那一步既不会被盖章也拦不住。
+而 `verified` 字段住在 AI 可自由编辑的 literature_index.json 里，Windows 上
+edirect 常失效时这条 DoD 仍可能被报绿。本脚本查的是「联网那道到底跑没跑过、
 且覆盖到本节每一条引文」，与 R2 的格式核互补，不重叠。
 
 判据（三条同时成立才 exit 0）：
@@ -80,7 +81,8 @@ def main() -> int:
         return 1
     if body.get("online_check") is not True:
         print(f"[R2b] FAIL report.online_check={body.get('online_check')!r}"
-              f"（这份报告是 --offline 跑的，离线模式判不出编造文献）。{FAIL_HINT}")
+              f"（这份报告是 --offline 跑的：那一轮把所有条目都记为未核验，"
+              f"证明不了任何一条文献真实存在）。{FAIL_HINT}")
         return 1
 
     index = _load(Path(args.index))

@@ -1,5 +1,102 @@
 # Changelog - General SCI Writing Skill
 
+## [2.34.0] - 2026-08-04
+
+盲检打回三条，前两条致命，其中 R-1 是上一批自己引进的。
+
+### 🔴 R-1 覆盖前的"快照保险"装反了，比不装还糟（上一批 2.33.0 引进）
+
+- 快照目录按**秒**命名。同一秒内第二次调用目录已存在 → 跳过 mkdir → 先把**已被
+  破坏的现状** `copy2` 盖进旧快照 → 再崩在 `copytree("manuscripts")` 上 →
+  `except OSError` 吞掉、只打一句 Warning → **写入照常进行**。
+  实测：10 张图变 1 张、唯一的快照也被改成 1 张、两条命令都 exit 0 报成功、
+  payload 还被自动删掉——原始数据没有任何找回路径。
+- 现在撞名一律另起 `snapshot_<ts>_2/_3`（`os.makedirs` 不带 `exist_ok`，捕
+  `FileExistsError` 重试），**已建立的快照绝不被后来者改写**；顺带解掉 `snapshot`
+  子命令同秒连跑抛未捕获 `FileExistsError`（exit 1）。
+- `update` 的覆盖前快照失败改为 **fail-closed**：整文件覆盖拿不到回退点就中止，
+  非 0 退出并保留 payload，不再"打个 Warning 继续写"。
+
+### 🔴 R-2 缩表防护只认一种数据形状
+
+- 旧判据枚举 `entries/items/references/data` 四个包装键，而 gsw 自己的状态文件
+  用的是别的键：`figures_database`（`{"figures":[…]}` 10→1）、`storyline`
+  （`{"sections":[…]}` 5→1）、`mentor_plan`（`{"rounds":{…}}` 写第二轮顶掉第一轮）
+  实测全部 exit 0 静默丢数据。`mentor_plan` 尤其要紧——SKILL.md 明确指示 AI 用
+  `update` 往它写每一轮，照做就会抹掉上一轮。
+- 改成与键名无关的判据：**新旧同为容器、元素变少即拦**，dict 按 `len()` 计数；
+  dict 里原有的键在新内容中消失同样算丢（`rounds` 从 `{"1":…}` 变 `{"2":…}` 时
+  len 没变但第一轮确实没了）。只沿两边同名的 dict 键递归，不进 list 元素内部——
+  改某一条的字段是正常编辑，不该被当成丢数据。
+- 不误拦对照实测：文献索引追加、图库条数不变改内容、故事线加一节、mentor_plan
+  保留第一轮加写第二轮、submission_state 写新内容，全部照常放行。
+
+### 🟡 R-3 引文核证读不了"按编号做键"的索引（`_shared/`，6 家共享）
+
+- `citation_claim_check._load_ledger` 没有 dict_values 分支。2.33.1 把
+  `--write-back` 修好（不再顺手造 `entries`）之后，`{"1":{…},"2":{…}}` 这类索引
+  对它彻底不可见：`ledger_entries` 恒 0，「机制/疗效声明不得挂综述」这条纪律
+  没有索引可依据、静默不执行。
+- 「哪些键是文献条目」的判据搬进 `_shared/citation_guard_core.py` 当唯一真源，
+  gsw/rw/sci2doc/reviewer-simulator 四家 `citation_guard.py` 改为导入，
+  `_load_ledger` 用同一份判据。该形状下条目内不一定再存一份编号，故**原键即
+  ref_id**；其余四种形状行为逐条对照不变。
+
+### 📄 文档改准（盲检独立发现）
+
+- SKILL.md `:206/:383/:394/:414` 四处仍写"项目里没有 `references/`"，与 `:56`
+  和 /init 第 5 步直接矛盾、实测为假（`references/` 已进项目，相对路径也能跑通）。
+  改成"项目内有 `references/`，但 cwd 不一定在项目根，所以一律用 Phase 0 打印的
+  绝对路径"——照旧写法下一个 AI 会据此把第 5 步的拷贝删回去。
+- 2.33.1 里"review-writing 本轮未动"与事实不符，已改准。
+
+## [2.33.1] - 2026-08-04
+
+### 🔴 `citation_guard.py --write-back` 把"按编号做键"的索引写成两份
+
+- 索引形如 `{"1": {...}, "2": {...}}` 时，写回分支只认
+  `entries/papers/items/references/data` 五种 key，其余一律落到 `out["entries"]`
+  —— 原键原样留着、另起一份副本，同一批文献在同一个文件里存了两份。
+  而所有读取侧（`_normalize_index`、`citation_claim_check._load_ledger`）都**优先读
+  `entries`**，于是用户之后手工改原键的内容**对所有检查不可见，且没有任何提示**。
+  实测：改完原键 1 的标题再跑一次 write-back，`entries[0]` 仍是旧标题，两份已分叉。
+- 现在 dict_values 形状按原键写回原位，不再新建 `entries`。读写两侧共用
+  `_dict_entry_keys()` 挑条目，保证一一对应；`metadata`（写回自己产的账本头）
+  排除在条目之外，否则第二次跑会把它当成一条缺标题的文献判 fail。
+- 其余四种形状（裸 list / entries / papers / items）逐字节不变，已对照实测。
+  同一处缺陷在 sci2doc 2.31.1、reviewer-simulator 2.29.6 一并修掉；
+  review-writing 同缺陷也已修（commit bf0c811），其 `citation_guard.py` 的验收考卷
+  md5 锁由主会话同步刷新——本条此前写的"rw 本轮未动"与事实不符，已改准。
+
+## [2.33.0] - 2026-08-04
+
+### 🔴 P0：两条让第二节开不了写的死锁 + 一道被架空的硬门禁 + 一处静默毁数据
+
+- **`write-cycle --finalize` 的 `--status` 默认改 `done`**。此前默认 `updated`，而
+  `prewrite_gate` 只认 `done/completed/finalized`，且**全技能文档里 `--status` 出现 0 次**
+  —— 照文档抄的人第一节收口后，第二节 `prev_section_done` 必 FAIL、永远开不了写。
+  真没写完仍可显式 `--status draft`，下一节照样被拦。
+- **`references/` 不进项目的相对路径全部改绝对路径**。`/init` 只拷 scripts/templates/configs，
+  而盲检命令写的是 `--checklist references/dod_checklist.json` → 项目根 cwd 下必
+  `exit 2` → `.review_pass/<节>.json` 永不落盘 → 下一节被硬拦。改由 Phase 0
+  `env_preflight.py` 打印 `DOD_CHECKLIST` / `PREP_PROMPT` / `WRITER_PROMPT` 绝对路径，
+  SKILL.md 用占位符引用。
+- **`citation_guard.py --require-mcp` 不再被 30 天缓存架空**（改的是 `_shared/`
+  共享件，7 家同步）。此前 `entry_is_fresh_verified` 只看 `verified` + 时间戳，不看当初
+  那次核验的强度：一条 `--offline` 验过的编造文献（编造标题 + 编造 DOI + 编造 PMID）
+  能被 `--require-mcp` 一路短路放行 `exit 0`。现在缓存只有在**当初至少和本轮一样严**
+  （`sources.mcp` / `sources.online_check` 为真）时才准复用；无额外要求时照旧短路，
+  不联网、无性能倒退；字段缺失或结构不对一律收紧。
+- **`state_manager.py update` 三处危险修掉**：① 一个字段都没匹配上时不再打印
+  "Successfully updated:" 然后删掉输入文件，改为非 0 退出 + 保留 payload + 报清哪个字段；
+  ② 整文件覆盖会让条目数变少时直接阻断（此前传 1 条进去原有 30 条静默消失），
+  覆盖前另拍一次全量快照可 `/rollback`；③ 补上 `FileLock("state_update")`，
+  与 postwrite / add-figure / add-abbreviation / rename-figure 口径一致。
+  先全量校验再落笔，不留"写了一半"的中间态。
+- **`figure_analysis_gate.py` 补 GBK 控制台防护**。它是唯一没加 stdout reconfigure 的
+  门禁脚本，而失败原因里带 `❓待确认`（GBK 编不出）→ 中文 Windows 上用户被拦住却只
+  看到一段 Traceback，看不到真正原因。
+
 ## [2.20.0] - 2026-06-11
 
 ### 🔒 写作前"读 references"硬门禁（闭环 progressive disclosure 风险）

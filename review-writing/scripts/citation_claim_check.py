@@ -39,6 +39,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 「哪些键是文献条目」只有一份实现（citation_guard 的读取与写回也用它）。
+# ponytail: 硬 import，缺 vendored 副本就当场炸——这是 MANIFEST/L4/CI 三道守卫
+# 都盯着的同目录文件，静默降级只会让纪律再哑火一次。
+from citation_guard_core import _dict_entry_keys  # noqa: E402
+
 VALID_VERDICTS = {"support", "weak", "contradict", "unknown"}
 REVIEW_TYPES = {"review", "systematic_review"}
 EFFICACY_OK_TYPES = {"meta_analysis", "clinical_trial"}
@@ -95,6 +101,7 @@ def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
             data = None
         break  # 第一个存在的候选定胜负：坏了也当空，不再向下读另一处可能陈旧的副本
     entries: list = []
+    dict_keys: list[str] = []   # dict_values 形状下条目的原键，与 entries 一一对应
     if isinstance(data, list):
         entries = data
     elif isinstance(data, dict):
@@ -102,10 +109,18 @@ def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
             if isinstance(data.get(k), list):
                 entries = data[k]
                 break
-    for e in entries:
+        else:
+            # 「按编号做键」的索引（{"1": {...}, "2": {...}}）。判据与
+            # citation_guard 的读取/写回共用同一份（metadata 等账本头排除），
+            # 两边挑法一旦分叉就会串行。
+            dict_keys = _dict_entry_keys(data)
+            entries = [data[k] for k in dict_keys]
+    for pos, e in enumerate(entries):
         if not isinstance(e, dict):
             continue
         keys = [str(e[f]) for f in _INDEX_ID_FIELDS if e.get(f) not in (None, "")]
+        if not keys and dict_keys:
+            keys = [dict_keys[pos]]  # 这种形状下原键就是 ref_id，条目内不一定再存一份
         if not keys:
             continue
         index_entries += 1

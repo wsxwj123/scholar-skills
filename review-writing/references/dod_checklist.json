@@ -15,13 +15,13 @@
         {
           "id": "R2",
           "name": "引文来源合规与格式核验（离线）",
-          "check": "本项仅核 provider 白名单（pubmed-cli / paper-search 允许，websearch / tavily 禁止）与字段格式完整性，**不证明文献真实存在**——脚本带 --offline，此模式下不联网、任何格式完整的条目都会判 verified（编造的 DOI+PMID 照样过）。文献真实性由 Phase 2 入库时的联网 citation_guard（SKILL.md Phase 2 Step 6，不带 --offline）与 Phase 4 终检负责，本项通过不得被当成「文献已核实」。核后可对照 data/citation_guard_report.json 的 report.online_check 判断这份报告是联网跑的还是离线跑的。",
+          "check": "本项仅核 provider 白名单（pubmed-cli / paper-search 允许，websearch / tavily 禁止）与字段格式完整性，**不证明文献真实存在**。脚本带 --offline，此模式下一次联网核验都不做，所有条目一律记为未核验（每条 verified 恒 false、报告 report.status 为 unverified，绝不会出现 verified）；编造的 DOI+PMID 在这一步既拦不住也不会被盖章，就是「没查」。所以本项过了只说明「格式没查出硬伤」，永远不等于「文献已核实」。文献真实性由 Phase 2 入库时的联网 citation_guard（SKILL.md Phase 2 Step 6，不带 --offline）与 Phase 4 终检负责，并由 R2b 单独取证。核后可对照 data/citation_guard_report.json 的 report.online_check 与 report.status 判断这份报告是联网跑的还是离线跑的。",
           "script": "python3 scripts/citation_guard.py --offline --index data/literature_index.json"
         },
         {
           "id": "R2b",
           "name": "联网核验已生效",
-          "check": "证明本节引文**真的被联网核验过**，而不是只跑过 R2 的离线格式核（R2 的 --offline 判不出编造文献）。三条同时成立才算过：① data/citation_guard_report.json 存在且结构可读；② 该报告是联网跑的（report.online_check 为 true，注意字段嵌在 report 键下，不在顶层；SKILL.md 用 --log 与 --report 同路径时顶层会是 report/manual_review_queue/runs 三键，取 report 或 runs 末条均可）；③ 本节 related_sections 命中的每条 literature_index 条目都带 verification_details.checked_at（联网核验时由 --write-back 逐条落盘；report 顶层的 checked_at 只是单次运行时间戳，证明不了逐条覆盖，不得拿它顶替）。任一不成立即 fail，提示「本节引文未经联网核验，请勿声明通过」——补跑 SKILL.md Phase 2 Step 6 的联网 citation_guard（不带 --offline、带 --write-back）后重核。文件缺失 / 结构对不上 / online_check 非 true 一律判 fail（fail-safe 方向是收紧，不给「查不到就当过」的口子）。",
+          "check": "证明本节引文**真的被联网核验过**，而不是只跑过 R2 的离线格式核（R2 带 --offline，那一轮把所有条目一律记为未核验，证明不了任何一条文献真实存在）。三条同时成立才算过：① data/citation_guard_report.json 存在且结构可读；② 该报告是联网跑的（report.online_check 为 true，注意字段嵌在 report 键下，不在顶层；SKILL.md 用 --log 与 --report 同路径时顶层会是 report/manual_review_queue/runs 三键，取 report 或 runs 末条均可）；③ 本节 related_sections 命中的每条 literature_index 条目都带 verification_details.checked_at（联网核验时由 --write-back 逐条落盘；report 顶层的 checked_at 只是单次运行时间戳，证明不了逐条覆盖，不得拿它顶替）。任一不成立即 fail，提示「本节引文未经联网核验，请勿声明通过」——补跑 SKILL.md Phase 2 Step 6 的联网 citation_guard（不带 --offline、带 --write-back）后重核。文件缺失 / 结构对不上 / online_check 非 true 一律判 fail（fail-safe 方向是收紧，不给「查不到就当过」的口子）。",
           "script": "python3 scripts/check_online_verified.py --section X.X"
         },
         {

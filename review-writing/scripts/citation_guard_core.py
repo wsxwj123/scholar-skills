@@ -30,6 +30,21 @@ ALLOWED_PROVIDER_FAMILIES = {"pubmed-cli", "paper-search"}
 FORBIDDEN_PROVIDER_FAMILIES = {"websearch", "openalex-cli", "tavily"}
 TITLE_VERIFY_THRESHOLD = 0.8
 
+# metadata 是 citation_guard --write-back 自己写的账本头；不排除的话，第一次写回
+# 之后它会被当成一条文献参与核验（缺标题 → 必 fail），跑第二次就红。
+_INDEX_RESERVED_KEYS = frozenset({"metadata"})
+
+
+def _dict_entry_keys(raw: dict[str, Any]) -> list[str]:
+    """dict_values 形状（{"1": {...}, "2": {...}}）下"哪些键是文献条目"的唯一判据。
+
+    三个消费方共用这一份：citation_guard 的读取（_normalize_index）、它的 --write-back
+    （按原键落回原位），以及 citation_claim_check 的账本装载。任何一方另写一份，
+    挑出的条目就会按位错开 → 写回串行 / 纪律读空。
+    """
+    return [k for k, v in raw.items()
+            if isinstance(v, dict) and k not in _INDEX_RESERVED_KEYS]
+
 
 def _http_get_json(
     url: str, timeout_sec: float = 8.0, *, retries: int = 2, backoff_sec: float = 1.5
@@ -117,7 +132,12 @@ def _is_mcp_fresh(record: dict[str, Any], ttl_days: int, now_utc: datetime) -> t
 
 
 def entry_is_fresh_verified(
-    raw_entry: dict[str, Any], ttl_days: int, now_utc: datetime | None = None
+    raw_entry: dict[str, Any],
+    ttl_days: int,
+    now_utc: datetime | None = None,
+    *,
+    require_mcp: bool = False,
+    require_online: bool = False,
 ) -> bool:
     """True when a RAW index entry is already verified within the freshness window.
 
@@ -126,9 +146,18 @@ def entry_is_fresh_verified(
     The timestamp may live at the entry top level (``verified_at``/``checked_at``)
     or inside ``verification_details.checked_at`` (adapter-dependent).
 
-    Fail-safe by construction: verified is not True, ttl_days<=0, or a
-    missing/unparseable timestamp all return False, so the caller falls through to
-    a full re-verification. A stale (out-of-TTL) entry also returns False and is
+    ``require_mcp`` / ``require_online`` say how strict THIS run is. A cached
+    result may only be reused when the run that produced it was at least as
+    strict, i.e. ``verification_details.sources.mcp`` / ``.online_check`` are
+    True. Without this, one ``--offline`` verification (which happily marks a
+    fabricated entry verified) short-circuits every ``--require-mcp`` run for the
+    next TTL window — the MCP evidence gate becomes a no-op. Both default to
+    False, so a plain run still reuses the cache and does NOT re-hit the network.
+
+    Fail-safe by construction: verified is not True, ttl_days<=0, a
+    missing/unparseable timestamp, or a details/sources block that is missing or
+    not shaped as expected all return False, so the caller falls through to a
+    full re-verification. A stale (out-of-TTL) entry also returns False and is
     re-verified — retraction/freshness safety is preserved.
     """
     if ttl_days <= 0:
@@ -138,6 +167,16 @@ def entry_is_fresh_verified(
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
     details = raw_entry.get("verification_details")
+    if require_mcp or require_online:
+        sources = details.get("sources") if isinstance(details, dict) else None
+        if not isinstance(sources, dict):
+            return False
+        # `is not True` (not falsiness): a stringy "true" / 1 is an unknown shape,
+        # and an unknown shape must tighten, never pass.
+        if require_mcp and sources.get("mcp") is not True:
+            return False
+        if require_online and sources.get("online_check") is not True:
+            return False
     ts_raw = (
         raw_entry.get("verified_at")
         or raw_entry.get("checked_at")
@@ -941,6 +980,11 @@ def validate_core(
     Returns a normalized result dict:
         {verified, failure_reasons[], confidence, needs_manual_review, details}
     where ``details`` carries the full per-check breakdown.
+
+    ``verified`` requires ``online``: an offline run performs no external lookup,
+    so it can only report "not verified", never "verified". failure_reasons stays
+    empty for a well-formed entry (nothing failed — it just was not checked); the
+    reason is readable from ``details.sources.online_check``.
     """
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
@@ -1161,7 +1205,14 @@ def validate_core(
         score -= 60
     confidence = int(max(0, min(100, round(score))))
 
-    verified = (len(failure_reasons) == 0) and (not bidirectional_verification_failed)
+    # 🔴 离线绝不发"已核实"证书。online=False 时上面的 doi_valid / pmid_match 是
+    # "没查所以算它对"（http_ok 恒 True），格式完整的编造条目因此能拿满分 —— 这就是
+    # 假章的产地。"离线模式"这个状态本不存在：--offline 只可能是①测试 ②源站/代理连不上
+    # （=故障），两种都不该产出 verified。
+    # 注意不往 failure_reasons 里加码（那是冻结码表）：没有东西"失败"，只是这一轮没验；
+    # "为什么没验"从 details.sources.online_check 读得出来。调用方据此把报告状态记为
+    # unverified 而非 verified，退出码不变。
+    verified = online and (len(failure_reasons) == 0) and (not bidirectional_verification_failed)
 
     details = {
         "checked_at": now_utc.isoformat(),

@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.32.2
+version: 2.34.0
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色，Phase 13B含内部初步退稿自查但不出回复包也不出修订稿docx。
 license: Proprietary
 ---
@@ -53,6 +53,8 @@ license: Proprietary
 
 ## 📁 references/ 参考文件地图（按需 Read，不要靠记忆复述其内容）
 
+> 🔴 **`references/` 必须在 `/init` 时拷进项目**（§1 Command Logic 第 5 步；项目自包含）。凡要**传给 shell 命令或交给子代理**的，一律用 Phase 0 `env_preflight.py` 打印的绝对路径 `DOD_CHECKLIST` / `PREP_PROMPT` / `WRITER_PROMPT`，别写相对路径——cwd 不在项目根就找不到文件。老项目（init 时没拷 references/）会看到 preflight 打 `⚠️ 缺少 references/...`，补拷一次即可。
+
 | 文件 | 必须 Read 的时机 |
 |---|---|
 | `references/citation-policy.md` | 文献检索/入库/核验的核心依据；Phase 3 检索前、每轮增量检索与文献编号、Zero-Fabrication 核验时 |
@@ -83,12 +85,13 @@ license: Proprietary
 **项目必须自包含，严禁依赖 Skill 安装路径**（便于 Windows/Mac 迁移）。
 - **路径询问（Mandatory）**：`/init` 前必须先问用户保存路径。建议 Mac `~/Desktop/Manuscripts`，Windows `C:\Users\[User]\Desktop\Manuscripts`。
 - **Command Logic**（便携部署：把运行所需文件拷进项目根，换机也能用）：
-  1. `mkdir -p [Target_Path]/scripts [Target_Path]/configs [Target_Path]/manuscripts [Target_Path]/section_memory [Target_Path]/figures [Target_Path]/figure_analysis [Target_Path]/reviews [Target_Path]/submission`
+  1. `mkdir -p [Target_Path]/scripts [Target_Path]/configs [Target_Path]/references [Target_Path]/manuscripts [Target_Path]/section_memory [Target_Path]/figures [Target_Path]/figure_analysis [Target_Path]/reviews [Target_Path]/submission`
   2. `cp [Skill_Path]/scripts/*.py [Skill_Path]/scripts/*.json [Target_Path]/scripts/`（同时拷入 gate_registry.json 等 json；测试文件 test_*.py 属技能自测、不进项目,拷完即删:`rm -f [Target_Path]/scripts/test_*.py`,保证项目 scripts/ 有 gate_registry.json、无 test_*.py）
   3. `cp [Skill_Path]/templates/*.json [Target_Path]/`
   4. `cp [Skill_Path]/configs/*.json [Target_Path]/configs/`
+  5. `cp [Skill_Path]/references/* [Target_Path]/references/`（**不能省**：`dod_checklist.json` 是盲检门 `delegate_review.py` 的运行时输入，不拷则盲检 pack/verify 在项目根 exit 2 → `.review_pass/` 落不下 → 下一节被 `prewrite_gate` 硬拦；其余 `references/*.md` 是写作时按需 `Read` 的口径真源，拷进来才符合"项目自包含"）
 
-  > **Windows (PowerShell)**：以上 4 步是 POSIX 写法。`mkdir -p` 用 `New-Item -ItemType Directory -Force -Path ...`；`cp ...*.py` 用 `Copy-Item ...\scripts\*.py -Destination ...\scripts\`。或让 AI 按"把 scripts/templates/configs 拷进项目根、项目自包含不依赖 Skill 安装路径"的语义,用等价 PowerShell/Python 命令完成。
+  > **Windows (PowerShell)**：以上 5 步是 POSIX 写法。`mkdir -p` 用 `New-Item -ItemType Directory -Force -Path ...`；`cp ...*.py` 用 `Copy-Item ...\scripts\*.py -Destination ...\scripts\`。或让 AI 按"把 scripts/templates/configs/references 拷进项目根、项目自包含不依赖 Skill 安装路径"的语义,用等价 PowerShell/Python 命令完成。
 
 ### 2. 数据依赖熔断机制 (Data Dependency Hard Stop)
 **Scope**: 此机制仅适用于 **Phase 8 (/write)** 的 Results/Discussion 章节。**严禁**在 Phase 1 (/preview) 或 Phase 2 (/storyline) 阶段因缺失具体实验数据而阻断流程。
@@ -184,11 +187,12 @@ license: Proprietary
 
 ### Phase 0: 项目初始化 (`/init`) - 跨平台便携模式
 1. **Ask Path**: 询问用户保存路径 (默认 Desktop)。
-2. **Create Dir**: 创建项目根目录及子目录 `scripts/`、`configs/`、`manuscripts/`、`section_memory/`、`figures/`、`figure_analysis/`、`reviews/`、`submission/`。
+2. **Create Dir**: 创建项目根目录及子目录 `scripts/`、`configs/`、`references/`、`manuscripts/`、`section_memory/`、`figures/`、`figure_analysis/`、`reviews/`、`submission/`。
 3. **Copy Resources**: 将 Skill 中的文件拷贝到项目（参见 §1 Command Logic）：
    - `scripts/*.py` → `[Project_Root]/scripts/`
    - `templates/*.json` → `[Project_Root]/`
    - `configs/*.json` → `[Project_Root]/configs/`
+   - `references/*` → `[Project_Root]/references/`（`dod_checklist.json` 是盲检门的运行时输入，漏拷 = 下一节开不了写）
 4. **Init Config**: 基于 `project_init.json` 中的模板生成独立状态文件：
    - `writing_progress.json` ← `writing_progress_template`
    - `context_memory.md` ← `context_memory_template`（填入当前日期和研究方向）
@@ -199,7 +203,7 @@ license: Proprietary
    - `literature_matrix.json` ← `literature_matrix_template`（空对象 `{}`）
    - `abbreviations.json` ← `abbreviations_template`（空数组 `[]`）
    - 运行 `python scripts/state_manager.py set-field --field [field_id]` 生成 `project_config.json` 和 `reviewer_concerns.json`
-5. **Env Precheck（软门禁）**: `python scripts/env_preflight.py [Project_Root] --cli esearch`，写 `env_status.json`，末行打印 `PRECHECK: OK|ASK|BLOCKED`。`BLOCKED`（Python 过低）→ 停并引导升级，不得继续；`ASK`（缺 git/esearch 等可选工具）→ **逐项问用户是否安装**并给安装指引，用户答"已装/不装"后才继续，后续再遇工具缺失同此处理；`OK` → 继续。随后 `python scripts/state_manager.py load` 验证脚本环境。
+5. **Env Precheck（软门禁）**: `python scripts/env_preflight.py [Project_Root] --cli esearch`，写 `env_status.json`，末行打印 `PRECHECK: OK|ASK|BLOCKED`。`BLOCKED`（Python 过低）→ 停并引导升级，不得继续；`ASK`（缺 git/esearch 等可选工具）→ **逐项问用户是否安装**并给安装指引，用户答"已装/不装"后才继续，后续再遇工具缺失同此处理；`OK` → 继续。随后 `python scripts/state_manager.py load` 验证脚本环境。**它打印的 `DOD_CHECKLIST` / `PREP_PROMPT` / `WRITER_PROMPT` / `SIGNOFF_CMD` / `RESUME_CMD` / `LOG_CMD` / `CITATION_CHECK_CMD` 绝对路径要记下来全程沿用**（项目内**有** `references/`——§1 Command Logic 第 5 步已拷进来，别把那步删了；但 cwd 不一定在项目根，所以一律用这些绝对路径）。
 6. **Git Init**（叠加在 snapshot 之上，非替换）：运行 `python scripts/git_checkpoint.py init [Project_Root]`。git 可用且项目根不在他人仓库内时建立 git 检查点；否则静默回退 snapshot。
 
 **`/upgrade-scripts` 升级脚本**：触发场景、备份/拷贝/验证流程见 `references/interaction-protocol.md`（`/upgrade-scripts` 节）。
@@ -376,7 +380,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 0a. **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写任何 section 前必须先跑 `python3 scripts/prewrite_gate.py --section [section_id] --root .`，exit≠0 禁止开写。它统一硬检查：上一节完成（`writing_progress.json` 该节最新 status=done）、故事线就位（`storyline.json` 含本节）、素材就位（subprocess 调 `figure_analysis_gate.py`）、上一节占位符清零（无 `CITE_PENDING`/`DATA_PENDING`/`【待`）、缩略词一致（subprocess 调 `abbreviation_consistency.py`）；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记。还含一条按 section 角色的软文献门（读该 section 的 role、统计矩阵里归属它的文献条数），Intro 硬地板 6 篇软目标 10 篇、Discussion 硬 8 软 12，Methods/Results/其它一律不设篇数门（0 篇也放行）；硬地板不达算 failures 拦截，软目标不达只进 warnings。过此闸门后再走下面 0b。
 0b. **🔴 figure_analysis 加载门禁 (Mandatory，脚本兜底)**：跑 `python scripts/figure_analysis_gate.py --section [section_id] --root .`。该 gate 比对 `figures_database.json` 中该节涉及的 figure，确认每张 `figure_analysis/figure_{N}.md` 存在、非空、无 `❓待确认` 残留；任一未就绪 → 脚本 exit 1，**禁止开写**，先回 `/figure` 补齐再回来。Introduction/Methods 等无 figure 的小节脚本自然放行（exit 0）。过 gate 后**必须显式 `Read` 本节对应的 `figure_analysis/figure_{N}.md`**（write-cycle 不自动加载，见 §13 白名单第 7 项），作为 Results/Discussion 的事实依据。
 0c. **🟢 引文核证脚手架 (Citation-Claim Matrix，写对的脚手架，非事后墙)**：开写本节前，先把"本节承重论点 ↔ 拟引文献"建成矩阵，用**真 abstract** 判每条引用是否真支撑它挂的论点，再下笔，避免写完才发现引文对不上、又得返工重写。
-   - **🟢 备料子代理起草（一律派，把"读摘要判 verdict"的重活从主会话吸走）**：本节（非白名单节）核证矩阵**先派备料子代理起草**——`python3 scripts/delegate_write.py pack-prep --section [section_id] --root .` 生成 `.prep_task_[section_id].json`，把 `references/prep_subagent_prompt.md`（角色 + 数据/指令隔离）+ 任务包路径交给一个独立子代理，它只产草案 `.claim_evidence_draft_[section_id].json`（`evidence_quote` 必须是账本 abstract 原文子串、`user_confirmed` 一律 false、提议 `claim_kind`），**绝不碰账本**。空草案 `{"claims":[]}` 合法（本节无承重配对）→ 跳过核证直接进撰写打包。白名单琐节不派备料。
+   - **🟢 备料子代理起草（一律派，把"读摘要判 verdict"的重活从主会话吸走）**：本节（非白名单节）核证矩阵**先派备料子代理起草**——`python3 scripts/delegate_write.py pack-prep --section [section_id] --root .` 生成 `.prep_task_[section_id].json`，把 `[PREP_PROMPT]`（Phase 0 打印的绝对路径；项目内有 `references/`，但子代理 cwd 未必在项目根，故一律传绝对路径）（角色 + 数据/指令隔离）+ 任务包路径交给一个独立子代理，它只产草案 `.claim_evidence_draft_[section_id].json`（`evidence_quote` 必须是账本 abstract 原文子串、`user_confirmed` 一律 false、提议 `claim_kind`），**绝不碰账本**。空草案 `{"claims":[]}` 合法（本节无承重配对）→ 跳过核证直接进撰写打包。白名单琐节不派备料。
    - **哪些算承重论点（is_load_bearing=true）**：支撑本节结论方向的机制句、因果句、定量对比结论句。段首背景句、常识铺垫句算背景（is_load_bearing=false，批量核对即可，不逐条阻断）。
    - **证据只用检索原样落盘的真摘要**：从 `literature_index.json` 里取该 ref 当初 MCP **检索原样落盘的 `abstract`**（不看可编的 key_finding、不脑补），逐条判 `verdict ∈ support/weak/contradict/unknown` 并摘一句 `evidence_quote`。取不到摘要的承重引用先走 §12 摘要补全或换引文，别硬写。
    - **落盘 `claim_evidence.json`**（list，每条）：`{section, claim_sentence, is_load_bearing, claim_kind, ref_id, retrieved_abstract, verdict, evidence_quote, user_confirmed}`。主会话把备料子代理草案核证 + 用户确认后并入本文件（备料草案不是账本，绝不直接当账本用）。
@@ -387,7 +391,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 1. **Pre-Write Check**: 检查数据完整性。
 2. **🟢 本节正文由撰写子代理盲写（主会话调度，堵上下文爆 + 焊死编号权）**：本节正文**不再由主会话直接手写**，改走下面这条流水线（前后所有门禁一个字不改，照跑；`resolve-keys` 之后 `[n]` 与现有 sync/DoD 全兼容）：
    1. **组任务包**：`python3 scripts/delegate_write.py pack-write --section [section_id] --root .` → 生成 `.write_task_[section_id].json`（本节故事线/承重方向 + 已核证观点-证据对 `certified_claims` + `literature_matrix` 切给本节的文献全条 + 缩写表 + 风格禁项**嵌入**，全篇故事线/全库文献只给 `refs` 路径）。承重句未完成人工核证 / 本节有承重论点却缺 `claim_evidence` → 脚本 exit 2 拒绝出包（先回 0c 补核证）。
-   2. **派撰写子代理**：把 `references/section_writer_prompt.md`（角色 prompt + 数据/指令隔离声明）+ 任务包路径交给一个**全新一次性上下文**子代理盲写本节。它只写 `.write_return_[section_id].json`，**正文引用只写 `[@key]`（绝不写裸数字 `[5]`）**，承重句只准挂任务包内嵌 `certified_claims` 里的 `ref_key`，禁写任何账本。
+   2. **派撰写子代理**：把 `[WRITER_PROMPT]`（Phase 0 打印的绝对路径；项目内有 `references/`，但子代理 cwd 未必在项目根，故一律传绝对路径）（角色 prompt + 数据/指令隔离声明）+ 任务包路径交给一个**全新一次性上下文**子代理盲写本节。它只写 `.write_return_[section_id].json`，**正文引用只写 `[@key]`（绝不写裸数字 `[5]`）**，承重句只准挂任务包内嵌 `certified_claims` 里的 `ref_key`，禁写任何账本。
    3. **机械校验返回**：`python3 scripts/delegate_write.py verify-write --section [section_id] --root .`（V1-V9：无裸数字引用 / `[@key]` 可解析 / `new_refs` 带 DOI 或 PMID / `section_id` 一致）。exit≠0 打回子代理重写，不落盘。
    4. **new_refs 先核验再并表**（账本零污染）：对返回的 `new_refs` **先** `citation_guard.py --require-mcp` 核真伪，**通过的才**并入 `literature_index.json`（走现有去重 `dedup_literature_index`），并把每条 `new:slug → 已并表条目 id` 写进项目根 `.newref_map.json`（供认键与 prewrite 并表核验读）。核验失败的直接丢弃、打回子代理改写该处引用。
    5. **落盘本节初稿**到 `manuscripts/{Chapter}_{Subsection}_{Keyword}.md`，随后跑**认键**：`python3 scripts/state_manager.py resolve-keys --file <本节文件> --root . --in-place` 把 `[@key]`/`[@new:slug]` 翻成当前 `[n]`（未知键 exit 1，先补并表）。之后本节正文即回到 gsw 标准 `[n]` 形态，进 step 3。
@@ -407,9 +411,9 @@ python scripts/state_manager.py add-abbreviation <one.json>
    **🔴 DoD 自检清单（硬规则：清单未逐项确认通过，不得向用户声明"本节完成"）**
 
    **🔴 委托盲检（不得主 agent 自评）**：你刚写完本节，自评会失真地默认通过、且易漏项。落盘前必须把 DoD 清单**委托给独立上下文的subagent盲检**，自己不直接打勾：
-   1. 生成任务包：`python scripts/delegate_review.py pack --checklist references/dod_checklist.json --gate section-dod --files <本节文件>`
+   1. 生成任务包：`python scripts/delegate_review.py pack --checklist "[DOD_CHECKLIST]" --gate section-dod --files <本节文件>`（`[DOD_CHECKLIST]` = Phase 0 `env_preflight.py` 打印的那个绝对路径。项目内**有** `references/dod_checklist.json`（/init 第 5 步拷入），相对路径只在 cwd 恰好是项目根时才成立，**一律用绝对路径**，找不到文件 pack 会 exit 2）
    2. **派一个独立subagent**(Claude Code 用 `academic-blind-reviewer`;其他平台派通用subagent)，把任务包原样给它、**不要给它本节的写作上下文**，要求按任务包返回 JSON 数组。
-   3. 校验返回:`python scripts/delegate_review.py verify --checklist references/dod_checklist.json --gate section-dod --return <subagent返回.json> --section <当前section_id> --root <项目根>`;退出码非 0(任一缺项/fail/无证据)= **fail-closed**,据subagent证据修复后重跑,**未过不得声明完成**。verify 通过会落盘 `.review_pass/<当前section_id>.json`,下一节 `prewrite_gate.py` 会**硬校验**它(缺失即拒绝开写)。
+   3. 校验返回:`python scripts/delegate_review.py verify --checklist "[DOD_CHECKLIST]" --gate section-dod --return <subagent返回.json> --section <当前section_id> --root <项目根>`;退出码非 0(任一缺项/fail/无证据)= **fail-closed**,据subagent证据修复后重跑,**未过不得声明完成**。verify 通过会落盘 `.review_pass/<当前section_id>.json`,下一节 `prewrite_gate.py` 会**硬校验**它(缺失即拒绝开写)。
 
    🔴 **[P4·盲检降级告警]**：若环境派不出真正独立的subagent，**绝不能同一 AI 自问自答冒充盲检**（自证）。告诉用户「本环境盲检不可靠，请你亲自复核：__（列出该盲检本应查的关键点）__」，交回用户。
 
@@ -461,7 +465,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 **执行命令（有序，每步阻断条件明确）**：
 1. `python scripts/state_manager.py stats`：字数检查。**字数预算分类**：手动汇总 `01_Abstract*.md + 02_Introduction*.md + 04_Results*.md + 05_Discussion*.md` 为"正文字数"（`03_Methods*.md`/`07_References*.md`/Legends 多数期刊不计入），对比 `project_config.word_limits`。**阻断**：超 10% 必砍；超 5% 警告。
 2. `python scripts/state_manager.py sync-literature --dry-run --strict-references`：引用号一致性。**阻断**：dry-run 报冲突 → 跑 `--apply` 后重检。
-3. `python scripts/citation_guard.py --index literature_index.json --report citation_guard_report.json --offline`：文献完整性。**阻断**：`ok=false` → 处理 `manual_review_queue.json` 后重跑。
+3. `python scripts/citation_guard.py --index literature_index.json --report citation_guard_report.json`：文献完整性（**联网核验，绝不加 `--offline`**——离线跳过联网核验，编造的 DOI+PMID 只要字段齐全照样过，这道阻断门就成了给假文献发证）。**阻断**：`ok=false` → 处理 `manual_review_queue.json` 后重跑；报 `source_unreachable` 是「网络不通、没验成」，同样按阻断处理，别改回 `--offline` 绕过去。
 4. `python scripts/style_checker.py --manuscript-dir manuscripts --report style_check_report.json --threshold 70 --journal <target_journal>`：去 AI 风格检测（`--journal` 用 `storyline.json` 的 target_journal，切换语态软提示策略）。**阻断**：avg_score<70 → 列具体段落修改后重跑。**注意**：avg_score 不含语态项（被动比只进 `warnings`，不阻断）；PASS 只代表形式层过关，科学创新度/配不配目标刊未自动核验，须作者与通讯作者判断。
 4b. `python scripts/style_checker.py --manuscript-dir figure_analysis --report figure_analysis_style.json --threshold 70`：识图阶段写入的英文草稿也检测。**阻断**同 4。
 4c. `python scripts/proofread.py --manuscript-dir manuscripts --report proofread_report.json --threshold 70`：机械错误。**阻断**：avg_score<70 → 按 report 中 `issues` 字段逐条修后重跑。

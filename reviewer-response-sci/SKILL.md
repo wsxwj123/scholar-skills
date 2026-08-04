@@ -385,7 +385,7 @@ python3 scripts/run_pipeline.py \
 - `final_consistency_report.py`：生成统计报告（units 数量、链接率、缺失 excerpt 计数）
 - `html_format_check.py`：HTML 结构完整性
 - `risk_check.py`：检测虚构实验/统计、过度承诺、AI 式套话、跨 unit 结构重复
-- `citation_guard.py`：验证 `citation_registry.json` 新增引用真实性（DOI/PMID/撤稿检测）；`--offline` 跳过在线验证。报告写入 `logs/citation_guard_report.json`，顶层结构为 `{"status": "pass"|"warn", "verified": N, "failed": N, "retracted": N, ...}`（注意：无 `report.ok` 嵌套层；判断通过用 `status == "pass"`，判断撤稿用 `retracted > 0`）
+- `citation_guard.py`：验证 `citation_registry.json` 新增引用真实性（DOI/PMID/撤稿检测）；`--offline` 跳过联网核验，**此时所有条目一律记为未核验**（每条 `verified` 恒 false、报告 `status` 为 `unverified`），既证明不了文献真实存在也查不出撤稿，只能用于测试或网络故障应急，不是交付口径。报告写入 `logs/citation_guard_report.json`，顶层结构为 `{"status": "pass"|"warn"|"unverified", "verified": N, "failed": N, "retracted": N, ...}`（注意：无 `report.ok` 嵌套层；判断通过用 `status == "pass"`，判断撤稿用 `retracted > 0`；`unverified` 表示这一轮压根没验，不得当通过）
   - **已知限制（诊断提示在本技能里看不到，但请求照打）**：在线跑（不加 `--offline`，即默认）时，对每条没验过、带 DOI/PMID、标题≥3 个词的文献，底层核验会额外拿标题上网回查一次，本可给出「这条的 DOI/PMID 可能填错了，线上同名文章是这个」之类的提示；但本技能的报告只保留固定字段，这些提示会被直接丢掉——**请求照打、结果照扔**，白花一次网络往返和限流额度。**判定结果完全不受影响**（验过/没验过/撤稿一条都不会变），只是慢一点。所以遇到验不过的条目，直接看报告里每条的 `failures` 排查，别指望有诊断提示；只想快速过一遍时可以加 `--offline`（离线不打这些请求）。
 - `citation_ref_tracker.py`：交叉验证 `[N]` 引用编号一致性（未定义引用、编号间隙）
 

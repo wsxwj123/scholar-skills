@@ -75,8 +75,8 @@
         {
           "id": "RR13",
           "name": "各gate全通",
-          "check": "各独立 gate 退出码均为 0（strict_gate / final_content_gate / consistency_check / risk_check / citation_guard / citation_ref_tracker 全通）",
-          "script": "python scripts/strict_gate.py --project-root . && python scripts/final_content_gate.py --project-root . && python scripts/consistency_check.py --project-root . && python scripts/risk_check.py --project-root . && python scripts/citation_guard.py --project-root . --offline && python scripts/citation_ref_tracker.py --project-root ."
+          "check": "各独立 gate 退出码均为 0（strict_gate / final_content_gate / consistency_check / risk_check / citation_guard / citation_ref_tracker 全通）。citation_guard 这一段**联网**跑且带 --fail-on-unverified（与 RR2 同口径）：绝不加 --offline，离线跳过联网核验、编造的 DOI+PMID 照样过；不带 --fail-on-unverified 则验不过只是 WARN、退出码仍为 0，这一项等于没查。网络不通 → 条目验不过 → 非 0 退出，那是「没验成」，必须当 fail，不得当通过。",
+          "script": "python scripts/strict_gate.py --project-root . && python scripts/final_content_gate.py --project-root . && python scripts/consistency_check.py --project-root . && python scripts/risk_check.py --project-root . && python scripts/citation_guard.py --project-root . --fail-on-unverified && python scripts/citation_ref_tracker.py --project-root ."
         },
         {
           "id": "RR14",

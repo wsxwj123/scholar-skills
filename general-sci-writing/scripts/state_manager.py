@@ -2871,6 +2871,51 @@ def write_cycle(
         tx_path = write_transaction_log("write_cycle", tx)
         update_gate_state(last_write_cycle_log=tx_path)
 
+def _lost_items(old, new, path=""):
+    """整文件覆盖会丢东西 → 返回一句人话的说明，否则 None。
+
+    判据与键名无关（枚举 entries/items/... 是散弹补丁，figures/sections/rounds
+    这些键就全漏了，下一个新键还会漏）：**新旧同为容器、元素变少即算丢**，
+    dict 按 len() 计数；dict 里原有的键在新内容中消失同样算丢——rounds 从
+    {"1":…} 变成 {"2":…} 时 len 没变，但第一轮确实没了。
+    只沿"两边同名的 dict 键"往下走，不进 list 元素内部：改某一条的字段是正常
+    编辑，不该被当成丢数据。
+    ponytail: 递归深度跟着 JSON 结构走，不另设上限（json.load 本身已有嵌套上限）。
+    """
+    where = path or "整个文件"
+    if isinstance(old, list) and isinstance(new, list):
+        if len(new) < len(old):
+            return f"{where} 由 {len(old)} 条变成 {len(new)} 条"
+        return None
+    if isinstance(old, dict) and isinstance(new, dict):
+        missing = [k for k in old if k not in new]
+        if missing:
+            head = "、".join(str(k) for k in missing[:3])
+            more = f" 等 {len(missing)} 个" if len(missing) > 3 else ""
+            return f"{where} 里原有的键 {head}{more} 在新内容里没了"
+        if len(new) < len(old):
+            return f"{where} 由 {len(old)} 项变成 {len(new)} 项"
+        for k, v in old.items():
+            hit = _lost_items(v, new[k], f"{where if path else ''}.{k}".lstrip("."))
+            if hit:
+                return hit
+    return None
+
+
+def _shrink_warning(filename, content):
+    """整文件覆盖会丢条目 → 返回说明字符串，否则 None。
+
+    `update` 是整文件覆盖不是合并，传 1 条进去原有 N 条就没了。旧文件读不出来
+    （本来就坏）时不拦，免得把用户困在坏文件里。"""
+    if not filename.endswith(".json") or not os.path.exists(filename):
+        return None
+    try:
+        old = read_json_file(filename)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return _lost_items(old, content)
+
+
 def update_state(payload_path):
     """Updates state files based on a JSON payload file."""
     if not os.path.exists(payload_path):
@@ -2883,36 +2928,85 @@ def update_state(payload_path):
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON in payload file: {e}")
         sys.exit(1)
+    if not isinstance(payload, dict):
+        print(f"Error: Payload must be a JSON object mapping state keys to content, "
+              f"got {type(payload).__name__}.")
+        sys.exit(1)
 
     updated_files = []
+    problems = []
 
+    # 与 postwrite / add-figure / add-abbreviation / rename-figure 同一把锁，
+    # 这里此前是唯一没加锁的写入子命令。
+    with FileLock("state_update"):
+        _update_state_locked(payload, updated_files, problems)
+
+    if updated_files:
+        print(f"Successfully updated: {', '.join(updated_files)}")
+    if problems:
+        # 一个字段都没写成 / 有字段没写成 → 非 0 退出，且**保留 payload**，
+        # 用户改完能直接重跑。此前无论写没写成都 os.remove(payload)。
+        print(json.dumps({"ok": False, "error": "update_incomplete",
+                          "updated_files": updated_files, "problems": problems,
+                          "payload_kept": payload_path}, ensure_ascii=False, indent=2))
+        sys.exit(1)
+    # Auto-delete payload file to keep directory clean（仅全部成功时）
+    try:
+        os.remove(payload_path)
+    except OSError:
+        pass
+
+
+def _update_state_locked(payload, updated_files, problems):
+    # 先全量校验、再一个不落地写：任一字段有问题就一个字都不写，用户改完 payload
+    # 直接重跑即可，不会留下"写了一半"的中间态。
+    plan = []  # [(key, filename, content)]
     for key, content in payload.items():
         if key == "section_memory":
             if not isinstance(content, dict) or "section" not in content:
-                print("Warning: section_memory payload must be {'section': 'results_3.1', 'content': '...'}")
+                problems.append("section_memory 必须是 {'section': 'results_3.1', 'content': '...'}")
                 continue
             section = sanitize_section_id(str(content.get("section", "")).strip())
-            section_text = str(content.get("content", ""))
             if not section:
-                print("Warning: section_memory.section is empty. Skipping.")
+                problems.append("section_memory.section 为空")
                 continue
-            memory_dir = "section_memory"
-            os.makedirs(memory_dir, exist_ok=True)
-            section_file = os.path.join(memory_dir, f"{section}.md")
-            try:
-                with open(section_file, "w", encoding="utf-8") as f:
-                    f.write(section_text)
-                updated_files.append(section_file)
-            except Exception as e:
-                print(f"Error writing section memory {section_file}: {e}")
+            plan.append((key, os.path.join("section_memory", f"{section}.md"),
+                         str(content.get("content", ""))))
             continue
 
         if key not in STATE_FILES:
-            print(f"Warning: Unknown key '{key}' in payload. Skipping.")
+            problems.append(
+                f"无法识别的字段 '{key}'（可用: {', '.join(sorted(STATE_FILES))}, section_memory）")
             continue
-        
+
         filename = STATE_FILES[key]
-        
+        # `update` 是整文件覆盖不是合并：条目数变少 = 静默丢数据，直接拦。
+        shrink = _shrink_warning(filename, content)
+        if shrink:
+            problems.append(
+                f"{filename}: 覆盖会丢数据——{shrink}（update 是整文件覆盖不是合并），"
+                f"已阻断。要增改条目请用专用命令（figures→add-figure、文献→sync-literature）；"
+                f"要保留旧内容就把它一起写进 payload；确实要删就先 snapshot 再手工改文件。")
+            continue
+        plan.append((key, filename, content))
+
+    if problems:  # 校验不过 → 一个字都不写
+        return
+
+    # 整文件覆盖前先做一次全量快照（复用 /snapshot 的同一实现），万一覆盖错了
+    # 可以直接 /rollback 找回来。只在确有已存在的目标文件时才拍，空项目不拍。
+    if any(os.path.exists(f) for _, f, _ in plan):
+        try:
+            backup_project_state()
+        except Exception as e:
+            # fail-closed：这是整文件覆盖，拿不到回退点就不许动手。此前只打一句
+            # Warning 照写不误，一旦快照失败原始内容就没有任何找回路径。
+            problems.append(
+                f"覆盖前快照失败({e})，本次写入已中止——整文件覆盖必须先有回退点。"
+                f"排查 backups/ 目录权限与磁盘空间后重跑；payload 已保留。")
+            return
+
+    for key, filename, content in plan:
         try:
             # Bug ③ 修复:STATE_FILES 路径含子目录(如 reviews/revision_plan.json)时先建目录
             parent_dir = os.path.dirname(filename)
@@ -2939,17 +3033,9 @@ def update_state(payload_path):
                     f.write(str(content))
             
             updated_files.append(filename)
-            
-        except Exception as e:
-            print(f"Error writing to {filename}: {e}")
 
-    print(f"Successfully updated: {', '.join(updated_files)}")
-    
-    # Auto-delete payload file to keep directory clean
-    try:
-        os.remove(payload_path)
-    except:
-        pass
+        except OSError as e:
+            problems.append(f"写 {filename} 失败: {e}")
 
 def add_figure_state(payload_path):
     """Safely merge ONE figure entry into figures_database.json.
@@ -3355,10 +3441,22 @@ def backup_project_state(backup_dir="backups"):
     """Creates a full project snapshot including all state files and manuscripts."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     snapshot_dir = os.path.join(backup_dir, f"snapshot_{timestamp}")
-    
-    if not os.path.exists(snapshot_dir):
-        os.makedirs(snapshot_dir)
-        
+
+    # 目录名只精确到秒：同一秒内第二次调用会撞上已有快照。此前撞名就直接往里
+    # copy2，把先建那份污染成"覆盖后"的内容（原始数据现盘和快照两头都没了），
+    # 再崩在下面的 copytree 上。撞名一律另起一个，已建快照绝不被后来者改写。
+    # exist_ok=False + 捕获 FileExistsError：并发下也只有一个进程能占住这个名字。
+    seq = 1
+    while True:
+        try:
+            os.makedirs(snapshot_dir)
+            break
+        except FileExistsError:
+            seq += 1
+            snapshot_dir = os.path.join(backup_dir, f"snapshot_{timestamp}_{seq}")
+    tag = os.path.basename(snapshot_dir)
+
+
     # 1. Backup State Files (Bug ③ 配套修复:含子目录路径保留结构)
     for key, filename in STATE_FILES.items():
         if os.path.exists(filename):
@@ -3391,9 +3489,9 @@ def backup_project_state(backup_dir="backups"):
             if not isinstance(snaps, list):
                 snaps = []
             max_keep = vh.get("max_snapshots") if isinstance(vh.get("max_snapshots"), int) else 10
-            snaps.append({"version": f"v_snapshot_{timestamp}", "dir": snapshot_dir, "ts": timestamp})
+            snaps.append({"version": f"v_{tag}", "dir": snapshot_dir, "ts": timestamp})
             vh["snapshots"] = snaps[-max_keep:]
-            vh["current_version"] = f"v_snapshot_{timestamp}"
+            vh["current_version"] = f"v_{tag}"
             with open(version_file, "w", encoding="utf-8") as vf:
                 json.dump(vh, vf, indent=2, ensure_ascii=False)
         except Exception:
@@ -3704,7 +3802,10 @@ def main():
     cycle_parser.add_argument("--token-budget", type=int, default=DEFAULT_TOKEN_BUDGET, help="Approx token budget for section-local load")
     cycle_parser.add_argument("--tail-lines", type=int, default=DEFAULT_TAIL_LINES, help="Tail lines kept when auto-trimming text")
     cycle_parser.add_argument("--finalize", action="store_true", help="Also execute postwrite at the end")
-    cycle_parser.add_argument("--status", default="updated", help="Postwrite status when --finalize is used")
+    # --finalize 就是"本节收口"，落盘状态必须是 prewrite_gate 认的 done/completed/finalized
+    # 之一；默认 "updated" 时，照文档抄（文档从不带 --status）的人下一节永远开不了写。
+    # 想标"还没写完"仍可显式 --status draft，对照组照样被拦。
+    cycle_parser.add_argument("--status", default="done", help="Postwrite status when --finalize is used (done/draft/reviewed; 默认 done = 本节收口，prewrite_gate 才放行下一节)")
     cycle_parser.add_argument("--summary", default="", help="Postwrite summary when --finalize is used")
     cycle_parser.add_argument("--sync-literature", action="store_true", help="Run postwrite sync-literature when --finalize")
     cycle_parser.add_argument("--sync-apply", action="store_true", help="Apply sync changes when --finalize --sync-literature")

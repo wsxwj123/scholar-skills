@@ -67,6 +67,7 @@
    - **Prewrite（必须先跑）**：`python scripts/state_manager.py write-cycle --section [section_id] --token-budget 6000 --tail-lines 80`
    - 若需续写/改写已存在章节正文，再显式追加 `--include-draft`。
    - **Postwrite 收口（落盘前必须跑，缺 `--refs-confirmed` 则 exit 2 硬阻断）**：`python scripts/state_manager.py write-cycle --section [section_id] --finalize --refs-confirmed --sync-literature --sync-apply --strict-references --summary "[本节一句话摘要]"`
+     - `--finalize` 的 `--status` 默认 `done`（= 本节收口），下一节 `prewrite_gate` 的"上一节完成"才会放行。本节其实**没写完**时才显式传 `--status draft`，那样下一节会被正确拦住。
 2. 若用户未明确要求，禁止读取其他章节正文文件。
 3. 输出中必须包含 `loaded_files`，作为"只读当前章节"的审计证据。
 4. **隔离**：校验内容仅用于内部校验与必要的用户审计，**严禁**写入生成的 Markdown 稿件文件中。
@@ -113,6 +114,6 @@
 
 项目 init 后 scripts/ 是该时点 skill 的快照副本；skill 后续更新（如新增 `add-figure` / `add-abbreviation` / `add-stat-method` / `rename-figure` / `proofread` 等命令）后，旧项目用不到新功能。触发：用户说"升级脚本"/"项目脚本是旧的"。流程：
 1. 提示用户备份：`cp -r scripts scripts.bak.$(date +%Y%m%d)`
-2. 从 skill 源拷贝最新版：`cp ~/.claude/skills/general-sci-writing/scripts/*.py ./scripts/`（路径按用户实际 skill 安装位置调整）
-3. 验证：`python scripts/state_manager.py --help` 看是否含 `add-figure` / `add-abbreviation` / `add-stat-method` / `rename-figure` 等新子命令；`ls scripts/` 看是否含 `proofread.py`。
+2. 从 skill 源拷贝最新版：`cp ~/.claude/skills/general-sci-writing/scripts/*.py ./scripts/` 与 `cp ~/.claude/skills/general-sci-writing/references/* ./references/`（`references/` 同样会漂：`dod_checklist.json` 的核查项会随 skill 增补；`mkdir -p references` 后再拷，老项目本来没有这个目录。路径按用户实际 skill 安装位置调整）
+3. 验证：`python scripts/state_manager.py --help` 看是否含 `add-figure` / `add-abbreviation` / `add-stat-method` / `rename-figure` 等新子命令；`ls scripts/` 看是否含 `proofread.py`；`ls references/` 看是否含 `dod_checklist.json`。
 4. 若有不兼容的 STATE_FILES 字段（如旧项目缺新 key），新版脚本会自动按 `get(..., default)` 兼容，无需手动迁移。

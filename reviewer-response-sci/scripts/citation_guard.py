@@ -60,7 +60,9 @@ def validate_entry(entry: dict[str, Any], *, online: bool) -> dict[str, Any]:
     details = core.get("details", {})
 
     failures = [r for r in core["failure_reasons"] if r != "source_trace_missing"]
-    verified = len(failures) == 0
+    # 离线不发"已核实"证书（与共享核心同一口径）：没联网核验过就不算已核实。
+    # 但"没验"不是"验不过" —— failures 仍只装真失败，所以退出码语义一字不变。
+    verified = online and len(failures) == 0
     retracted = bool(details.get("retracted"))
 
     return {
@@ -82,7 +84,10 @@ def validate_entry(entry: dict[str, Any], *, online: bool) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Citation guard for reviewer-response-sci")
     parser.add_argument("--project-root", required=True, help="Project root directory")
-    parser.add_argument("--offline", action="store_true", help="Skip online API checks")
+    parser.add_argument("--offline", action="store_true",
+                        help="跳过联网核验，本次结果一律记为未核验（条目 verified 恒 false、"
+                             "报告 status=unverified）。只用于测试或网络故障应急，"
+                             "不是交付口径，交付前必须不带它重跑")
     parser.add_argument("--fail-on-unverified", action="store_true", help="Exit non-zero if any entry fails")
     args = parser.parse_args()
 
@@ -121,12 +126,15 @@ def main() -> int:
             time.sleep(0.3)  # rate limit courtesy
 
     verified_count = sum(1 for r in results if r["verified"])
-    failed = [r for r in results if not r["verified"]]
+    # 阻断与否只看真失败，不看 verified —— 离线时 verified 恒 false，拿它当判据会把
+    # "没验"误报成"验不过"，--fail-on-unverified 的退出码就变了。
+    failed = [r for r in results if r["failures"]]
     retracted = [r for r in results if r.get("retracted")]
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     report = {
-        "status": "pass" if verified_count == len(results) else "warn",
+        # 离线一条都没核实 → status 记 unverified（既非 pass 也非 warn）。联网态语义不变。
+        "status": "warn" if failed else ("pass" if online else "unverified"),
         "total": len(results),
         "verified": verified_count,
         "failed": len(failed),
@@ -162,7 +170,11 @@ def main() -> int:
             for r in non_retracted_failed:
                 print(f"  - [ref {r['ref_number']}] {r['title'][:50]}: {', '.join(r['failures'])}")
     if not failed and not retracted:
-        print(f"CITATION_GUARD: PASS ({verified_count}/{len(results)} verified)")
+        if online:
+            print(f"CITATION_GUARD: PASS ({verified_count}/{len(results)} verified)")
+        else:
+            print(f"CITATION_GUARD: UNVERIFIED (--offline，{len(results)} 条一条都没联网核验；"
+                  "格式没查出硬伤，但这不算通过，交付前须不带 --offline 重跑)")
 
     if retracted:
         return 1

@@ -15,8 +15,8 @@
         {
           "id": "G2",
           "name": "citation_guard",
-          "check": "本节新增引用已过 citation_guard，报告 ok=true",
-          "script": "python scripts/citation_guard.py --offline --index <项目根>/literature_index.json"
+          "check": "本节新增引用已过**联网** citation_guard，报告 ok=true。绝不加 --offline：离线跳过联网核验，编造的 DOI+PMID 只要字段齐全照样过，这道门就成了给假文献发证。NCBI/Crossref 连不上时脚本会以 source_unreachable 非 0 退出——那是「没验成」，必须当 fail 处理，不得当通过。",
+          "script": "python scripts/citation_guard.py --index <项目根>/literature_index.json"
         },
         {
           "id": "G3",
@@ -132,8 +132,8 @@
         {
           "id": "G2",
           "name": "全章citation_guard",
-          "check": "本章所有引用已过 citation_guard，报告 ok=true",
-          "script": "python scripts/citation_guard.py --offline --index <项目根>/literature_index.json"
+          "check": "本章所有引用已过**联网** citation_guard，报告 ok=true。绝不加 --offline：离线跳过联网核验，编造的 DOI+PMID 只要字段齐全照样过，这道门就成了给假文献发证。NCBI/Crossref 连不上时脚本会以 source_unreachable 非 0 退出——那是「没验成」，必须当 fail 处理，不得当通过。",
+          "script": "python scripts/citation_guard.py --index <项目根>/literature_index.json"
         },
         {
           "id": "G3",

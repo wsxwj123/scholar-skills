@@ -15,6 +15,15 @@
 
 from __future__ import annotations
 
+import sys as _sys
+try:  # Windows GBK 控制台/管道捕获下防 UnicodeEncodeError（与其余门禁脚本同一写法）。
+    # 本脚本的**失败原因**里带 ❓待确认（U+2753，GBK 编不出）：崩了就只剩一段
+    # Traceback，用户被拦住却看不到"figure_N 里还有 ❓待确认"这个真正原因。
+    _sys.stdout.reconfigure(encoding="utf-8")
+    _sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import argparse
 import json
 import os
