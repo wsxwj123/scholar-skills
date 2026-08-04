@@ -1,6 +1,6 @@
 ---
 name: review-writing
-version: 2.31.0
+version: 2.35.2
 description: "Universal assistant for writing high-impact academic literature reviews (Nature/Cell/Lancet level). Supports real-time Zotero integration, outline persistence, and multi-mode reference management. Use when writing a comprehensive review article requiring systematic search, synthesis, and citation management. 触发词：写综述、文献综述、综述写作、literature review、review article、改综述、完善综述、继续写综述、improve review。"
 triggers:
   - "写综述"
@@ -177,6 +177,7 @@ http_proxy=http://127.0.0.1:PORT esearch -db pubmed -query "QUERY" < /dev/null |
 > 📖 Full ban lists (EN/CN), Deep Rewriting protocol, and Abbreviation/Acronym Management rules live in `references/writing_guidelines.md` §4. **Read it before writing/polishing any section.** Quick reminders:
 > - EN ban examples: Moreover, Crucial, Landscape, Delve into, "It is worth noting", "Not only…but also", trailing "-ing" clauses.
 > - CN ban examples: 值得注意的是、此外、综上所述、深入探讨、至关重要、一方面……另一方面.
+> - **中文稿同样受 `style_checker.py` 机器检查**：10 条中文套话（真源 `FORBIDDEN_CN`，命中即 high 扣 15 分）+ 按「。！？」断句后的句长方差/连续等长句/长句/段首重复。此前中文稿因切不出句子恒判满分放行。
 > - Rhythm: never 3+ consecutive similar-length sentences. Active voice preferred.
 > - Abbreviation first-use: `Full Name (ABBR)` (EN) / `中文全称（英文全称, ABBR）` (CN); reuse ABBR after first definition; never abbreviate in the title.
 
@@ -292,6 +293,9 @@ Before any **writing / search / import / Zotero-mutating** action, ask exactly *
 
 All sections complete → Phase 4 (export + compile).
 
+**HALT 点（4 个）：** ① Step 0 格式依赖探测失败（缺 python-docx / pdf 提取器 → 停下给用户装法，不许绕过）；② Step 1 抽取后长度体检异常（<200 字符判源文件损坏、字符数明显偏少 → 停下与用户核实是不是完整稿）；③ Step 2 两层反向核验皆绿后**仍须等用户确认**才写 `drafts/`；④ Step 4 逐节优先级分配（**Hard Block**，每节必须有 keep/polish/rewrite/missing 明确标签才能往下走）。
+**必跑门禁：** `extract_headings.py`（标题真值）→ `split_headings.py` 或 LLM 拆分 → `split_audit.py`（Layer1 逐分区比对，exit 0 才进）→ `delegate_review.py` 的 `split_boundary` gate（Layer2 LLM 核验，**恒跑，不因 Layer1 绿而跳过**）。
+
 ---
 
 
@@ -373,7 +377,7 @@ Format: `[review] Phase X.Step: <description>`. 📖 消息表 + Rollback 命令
 - **Step 3.5 🧭 引文核证：** 备料子代理起草（`delegate_write.py pack-prep` → `.claim_evidence_draft`）→ 主会话跑 `CITATION_CHECK_CMD`（`citation_claim_check.py`，承重句 contradict/unknown/缺 abstract/未 `user_confirmed` → fail-closed exit 2）→ AskUserQuestion 逐条确认承重句。
 - **Step 4 撰写子代理盲写：** `delegate_write.py pack-write` → 派子代理（`references/section_writer_prompt.md`）→ `verify-write` 机械校验 → 落盘 `drafts/section_XX_XX.md` + new_refs 走 `citation_guard.py --require-mcp` → `resolve-keys` 认键翻号 → new_claims 复核（`citation_claim_check.py`）。子代理派不出时主会话亲写、门禁不变。
 - **Step 5** `validate_citations.py --fail-on-orphan`（孤儿 `[N]` 即修）。
-- **Step 6 轻量自查：** 先跑 `style_checker.py`（high/medium 必改；破折号按密度配额，超配额才 hard_fail）再对照 `references/reviewer_checklist.md` D1-D5 自读。**🔴 硬约束：这是本技能内部的轻量质量 checklist，不是 reviewer-simulator 技能。禁止调用或进入 reviewer-simulator 技能，禁止逐节生成任何 HTML 审稿报告（report_*.html 或其他报告文件）。**
+- **Step 6 轻量自查：** 先跑 `style_checker.py`（high/medium 必改；破折号禁止使用，命中一个即 hard_fail）再对照 `references/reviewer_checklist.md` D1-D5 自读。**🔴 硬约束：这是本技能内部的轻量质量 checklist，不是 reviewer-simulator 技能。禁止调用或进入 reviewer-simulator 技能，禁止逐节生成任何 HTML 审稿报告（report_*.html 或其他报告文件）。**
 - **Step 7** `word_counter.py` 字数检查（用户自定短篇则尊重用户）。
 - **Step 8** `state_manager.py complete-section`（MANDATORY）。
 - **Step 9** Git Checkpoint。

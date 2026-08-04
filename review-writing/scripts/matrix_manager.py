@@ -124,7 +124,10 @@ def default_row(item, section_id, evidence_round):
         "claim_id": None,
         "evidence_round": evidence_round,
         "source_tier": item.get("source_tier", "core"),
-        "study_type": item.get("study_type", "unknown"),
+        # 文献类型：与 literature_index 同源（citation_guard 从 PubMed pubtype 落库），
+        # 取代原来的 study_type——那个字段全仓没有任何写入方，样本项目 306 行里
+        # 299 行是 unknown、剩下 7 行是人手填的自由文本，属死字段。
+        "article_type": item.get("article_type", "unknown"),
         "year": item.get("year", "N/A"),
         "journal": item.get("journal", "N/A"),
         "title": item.get("title", "N/A"),

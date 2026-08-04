@@ -15,6 +15,19 @@
 - 首句套话："It is well known", "It is worth noting", "Interestingly", "Remarkably", "In recent years"。
 - 严禁结构：三段式排比 ("seamless, intuitive, and powerful")、虚假范围 ("from X to Y")、否定式排比 ("not only... but also...")。
 
+### 中文正文禁词表（写中文稿时生效）
+
+真源是同一个脚本里的 `FORBIDDEN_CN`（`grep -n FORBIDDEN_CN scripts/style_checker.py` 查全），命中即 `severity=high`，与英文禁词同级。当前 19 条：
+
+> 值得注意的是、值得一提的是、众所周知、不言而喻、综上所述、总而言之、总的来说、毋庸置疑、显而易见、至关重要、举足轻重、深入探讨、近年来、发挥着重要作用、扮演着重要角色、不仅如此、在此背景下、越来越多的证据表明、发挥关键作用
+
+前 15 条与 polish-sci / revise-sci 的 `AI_CLICHE_TERMS_ZH` 逐条对齐（那份表是人工 curated 的口径真源），后 4 条是本家原有。
+
+- **要加/删一条就改 `FORBIDDEN_CN` 这个 set，并同步本节**。同一份口径目前散在四处、互为分叉副本：rw / gsw 各一份 `style_checker.py` + polish-sci / revise-sci 各一份 `common.py`，四处都要改。
+- **`随着……的发展`、`在……的背景下`、`为……奠定了基础` 不收**：这三条在 polish-sci 里带「……」占位符、字面永远匹配不上，是**有意**留着不生效的——这几种表述不算 AI 感。别把它们改成能命中的形态。
+- **扣分随命中条数升级**：命中 1–3 条扣 15 分（老口径不变），第 4 条起每条再加 5 分。这样一节里堆 7 条套话就是 −35 分，不会再出现"稿子越长、命中越多、分数却不动"的稀释——935 字通篇套话的中文稿此前拿 77 分放行，就是这么漏的。**正常稿实测命中 0–2 条，落在免加成区间内，分数与改动前逐分相同。**
+- 中文稿的句子级检查同样生效：脚本按「。！？」断句、按 2 字 = 1 词折算词数（此前中文稿因切不出句子恒判满分放行）。
+
 ## 🔴 禁修辞 (No Rhetorical Devices)
 
 严禁文学性修辞，即隐喻、拟人、明喻、夸张、对偶、设问、引经据典等。例外：领域内已固化的术语隐喻（如 "molecular switch"、"signaling cascade"）保留；新造的、装饰性的修辞一律删。
@@ -72,9 +85,11 @@
 - **传统 SCI 刊**：实验描述仍以被动为主流，参考被动 50–70%。Methods / Results → 优先被动（"Cells were treated with..."）；Discussion 表达推断可主动。< 40% 或 > 70% 仅软提示，不扣分。
 - 拿不准目标刊语言风格（被动比例/句式）→ 不在写作阶段前置学习；留到**末尾用 polish-sci 润色时**按目标刊调性对齐（`/journal-study` 已停用，见 SKILL.md Phase 8.6）。写作期照本协议通用规则即可。
 
-## 🔴 装饰性破折号按密度判 (Decorative Em-dashes: discouraged; hard gate only when overused)
+## 🔴 禁装饰性破折号 (Ban Decorative Em-dashes，硬门禁，禁止使用)
 
-**不鼓励**用 em-dash（—、——）做停顿、补充说明或强调，优先改用逗号、句号或拆句处理。单个 em dash 是合法学术标点（插入语/同位补充），判 AI 腔的是**密度**：`style_checker.py` 给配额 = 每千词 2 个（单文件底线 2 个），配额内只出 `info` 提示（不扣分、不阻断）；**超配额**即密集滥用，置 high + hard_fail 一票否决（无论总分高低），须删到配额内。口径与 review-writing 一致。
+**禁止**用 em-dash（—、——）做停顿、补充说明或强调，一律改用逗号、句号或拆句处理。破折号是硬门禁：`style_checker.py` 命中**一个**即置 high + hard_fail 一票否决（无论总分高低），不放行。口径与 review-writing 一致。
+
+**计数口径（三种形态各算一个）**：`—`（em dash）、`——`（中文双破折号，GB/T 15834 里它是**一个**标点，不按两个记）、`␣–␣`（两侧带空格、当停顿用的 en dash）。**不计（根本不是破折号）**：复合词与数字区间里的 en dash（Michaelis–Menten、structure–activity、1990–2005、5–50 mM，以及带空格的区间 5 – 50 mM、25 – 45 °C）——连坐它们就是误伤，会把正常的化学/生物方法学稿凭空判死。
 
 **合法保留的连字符/横线用途（不属于本条禁止范围）**：
 - 连字符（hyphen `-`）：复合词 / 术语（如 dose-response, T-cell, non-significant）。

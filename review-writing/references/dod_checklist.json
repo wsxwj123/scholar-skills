@@ -38,7 +38,7 @@
         {
           "id": "R5",
           "name": "去 AI 合规",
-          "check": "硬要求（命中即判不通过）：零禁用词/AI 套话 + 无生僻词/造词 + 无 scare quotes + 无解释性冒号 + 无 trailing -ing 从句 + 同概念同段一致称谓 + 破折号不超配额（每千词 2 个、单文件底线 2 个；超出即密集滥用，style_checker 置 hard_fail）。软建议（只提示、不作为 R5 判不通过依据）：单句 ≤30 词、被动 ≤30%、配额内的装饰性破折号——这些在 style_checker 里是 info、不阻断、不扣分，命中时提醒作者按节奏酌情调整即可（见 references/writing_guidelines.md §4）。先跑 style_checker.py 量化兜底：high/medium 项须改掉，info 软项择优即可。",
+          "check": "硬要求（命中即判不通过）：零禁用词/AI 套话 + 无生僻词/造词 + 无 scare quotes + 无解释性冒号 + 无 trailing -ing 从句 + 同概念同段一致称谓 + 零装饰性破折号（—、——、空格包夹的 – ，命中一个即 style_checker 置 hard_fail；复合词与数字区间里的 en dash 不是破折号，不计）。软建议（只提示、不作为 R5 判不通过依据）：单句 ≤30 词、被动 ≤30%——这些在 style_checker 里是 info、不阻断、不扣分，命中时提醒作者按节奏酌情调整即可（见 references/writing_guidelines.md §4）。先跑 style_checker.py 量化兜底：high/medium 项须改掉，info 软项择优即可。",
           "script": "python3 scripts/style_checker.py --file <本节文件> --passive-max 0.30"
         },
         {

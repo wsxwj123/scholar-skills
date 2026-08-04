@@ -2,6 +2,8 @@
 
 **触发时机：** Phase 1.5 选题确认后、**Phase 1.7 建提纲前**（对标框架既指导 Phase 1.7 的提纲结构，也在 Phase 3 搭正文框架时复用）。Polish Mode 跳过。
 **Entry: Read `outline.md` + `state.json`. If `phase ≥ 1.7`（提纲已定）→ already done, skip.**
+> 🔴 **断线重连保护（同 Phase 1.5，只看 phase 会白跑一轮对标检索）：** `set-phase 1.7` 在**进入 Phase 1.7 时**才执行，"用户已确认对标框架、但会话在进 1.7 之前断了"这个窗口里 `phase` 仍是 1.6。
+> **判据用产物、不用 phase：** 若 `data/benchmark_reviews.json` 与 `data/framing_guide.md` **都已存在且非空** → 本阶段已完成，补跑 `set-phase --phase 1.7` 后直接进 Phase 1.7，不要重跑对标综述检索。
 > **Phase gate:** `phase < 1.5` → HALT，提示先完成 Phase 1.5。
 
 **目的：** 好综述的框架不是拍脑袋想出来的。找近年 5–10 篇**对标综述**（同领域顶刊 review），看它们怎么分章节、怎么讲道理、图和正文怎么配合、引言-主体-展望怎么组织，把这些可复用的套路提炼出来，Phase 3 搭正文框架时直接照着用。

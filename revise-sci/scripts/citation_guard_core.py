@@ -161,13 +161,13 @@ def _fetch_crossref_by_doi(doi: str) -> dict[str, Any] | None:
     return {"source": "crossref", "title": title or "", "doi": doi, "pmid": None, "retracted": is_retracted}
 
 
-def _fetch_pubmed_by_pmid(pmid: str) -> dict[str, Any] | None:
-    payload = _http_get_json(
-        f"https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id={pmid}&retmode=json"
-    )
-    if not payload or "result" not in payload:
-        return None
-    result = payload["result"].get(str(pmid))
+ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+# esummary id 走 GET，100 个 PMID ≈ 1KB query，远低于任何代理/网关的 URL 上限。
+PUBMED_BATCH_SIZE = 100
+
+
+def _parse_esummary_result(pmid: str, result: Any) -> dict[str, Any] | None:
+    """esummary 单条 result → 统一记录。单取与批取共用，保证两条路语义逐字段一致。"""
     if not isinstance(result, dict):
         return None
     title = result.get("title") or ""
@@ -181,6 +181,44 @@ def _fetch_pubmed_by_pmid(pmid: str) -> dict[str, Any] | None:
     is_retracted = any("retract" in str(x).lower() for x in pubtypes)
     return {"source": "pubmed", "title": title, "doi": doi, "pmid": str(pmid),
             "retracted": is_retracted, "pubtype": [str(x) for x in pubtypes]}
+
+
+def _fetch_pubmed_by_pmid(pmid: str) -> dict[str, Any] | None:
+    payload = _http_get_json(f"{ESUMMARY_URL}?db=pubmed&id={pmid}&retmode=json")
+    if not payload or "result" not in payload:
+        return None
+    return _parse_esummary_result(str(pmid), payload["result"].get(str(pmid)))
+
+
+def fetch_pubmed_records(
+    pmids, *, batch_size: int = PUBMED_BATCH_SIZE
+) -> dict[str, dict[str, Any]]:
+    """批量取 PubMed esummary：{pmid: 记录}，记录形状与 _fetch_pubmed_by_pmid 相同。
+
+    N 条文献只发 ceil(N/batch_size) 次请求（此前是逐条 N 次）。取不到的 PMID
+    **不进返回表**——调用方据此回落逐条抓取或写 unknown，绝不能把"没取到"当成
+    "取到了空值"。无网/超时/坏 JSON → 返回 {}（fail-safe，不抛异常）。
+    """
+    seen: list[str] = []
+    known: set[str] = set()
+    for p in pmids or ():
+        s = str(p or "").strip()
+        if s and s not in known and PMID_RE.match(s):
+            known.add(s)
+            seen.append(s)
+    out: dict[str, dict[str, Any]] = {}
+    step = max(1, int(batch_size))
+    for i in range(0, len(seen), step):
+        chunk = seen[i:i + step]
+        payload = _http_get_json(f"{ESUMMARY_URL}?db=pubmed&id={','.join(chunk)}&retmode=json")
+        result = payload.get("result") if isinstance(payload, dict) else None
+        if not isinstance(result, dict):
+            continue  # 本批取不到 → 这批 PMID 缺席，调用方回落
+        for pmid in chunk:
+            rec = _parse_esummary_result(pmid, result.get(pmid))
+            if rec is not None:
+                out[pmid] = rec
+    return out
 
 
 # ── PubMed pubtype list → single article_type enum (deterministic, G0c) ──────
@@ -211,6 +249,52 @@ def classify_article_type(pubtypes, source: str = "") -> str:
     if has("journal article"):
         return "original_research"
     return "unknown"
+
+
+def backfill_article_types(
+    entries, *, online: bool = True, records: dict[str, dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """就地补齐条目的 article_type，**只碰这一个字段**，其它字段原样不动。
+
+    已有真值（非 unknown）不覆盖；缺字段/unknown 且有 PMID 的才去查。取不到一律
+    落 "unknown" 并计入 unresolved——绝不为了好看编一个类型出来。
+
+    ``records`` 传入已批取的 PubMed 记录可复用（免二次请求）；未传且 online 时
+    自行批取；online=False（离线/无网）则不发任何请求，全部落 unknown。
+
+    返回统计 {total, targets, filled, unresolved, no_pmid, pubmed_records, by_type}，
+    调用方必须把 unresolved 显式打给用户看（"这次没填上几条"）。
+    """
+    rows = [e for e in (entries or ()) if isinstance(e, dict)]
+    targets = [e for e in rows
+               if str(e.get("article_type") or "unknown").strip().lower() in ("", "unknown")]
+    no_pmid = [e for e in targets if not PMID_RE.match(str(e.get("pmid") or "").strip())]
+
+    if records is None:
+        records = fetch_pubmed_records(
+            [e.get("pmid") for e in targets]) if online else {}
+
+    filled = 0
+    by_type: dict[str, int] = {}
+    for e in targets:
+        pmid = str(e.get("pmid") or "").strip()
+        rec = records.get(pmid) if pmid else None
+        atype = classify_article_type(
+            (rec or {}).get("pubtype"), source=_provider_family(str(e.get("source_provider") or ""))
+        )
+        e["article_type"] = atype
+        if atype != "unknown":
+            filled += 1
+            by_type[atype] = by_type.get(atype, 0) + 1
+    return {
+        "total": len(rows),
+        "targets": len(targets),
+        "filled": filled,
+        "unresolved": len(targets) - filled,
+        "no_pmid": len(no_pmid),
+        "pubmed_records": len(records),
+        "by_type": dict(sorted(by_type.items())),
+    }
 
 
 def _crossref_year(item: dict[str, Any]) -> int | None:

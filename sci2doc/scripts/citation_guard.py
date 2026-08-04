@@ -25,11 +25,13 @@ from citation_guard_core import (  # noqa: E402
     FORBIDDEN_PROVIDER_FAMILIES,
     TITLE_VERIFY_THRESHOLD,
     _provider_family,
+    backfill_article_types,
     check_bidirectional,
     check_completeness,
     check_recency,
     check_self_citation,
     entry_is_fresh_verified,
+    fetch_pubmed_records,
     validate_core,
 )
 
@@ -226,6 +228,7 @@ def validate_entry(
     require_mcp: bool,
     mcp_ttl_days: int,
     now_utc: datetime,
+    pubmed_record: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Adapter: normalize a raw index entry, resolve its MCP record, delegate the
     verification to validate_core, then restore the skill's output contract.
@@ -252,6 +255,9 @@ def validate_entry(
         mcp_record=mcp_record,
         mcp_ttl_days=mcp_ttl_days,
         now_utc=now_utc,
+        # 批量 esummary 已取到本条 → 直接复用，省掉逐条请求；没取到就不传，
+        # 核心自行逐条抓取（行为与批量上线前完全一致）。
+        prefetched={"pubmed": pubmed_record} if pubmed_record else None,
     )
     details = dict(result["details"])
     # Restore the raw source_provider field the baseline exposed under sources.
@@ -281,6 +287,11 @@ def main() -> int:
     p.add_argument("--log", default="data/verification_run_log.json")
     p.add_argument("--report", default="data/citation_guard_report.json")
     p.add_argument("--write-back", action="store_true", help="Write verification fields back to index")
+    p.add_argument(
+        "--backfill-article-type",
+        action="store_true",
+        help="只回填 article_type（批量取 PubMed pubtype），不做核验、不动任何其它字段",
+    )
     # Integrity-gate mode (J4/J5/J7/A4). Independent of the online verifier above.
     p.add_argument("--gates", action="store_true",
                    help="Run citation-integrity gates (J4 completeness, J5 self-citation, "
@@ -319,12 +330,35 @@ def main() -> int:
         print(json.dumps(gates, ensure_ascii=False, indent=2))
         return gates["exit_code"]
 
+    if args.backfill_article_type:
+        # 存量项目补类型的那"一条命令"。就地改 entries（与 raw 是同一批 dict 对象），
+        # 回写 raw 本身 → 除 article_type 外逐字段原样，连未识别的条目都不丢。
+        stats = backfill_article_types(entries, online=not args.offline)
+        if entries:
+            save_json(index_path, raw)
+        print(json.dumps({"backfill_article_type": stats}, ensure_ascii=False))
+        if stats["unresolved"]:
+            sys.stderr.write(
+                f"ARTICLE_TYPE: 本次有 {stats['unresolved']}/{stats['targets']} 条没填上"
+                f"（其中 {stats['no_pmid']} 条无 PMID），已按 unknown 落库——"
+                "这些文献的「机制/疗效结论不得只挂综述」纪律仍然不会执行。\n")
+        return 0
+
     mcp_cache = load_json(Path(args.mcp_cache), {}) if args.mcp_cache else {}
     mcp_index = _build_mcp_index(mcp_cache)
 
     t0 = time.perf_counter()
     now_utc = datetime.now(timezone.utc)
     ttl_days = max(0, int(args.mcp_ttl_days))
+    # 批量取 PubMed 记录（100 条/请求）：核验用 + article_type 用共一份，避免 N 条发 N 次。
+    # 需要取的两类：① 本轮要真核验的；② 短路复用但 article_type 还空着的。
+    need_pmids = [
+        e.get("pmid")
+        for e in entries
+        if not entry_is_fresh_verified(e, ttl_days, now_utc)
+        or str(e.get("article_type") or "unknown").strip().lower() in ("", "unknown")
+    ]
+    pubmed_batch = {} if args.offline else fetch_pubmed_records(need_pmids)
     checked: list[dict[str, Any]] = []
     reused_count = 0
     for e in entries:
@@ -347,8 +381,19 @@ def main() -> int:
                 require_mcp=args.require_mcp,
                 mcp_ttl_days=ttl_days,
                 now_utc=now_utc,
+                pubmed_record=pubmed_batch.get(str(ent.get("pmid") or "").strip()),
             )
         )
+
+    # 短路复用的条目不过 validate_core，类型靠这一步补齐（已有真值不覆盖）。
+    # 取不到就留 unknown 并明说，绝不编一个类型——unknown 会让下游纪律跳过，
+    # 这时候骗人比不填更糟。
+    atype_stats = backfill_article_types(checked, records=pubmed_batch, online=False)
+    if atype_stats["unresolved"]:
+        sys.stderr.write(
+            f"ARTICLE_TYPE: {atype_stats['unresolved']}/{atype_stats['targets']} 条没取到文献类型"
+            f"（其中 {atype_stats['no_pmid']} 条无 PMID），按 unknown 落库；"
+            "这些引用不会走「机制/疗效结论不得只挂综述」检查。\n")
 
     failure_counter: Counter[str] = Counter()
     advisory_counter: Counter[str] = Counter()

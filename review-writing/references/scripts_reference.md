@@ -125,10 +125,19 @@ python3 scripts/citation_guard.py \
   --log data/citation_guard_report.json \
   --write-back \
   --manual-review data/manual_review_queue.json
-# --write-back   : persists verified:true/false back into literature_index.json
+# --write-back   : persists verified:true/false + article_type back into literature_index.json
 # --manual-review: dumps unverifiable entries to a JSON queue for human review
 # --require-mcp  : hard-gate — blocks if any entry lacks MCP evidence (use only for top-tier journals)
 # --offline      : skip online checks (fast mode, local index only)
+
+# 存量项目补文献类型（只改 article_type 一个字段，不做核验、不写报告）：
+python3 scripts/citation_guard.py \
+  --index data/literature_index.json \
+  --backfill-article-type
+# 批量取 PubMed pubtype（100 条/请求）；272 条实测 3 次请求、约 6 秒、填上 271/272。
+# 取不到（无网 / 无 PMID / pubtype 不在分类表内）一律落 unknown 并在 stderr 报
+# "N 条没填上"——unknown 会让「机制/疗效结论不得只挂综述」纪律对这些条目直接跳过，
+# 看到这行别当成检查通过了。
 ```
 
 ## `word_counter.py` command

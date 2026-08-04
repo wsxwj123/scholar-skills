@@ -31,10 +31,18 @@ High-impact reviews are not summaries; they are arguments.
 ### Evidence Type Discipline（`article_type`，决策15）
 每条 `data/literature_index.json` 条目带 `article_type` 字段（枚举 `original_research | review |
 meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | guideline | other | unknown`）。
-入表时默认 `unknown`，真值由 `citation_guard.py --write-back` 从 PubMed pubtype 优先级解析回填（缺=unknown）。
+入表时默认 `unknown`，真值由 `citation_guard.py` 从 PubMed pubtype 优先级解析回填（缺=unknown）：
+- 常规核验 `--write-back` 顺带落库（批量取 pubtype，100 条/请求，272 条约 6 秒）；
+- **存量项目补类型：`python3 scripts/citation_guard.py --index data/literature_index.json
+  --backfill-article-type`**——只改 `article_type` 一个字段，不做核验、不动其它字段。
+- 无网 / PubMed 不可达 / 该条无 PMID → 落 `unknown`，并在 stderr 报"N 条没取到文献类型…
+  这些引用不会走检查"。**看到这行就说明纪律对那些条目没生效**，别当成检查通过了。
+
 纪律（DoD R9 已覆盖，机械联动在共享 `citation_claim_check.py`）：
 - **承重的机制断言 / 疗效因果结论**（`claim_kind∈{mechanism,efficacy}`）**不得以综述（review /
   systematic_review）代替原著撑腰**——引 `original_research`，或疗效可引 `meta_analysis` / `clinical_trial`。
+- **机制断言另禁挂 `meta_analysis`**：Meta 分析汇总的是别人试验的效应量，不含一手机制实验，
+  对**疗效**是合法上位证据、对**机制**不是。疗效挂 Meta 仍放行，两者不混。
 - 综述里"承重**背景**引用综述"是合法的（`claim_kind=background` 引 review 放行）——靠 `claim_kind` 精确区分，
   不一刀切。`article_type`/`claim_kind` 任一缺失/`unknown` → 机械纪律只 warning 不拦（向后兼容存量项目）。
 - `preprint` 在正文该处须标 `[Preprint]`。
@@ -66,9 +74,16 @@ meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | g
 - **Transitions:** Ban "Furthermore / In addition / Moreover" bolted-on. Embed causality into main clause.
 
 ### Chinese Mode
-- **Ban List:** 值得注意的是、不仅如此、此外、综上所述、总而言之、深入探讨、至关重要、在此背景下、显而易见
+- **Ban List（写作纪律）:** 值得注意的是、不仅如此、此外、综上所述、总而言之、深入探讨、至关重要、在此背景下、显而易见、越来越多的证据表明、发挥关键作用
+- **🔒 其中被 `style_checker.py` 机器强制的 19 条**（命中即 `severity=high`，与英文禁词同级）：值得注意的是、值得一提的是、众所周知、不言而喻、综上所述、总而言之、总的来说、毋庸置疑、显而易见、至关重要、举足轻重、深入探讨、近年来、发挥着重要作用、扮演着重要角色、不仅如此、在此背景下、越来越多的证据表明、发挥关键作用。
+  - 前 15 条与 polish-sci / revise-sci 的 `AI_CLICHE_TERMS_ZH` 逐条对齐（那份表是人工 curated 的口径真源），后 4 条是本家原有。
+  - 真源是 `scripts/style_checker.py` 的 `FORBIDDEN_CN`（`grep -n FORBIDDEN_CN scripts/style_checker.py` 可查全）。**要加/删一条套话就改那个 set，并同步本行**。同一份口径目前散在四处、互为分叉副本：rw / gsw 各一份 `style_checker.py` + polish-sci / revise-sci 各一份 `common.py`，四处都要改。
+  - **「此外」「然而」刻意不进机器表**：它们在真中文稿里高频且合法，机器一刀切会把正常稿判死。写作时仍按上面的 Ban List 自律避免。
+  - **`随着……的发展`、`在……的背景下`、`为……奠定了基础` 不收**：这三条在 polish-sci 里带「……」占位符、字面永远匹配不上，是**有意**留着不生效的——这几种表述不算 AI 感。别把它们改成能命中的形态。
+  - **扣分随命中条数升级**：命中 1–3 条扣 15 分（老口径不变），第 4 条起每条再加 5 分。一节里堆 7 条套话就是 −35 分，不会再出现"稿子越长、命中越多、分数却不动"的稀释——935 字通篇套话的中文稿此前拿 77 分放行，就是这么漏的。**正常稿实测命中 0–2 条，落在免加成区间内，分数与改动前逐分相同。**
 - **Structure Ban:** 一方面……另一方面……; 随着……的不断发展; 日益受到关注; 禁任何比喻（明喻/暗喻/借喻，如"如同/犹如/像…一样"及"…的桥梁/基石/催化剂"类比喻名词——直接陈述事实）
 - **Rhythm:** Short sentences ≤15 characters, long sentences 30–60 characters. Avoid 3+ consecutive same-pattern sentences.
+- **机器检查在中文稿上同样生效**：style_checker 按「。！？」断句、按 2 字 = 1 词折算词数，句长方差/连续等长句/长句/段首重复这些检查在中文稿上真的会算（此前中文稿恒判满分）。
 
 ### Deep Rewriting (Anti-Similarity Protocol)
 - **Lexical:** Replace non-terminological generic words. Verbatim phrase ≥4 consecutive words → decompose and reconstruct.
@@ -77,9 +92,10 @@ meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | g
 
 ### Three Additional AI-Marker Bans
 
-**1. Decorative em-dashes (—): discouraged; hard gate only when overused**
-- **Discouraged:** Using — or —— as a pause, supplement, or emphasis device (e.g., "The result was clear, cells died"). A single em-dash is legitimate academic punctuation; what marks AI prose is **density**. style_checker allows a budget of 2 per 1,000 words (minimum 2 per file): within budget it reports an `info` note only (no score penalty, no gate failure); **above budget** it raises a `high` issue and sets hard_fail, failing the gate regardless of score.
-- **Allowed:** Hyphens in compound modifiers (dose-dependent), numeric ranges (1990–2005), and en-dashes in structured labels.
+**1. Decorative em-dashes (—): hard gate, banned**
+- **Banned:** Using — or —— as a pause, supplement, or emphasis device (e.g., "The result was clear, cells died"). Em-dashes are prohibited; style_checker flags **any** decorative dash as a `high` issue and sets hard_fail, failing the gate regardless of score. One is one too many.
+- **计数口径（三种形态各算一个）：** `—`（em dash）、`——`（中文双破折号，GB/T 15834 里它是**一个**标点，不按两个记）、`␣–␣`（两侧带空格、当停顿用的 en dash）。
+- **Allowed（不是破折号，不计）:** Hyphens in compound modifiers (dose-dependent), numeric ranges with or without spaces (1990–2005, 5–50 mM, 5 – 50 mM, 25 – 45 °C), and en-dashes in compound terms / structured labels (Michaelis–Menten, structure–activity)——这些是复合词与数字区间，连坐它们就是误伤，脚本不计。
 - **Fix:** Recast as a comma, period, or separate sentence. "The result was clear—cells died" → "The result was clear: cells died at 48 h."
 
 **2. Scare quotes on ordinary phrases**

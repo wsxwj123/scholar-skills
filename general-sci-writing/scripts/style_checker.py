@@ -43,27 +43,81 @@ FORBIDDEN_EXACT = {
     "in the context of", "shed light on", "pave the way",
     "of paramount importance", "a key player",
 }
+# ── 中文 AI 套话（与上面英文表同级：命中即 high，计入 score）──────────────────
+# 真源口径与 polish-sci / revise-sci 的 `AI_CLICHE_TERMS_ZH` 对齐（那份表是用户人工
+# curated 的）。本表 = 那份表里**能实际生效的 15 条** ∪ 本家原有 4 条（不仅如此 /
+# 在此背景下 / 越来越多的证据表明 / 发挥关键作用），共 19 条。
+#
+# 🚫 刻意不收 `随着……的发展` / `在……的背景下`(带省略号那条) / `为……奠定了基础`。
+#    它们在 polish-sci 里带「……」占位符、字面永远匹配不上，这是用户**有意**留着不
+#    生效的——他判定这几种表述不算 AI 感。别把它们改成能命中的形态。
+#
+# 🔧 要加/删一条套话就改这个 set。同一份口径目前散在四处、互为分叉副本：
+#    rw / gsw 各一份 style_checker.py + polish-sci / revise-sci 各一份 common.py。
+#    抽成 _shared/ 共享件是结构性改动，合并见 PROJECT.md 待办。
+#    用户可见的说明：general-sci-writing/references/anti-ai-protocol.md
+#    与 review-writing/references/writing_guidelines.md §4「Chinese Mode」。
+FORBIDDEN_CN = {
+    # ↓ 与 polish-sci / revise-sci AI_CLICHE_TERMS_ZH 逐条对齐的 15 条
+    "值得注意的是", "值得一提的是", "众所周知", "不言而喻", "综上所述",
+    "总而言之", "总的来说", "毋庸置疑", "显而易见", "至关重要",
+    "举足轻重", "深入探讨", "近年来", "发挥着重要作用", "扮演着重要角色",
+    # ↓ 本家原有、polish-sci 没有的 4 条
+    "不仅如此", "在此背景下", "越来越多的证据表明", "发挥关键作用",
+}
 FORBIDDEN_PATTERNS = [
     re.compile(r"not only\b.*?\bbut also\b", re.IGNORECASE),
     re.compile(r"seamless[,\s]+intuitive[,\s]+and\s+powerful", re.IGNORECASE),
     re.compile(r"from\s+\w+\s+to\s+\w+", re.IGNORECASE),  # "from X to Y" pattern
 ]
 
+# ── 扣分档位与「套话扣分随证据量升级」 ────────────────────────────────────────
+# 每档只扣一次是原口径；问题在于套话这一项**与命中条数无关**：一节里命中 1 条和命中
+# 8 条同扣 15 分。中文稿越长命中越多、分数却纹丝不动，而按句子算的检查（句长方差）
+# 在句子多了以后反而不触发 → **越长越容易过**。实测 935 字通篇套话的中文稿拿 77 分
+# 放行（100-15 套话-8 连续等长），就是这么漏的。
+#
+# 修法：前 FORBIDDEN_FREE_HITS 条按老口径扣满 high(15)，之后每多一条再加
+# FORBIDDEN_EXTRA_PENALTY。**命中 ≤3 条的文件分数与改动前逐分相同**，正常稿不受影响。
+# 对本家尤其要紧：上面那条 "from X to Y" pattern 在正常英文里高频（rw 已因误报删掉），
+# 留 3 条余量正好把它这类单条误报挡在加成之外。
+#
+# ponytail: 3 条免加成 + 每条 5 分是启发式，定这两个数的依据是实测——正常英文学术散文
+# 最多命中 2 条（notably + in recent years 那种），正常中文散文 0 条；通篇 AI 腔的稿子
+# 命中 5–24 条。已知天花板：只命中 3 条套话、其余检查全过的稿子仍会放行（85 分）。
+# 真稿反馈说误报/漏报再调这两个数。口径与 review-writing/scripts/style_checker.py 一致。
+SEVERITY_PENALTY = {"high": 15, "medium": 8, "low": 3}
+FORBIDDEN_FREE_HITS = 3
+FORBIDDEN_EXTRA_PENALTY = 5
+
+
+def forbidden_penalty(hit_count: int) -> int:
+    """套话项扣分：前 FORBIDDEN_FREE_HITS 条 = high 档 15 分，之后每条 +5。"""
+    return SEVERITY_PENALTY["high"] + FORBIDDEN_EXTRA_PENALTY * max(
+        0, hit_count - FORBIDDEN_FREE_HITS)
+
 # ── Anti-AI: em-dash, scare quotes, explanatory colon ────────────────────────
-# Em-dash (U+2014 —) used decoratively in prose (not in code/URLs/math).
-EM_DASH_RE = re.compile(r"(?<!\d)—(?!\d)")
-# 破折号配额：正常学术散文每千词 0–2 个 em dash，AI 生成文本显著更高。按密度而非
-# 绝对数，否则整篇导入的长稿（8000 词）必然误伤。短文件给 2 个底线。
-# 口径与 review-writing/scripts/style_checker.py 保持一致（同一缺陷 rw 已先修）。
-# ponytail: 阈值是启发式(每千词 2 个 + 底线 2)，真稿反馈说误报/漏报再调这两个数。
-EM_DASH_PER_1K_WORDS = 2
-EM_DASH_MIN_ALLOWANCE = 2
-
-
-def em_dash_allowance(total_words: int) -> int:
-    """本文件允许的 em dash 个数（超出即判密集滥用）。"""
-    return max(EM_DASH_MIN_ALLOWANCE,
-               int(max(0, total_words) / 1000 * EM_DASH_PER_1K_WORDS))
+# 破折号是**硬禁**：当停顿 / 插入语 / 补充说明用的破折号一个都不许有，命中即
+# hard_fail 一票否决（口径与 rw 一致）。用户已定死这条规矩，别改成配额/密度制。
+# 覆盖三种实际会出现的形态，各算**一个**破折号：
+#   —    单个 em dash（英文常见）
+#   ——   中文双破折号（GB/T 15834 里它是一个标点，`—+` 保证不按两个记）
+#   ␣–␣  空格包夹的 en dash（英式排版的停顿破折号）
+# en dash **只在两侧有空格、且不是数字区间时**才算：复合词与数字区间里的 en dash
+# 根本不是破折号（Michaelis–Menten、structure–activity、1990–2005、5–50 mM），
+# 连坐它们就是误伤，化学/生物稿会凭空判死。
+# 「不是数字区间」这半条：期刊常见 `5 – 50 mM`、`25 – 45 °C` 这种**带空格**的区间
+# （带单位时尤其常见），若只按"有空格"判，一段正常方法学英文的 7 个区间会全被当成
+# 装饰性 → 误判不合格。判据是**左右紧邻都得是数字**才算区间；
+# 一侧数字一侧文字（`in 2020 – a landmark year – the field shifted`）是同位插入语，
+# 仍按装饰性计——那正是 AI 腔要抓的形态。口径与 rw 一致。
+# ponytail: 单位写在两侧的 `5 mM – 50 mM` 仍会被当成装饰性（Python 定宽 lookbehind
+#   看不到"左窗口里有数字"）。真稿撞上再改成"先抹区间再计数"的两步式。
+EM_DASH_RE = re.compile(
+    r"(?<!\d)—+(?!\d)"            # em dash（—/中文 —— 按一个记）；1990—2005 不算
+    r"|(?<!\d\s)(?<=\s)–+(?=\s)"  # ␣–␣ 且左侧紧邻不是数字
+    r"|(?<=\s)–+(?=\s(?!\d))"     # ␣–␣ 且右侧紧邻不是数字
+)
 # Scare quotes: double-quoted phrase of 1-4 words not preceded by numeric citation
 # context, to catch "synergistic", "perfect storm", etc.
 SCARE_QUOTE_RE = re.compile(r'(?<!\[)(?<!\d)"([A-Za-z][^"]{1,40})"(?!\s*:)')
@@ -121,6 +175,22 @@ PASSIVE_RE = re.compile(
 
 # ── Sentence splitting ────────────────────────────────────────────────────────
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z\[])")
+
+# ── 中文支持：切句与计词（口径与 review-writing/scripts/style_checker.py 一致）──
+# 中文句子以「。！？」收尾且**不带空格**，上面那条英文规则一句都切不出来；再叠加
+# 「按空格数词」的碎片过滤（中文不分词 → 整段只算 1 词 < 3），整段中文会被整体丢弃，
+# 于是所有按句子算的检查（句长方差/连续等长…）在中文稿上全部空转 → 恒满分。
+# 下面两条只在文本里真有汉字时才起作用；纯英文输入的行为与旧实现逐字节一致。
+CJK_CHAR_RE = re.compile(r"[一-鿿]")           # 汉字：用于计字数
+# 汉字 + 中文标点 + 全角符号：剥掉之后再数剩余的英文词，避免把「，」当成一个词。
+CJK_TEXT_RE = re.compile(r"[　-〿一-鿿＀-￯]")
+# 在中文句末标点之后断句；连续的句末标点（？！）和紧跟的收尾引号/括号留在本句。
+CJK_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？])(?![。！？…”’」』）】])")
+
+# ponytail: 2 个汉字折 1 个英文词。选 2 是为了让按词计的阈值在中文上落到合理字数
+# （如「单句 >30 词」⇒ >60 字，对上中文长句 30–60 字的常规节奏）。
+# 启发式，真稿反馈说判早/判晚了就调这一个数。
+CJK_CHARS_PER_WORD = 2
 
 # ── Reference/figure/heading filters ─────────────────────────────────────────
 # NOTE: there is deliberately no per-line reference format regex any more.
@@ -223,14 +293,38 @@ def _extract_prose(text: str) -> str:
 
 
 def _split_sentences(text: str) -> list[str]:
-    """Split text into sentences."""
+    """Split text into sentences (English punctuation + Chinese 。！？)."""
     text = CITATION_RE.sub("", text)  # remove [n] before splitting
-    raw = SENTENCE_RE.split(text)
-    return [s.strip() for s in raw if s.strip() and len(s.split()) >= 3]
+    raw: list[str] = []
+    for chunk in SENTENCE_RE.split(text):
+        raw.extend(CJK_SENTENCE_SPLIT_RE.split(chunk))
+    return [s.strip() for s in raw if s.strip() and _word_count(s) >= 3]
 
 
 def _word_count(sentence: str) -> int:
-    return len(sentence.split())
+    """词数；中文按「CJK_CHARS_PER_WORD 个汉字 = 1 词」折算。
+
+    没有汉字时直接走旧路径（len(split())），保证纯英文文本结果一字不差。"""
+    cjk = len(CJK_CHAR_RE.findall(sentence))
+    if not cjk:
+        return len(sentence.split())
+    return len(CJK_TEXT_RE.sub(" ", sentence).split()) + cjk // CJK_CHARS_PER_WORD
+
+
+def _opener_key(first_sentence: str) -> str:
+    """段首指纹：英文取前 3 词，中文取前 6 字（= 3 个词当量，口径一致）。
+
+    中文没有空格，沿用 split()[:3] 会把整段当成一个 opener，等于不查。"""
+    if CJK_CHAR_RE.match(first_sentence[:1]):
+        return first_sentence[: 3 * CJK_CHARS_PER_WORD]
+    words = first_sentence.split()[:3]
+    return " ".join(words).lower() if len(words) >= 2 else ""
+
+
+def _is_cjk_dominant(text: str, total_words: int) -> bool:
+    """半数以上词当量来自汉字 → 当中文稿处理（英文专属检查对它没有意义）。"""
+    cjk_equiv = len(CJK_CHAR_RE.findall(text)) // CJK_CHARS_PER_WORD
+    return total_words > 0 and cjk_equiv * 2 > total_words
 
 
 def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
@@ -240,7 +334,7 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
 
     prose = _extract_prose(raw_text)
     sentences = _split_sentences(prose)
-    paragraphs = [p.strip() for p in prose.split("\n\n") if p.strip() and len(p.split()) >= 10]
+    paragraphs = [p.strip() for p in prose.split("\n\n") if p.strip() and _word_count(p) >= 10]
 
     total_words = sum(_word_count(s) for s in sentences)
     result: dict[str, Any] = {
@@ -304,6 +398,9 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     result["passive_ratio"] = round(passive_ratio, 3)
 
     guidance, low, high = _passive_target(journal)
+    # PASSIVE_RE 认的是 be + 过去分词，中文稿上恒为 0；对中文稿发"被动不足"是噪音。
+    if _is_cjk_dominant(prose, total_words):
+        low = high = None
     if high is not None and passive_ratio > high:
         result["warnings"].append({
             "type": "excessive_passive_voice",
@@ -321,6 +418,9 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     for phrase in FORBIDDEN_EXACT:
         if phrase in lower_prose:
             forbidden_hits.append({"phrase": phrase, "type": "forbidden_word"})
+    for phrase in FORBIDDEN_CN:  # 中文无大小写，直接在原文里找
+        if phrase in prose:
+            forbidden_hits.append({"phrase": phrase, "type": "forbidden_word_cn"})
     for pat in FORBIDDEN_PATTERNS:
         if pat.search(prose):
             forbidden_hits.append({"phrase": pat.pattern[:50], "type": "forbidden_pattern"})
@@ -330,6 +430,8 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
         result["issues"].append({
             "type": "forbidden_ai_phrases",
             "severity": "high",
+            # 扣分随命中条数升级（长稿不再被稀释），见 forbidden_penalty
+            "penalty": forbidden_penalty(len(forbidden_hits)),
             "detail": f"{len(forbidden_hits)} AI-typical phrases detected: {', '.join(h['phrase'] for h in forbidden_hits[:5])}",
         })
 
@@ -337,10 +439,9 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     openers = []
     for para in paragraphs:
         first_sentence = SENTENCE_RE.split(para)[0].strip() if para else ""
-        # Extract first 3 words as structural pattern
-        words = first_sentence.split()[:3]
-        if len(words) >= 2:
-            openers.append(" ".join(words).lower())
+        opener = _opener_key(first_sentence)
+        if opener:
+            openers.append(opener)
 
     repeated_openers: list[str] = []
     for i in range(1, len(openers)):
@@ -372,29 +473,18 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
             "detail": f"{bullet_count} bullet/numbered list lines detected in prose body.",
         })
 
-    # ── 7. Decorative em-dash (按密度判，不再一个就毙) ────────────────────────
-    # em dash 在英文学术写作里是合法标点（插入语/同位补充），单个出现不是 AI 腔；
-    # 判 AI 腔的是**密度**。原实现 >=1 即 hard_fail，把正常稿判成不合格，用户只能
-    # 删掉合法标点来讨好检查。改为超出配额才算问题、配额内只提示（与 rw 同口径）。
+    # ── 7. Decorative em-dash (硬门禁, 禁止使用: 一个都不许有) ─────────────────
+    # 去AI必禁三项之一。命中即 hard_fail 一票否决，不放行（与 rw 同口径）。
+    # 计数口径见 EM_DASH_RE：复合词与数字区间里的 en dash 不是破折号，不计。
     em_dash_count = len(EM_DASH_RE.findall(prose))
-    em_dash_budget = em_dash_allowance(total_words)
-    if em_dash_count > em_dash_budget:
+    if em_dash_count >= 1:
         result["issues"].append({
             "type": "decorative_em_dash",
-            "severity": "high",  # 超配额 = 密集滥用，计入 score 并置 hard_fail
-            "detail": (f"{em_dash_count} em-dash(es) (—/——) in {total_words} words "
-                       f"(配额 {em_dash_budget}). 破折号密集滥用是 AI 腔特征，"
-                       f"删到配额内：用逗号/句号/重构替代。"),
+            "severity": "high",
+            "detail": (f"{em_dash_count} decorative dash(es) (—/——/ – ) detected. "
+                       f"禁止使用破折号(硬门禁，一个都不许有)：用逗号/句号/重构替代。"),
         })
         result["hard_fail"] = True
-    elif em_dash_count:
-        result["issues"].append({
-            "type": "decorative_em_dash",
-            "severity": "info",  # 配额内：只提示，不扣分、不阻断
-            "detail": (f"{em_dash_count} em-dash(es) (—/——) in {total_words} words "
-                       f"(配额 {em_dash_budget}，未超)。合法用法无需处理；"
-                       f"若是当停顿/强调用的装饰性破折号，建议改写。"),
-        })
 
     # ── 8. Scare quotes (硬门禁, 禁止使用: 引号暗示新概念) ─────────────────────
     # 去AI必禁三项之一。与破折号同级：命中即 hard_fail 一票否决，不放行。
@@ -444,13 +534,9 @@ def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     for issue in result["issues"]:
         sev = issue["severity"]
         if sev == "info":
-            continue  # info 软项（如配额内破折号）：只提示，不扣分（与 rw 同口径）
-        if sev == "high":
-            score -= 15
-        elif sev == "medium":
-            score -= 8
-        else:
-            score -= 3
+            continue  # info 软项只提示、不扣分（与 rw 同口径；本家目前不产 info 项）
+        # 缺省按 severity 档位扣；带 "penalty" 的项自报扣分（套话项按命中条数升级）
+        score -= issue.get("penalty", SEVERITY_PENALTY.get(sev, SEVERITY_PENALTY["low"]))
     result["score"] = max(0, score)
 
     return result

@@ -104,11 +104,11 @@ If pending_sections is empty → all sections complete; proceed to Phase 4.
 
 6. **逐节质量自查（主 agent 轻量自查，为 Step 10 盲检兜底，不在此派独立盲检）：** 落笔后先由主 agent 自查一遍，尽早改掉明显问题、减少 Step 10 往返。**独立盲检不在这里做**：原每节两次委派（Step 6 评 D1-D5 + Step 10 跑 manuscript-dod）评分轴高度重叠，已合并为 Step 10 的**单次** manuscript-dod 盲检（D1 新颖并入 R23、D2 仲裁→R8、D3 证据→R7+R9、D4 连贯→R18、D5 去 AI→R5 已等价覆盖）。故本步只自查、不落盘、不阻断、不派 subagent；真正的独立盲检 + fail-closed 门禁 + 修复循环全在 Step 10。
    **🔴 硬约束：这是本技能内部的轻量质量 checklist，不是 reviewer-simulator 技能。禁止调用或进入 reviewer-simulator 技能，禁止逐节生成任何 HTML 审稿报告（report_*.html 或其他报告文件）。**
-   **量化兜底（先跑脚本再自读）：** 先跑 style_checker 拿客观信号，**high/medium 项必须先改掉**；破折号按密度判——配额内（每千词 2 个，单文件底线 2 个）只出 `info` 提示不扣分，**超配额才 hard_fail 一票否决、必须删到配额内**；其余 `info` 软项（long_sentence / excessive_passive_voice）只提醒不阻断、不扣分，择优处理。
+   **量化兜底（先跑脚本再自读）：** 先跑 style_checker 拿客观信号，**high/medium 项必须先改掉；破折号禁止使用，命中一个即 hard_fail 一票否决、必须清零**；`info` 软项（long_sentence / excessive_passive_voice）只提醒不阻断、不扣分，择优处理。
    ```bash
    python3 scripts/style_checker.py --file drafts/section_01_01.md --passive-max 0.30
-   # 硬项(计分/hard_fail,可致 exit 1)：forbidden_ai_phrases / scare_quotes / explanatory_colon_in_prose / trailing_ing_clause / bullet_points / decorative_em_dash(仅**超配额**时 hard_fail) ...
-   # 软项(severity=info,只报告不扣分不阻断)：long_sentence(>30词) / excessive_passive_voice(>30%) / 配额内的 decorative_em_dash
+   # 硬项(计分/hard_fail,可致 exit 1)：forbidden_ai_phrases / scare_quotes / explanatory_colon_in_prose / trailing_ing_clause / bullet_points / decorative_em_dash(破折号,命中一个即 hard_fail) ...
+   # 软项(severity=info,只报告不扣分不阻断)：long_sentence(>30词) / excessive_passive_voice(>30%)
    # exit 0 = 通过(score≥阈值)；非 0 = 据 issues 里的 high/medium 项修复后重跑（info 项不影响退出码）
    ```
    然后主 agent 自读本节，对照 `references/reviewer_checklist.md` 的 D1-D5（新颖 / 仲裁 / 证据 / 连贯 / 去 AI）过一遍，把一眼能看出的问题就地改掉。这只是自查，是否通过不决定能否进下一步，门禁在 Step 10。

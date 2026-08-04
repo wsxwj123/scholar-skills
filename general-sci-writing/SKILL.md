@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.28.6
+version: 2.32.2
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色，Phase 13B含内部初步退稿自查但不出回复包也不出修订稿docx。
 license: Proprietary
 ---
@@ -45,7 +45,7 @@ license: Proprietary
 3. **不编数据**：缺核心定量（P 值/关键 n/效应量）→ 立即停写、输出数据收集表；严禁占位符（"XX%"）填充。
 4. **不改派生稿**：修改/润色只动 `manuscripts/*.md` 原子化源文件；严禁手改 `Full_Manuscript.md` / `*.docx`（`/merge` 会覆盖，工作丢失）。
 5. **先确认再落盘**：每节写完先展示（字数/引用/figure/缩略词/占位数），用户 OK 才写文件；禁止连续自动写多节。
-6. **去 AI 硬线（主干硬、风格软）**：**硬禁（一票否决）**：AI 套话/禁词、生僻词、造词、正文列点、编造修辞、**破折号超配额（em-dash —/—— 密集滥用）**。**软提示（不阻断，仅提醒）**：句长上限（建议单句 ≤30 词、避免连续等长句，但不硬卡）、被动比例、配额内的破折号。数据驱动写作。详见 `references/anti-ai-protocol.md`。**语态按目标刊切换（软提示，不阻断）**：Nature/Science/Cell 官方 guideline 推荐主动语态（"We show that…"），不设被动下限；传统刊参考被动 50–70%。`style_checker.py --journal <刊名>` 把语态偏差、句长写进 warnings，不计入 score、不卡门禁；装饰性破折号（em-dash —/——）按密度判——配额内（每千词 2 个、单文件底线 2 个）只出 info 提示不扣分，**超配额才 hard_fail 一票否决**；AI 套话/禁词/生僻词/造词/列点计入 score。
+6. **去 AI 硬线（主干硬、风格软）**：**硬禁（一票否决）**：AI 套话/禁词、生僻词、造词、正文列点、编造修辞、**装饰性破折号（em-dash —/——/␣–␣，一个都不许有）**。**软提示（不阻断，仅提醒）**：句长上限（建议单句 ≤30 词、避免连续等长句，但不硬卡）、被动比例。数据驱动写作。详见 `references/anti-ai-protocol.md`。**语态按目标刊切换（软提示，不阻断）**：Nature/Science/Cell 官方 guideline 推荐主动语态（"We show that…"），不设被动下限；传统刊参考被动 50–70%。`style_checker.py --journal <刊名>` 把语态偏差、句长写进 warnings，不计入 score、不卡门禁；装饰性破折号（em-dash —/——）**命中一个即 hard_fail 一票否决**；AI 套话/禁词/生僻词/造词/列点计入 score。**中文正文同样受检**：19 条中文套话（真源为脚本里的 `FORBIDDEN_CN`，命中即 high 扣 15 分，超 3 条起每条再 +5），句子级检查按「。！？」断句、按 2 字 = 1 词折算（此前中文稿切不出句子，恒判满分放行）。破折号计数覆盖 `—` / `——`（算一个） / `␣–␣`；复合词与数字区间（Michaelis–Menten、1990–2005、5–50 mM、5 – 50 mM）不是破折号，不计。
 7. **引用格式**：正文一律 `[n]`（分节矩阵重排后的全局索引），每节末附 Vancouver 列表；严禁 `[Author,2023]`/`(1)`。
 8. **期刊上限**：storyline 必须在 `target_journal` 字数上限内编排，严禁先写超 30% 再砍。
 9. **占位清零**：`CITE_PENDING`/`DATA_PENDING`/`REF_DROPPED` 必须在 `/merge` 前清零（Phase 10 扫描门禁）。
@@ -676,7 +676,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 - ❌ 主 agent 自评 DoD 当通过：节末检查必须委托独立subagent盲检，上一节 verify 未 exit 0 就开写下一节。
 - ❌ 带 CITE_PENDING / DATA_PENDING / REF_DROPPED 占位跑 /merge，跳过 Phase 10 占位扫描门禁。
 - ❌ 先写超期刊上限 30% 再砍：storyline 必须在 target_journal 字数上限内编排。
-- ❌ Discussion 漏写 Limitations 段，或正文用列点符号，或破折号（em-dash —/——）超配额（每千词 2 个、单文件底线 2 个），硬禁、命中即 fail。（单句超 30 词为软提示、配额内的破折号为 info 提示，见提醒酌情改，不列入硬性反例。）
+- ❌ Discussion 漏写 Limitations 段，或正文用列点符号，或用装饰性破折号（em-dash —/——/␣–␣，一个都不许有），硬禁、命中即 fail。（单句超 30 词为软提示，见提醒酌情改，不列入硬性反例。）
 - ❌ 投稿包残留 `{{VAR}}` 占位、伪造 reviewer 邮箱、瞒报 COI，或 Source Data 数值与图不对应。
 
 ---

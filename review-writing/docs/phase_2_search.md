@@ -55,6 +55,7 @@ for each section in outline.md (e.g., section ID = "2.1"):
          --write-back
      If guard exits non-zero → do NOT continue to next section; fix flagged entries first.
      `--write-back` 把每条的 verified 与 per-entry checked_at 落盘到 literature_index.json，下一节复用已验条目、跳过重复联网核验（L1 短路，TTL 30 天）。verified 由脚本写、不靠 AI 记。
+     同一次还会落 `article_type`（批量取 PubMed pubtype，100 条/请求）。stderr 若出现 `ARTICLE_TYPE: N/M 条没取到文献类型` → 那 N 条的「机制/疗效结论不得只挂综述」纪律这次没执行（按 unknown 跳过）；老项目一次性补齐用 `--backfill-article-type`（只改这一个字段）。
      🔴 **这一步是 DoD R2b 的唯一证据来源**：绝不能图快加 `--offline`（离线判不出编造文献），也不能省 `--write-back`（逐条 checked_at 落不下）。少任一个，Phase 3 每节盲检的 R2b 都会 fail。
   7. Confirm write success → update state.json (add section to searched_sections):
      python3 scripts/state_manager.py complete-search --section X.X

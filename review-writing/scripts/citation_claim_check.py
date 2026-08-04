@@ -42,6 +42,10 @@ from pathlib import Path
 VALID_VERDICTS = {"support", "weak", "contradict", "unknown"}
 REVIEW_TYPES = {"review", "systematic_review"}
 EFFICACY_OK_TYPES = {"meta_analysis", "clinical_trial"}
+# 机制断言的禁挂集合 = 全部二次文献。Meta 分析对**疗效**是合法上位证据
+# （汇总同类试验的效应量），但它同样不含一手机制实验，拿它撑"A 通过 B 调控 C"
+# 是错的——这条此前漏在 REVIEW_TYPES 之外，机制挂 Meta 一直放行。
+MECHANISM_FORBIDDEN_TYPES = REVIEW_TYPES | {"meta_analysis"}
 
 
 def _norm(s) -> str:
@@ -58,16 +62,38 @@ def _load_evidence(path: Path) -> list[dict]:
     raise ValueError("claim_evidence 必须是 list 或 {rows:[...]}")
 
 
-def _load_ledger(root_dir: Path) -> dict:
+# 索引路径与条目主键各家不统一（依据各家自己的写入脚本/config 实测，2026-08-04）：
+#   路径：gsw/sci2doc=<root>/literature_index.json；nsfc/rw/revise-sci=<root>/data/literature_index.json
+#   主键：sci2doc/nsfc=id；rw/revise-sci=global_id；gsw=citation_number
+#        （与 delegate_write_core._index_id_field 的口径一一对应；rr 家无索引概念）
+# 本脚本是家无关共享件，拿不到也不该拿家名 config → 按数据形状探测：路径取第一个
+# 存在的候选；主键把条目上所有候选字段的值都注册（setdefault 先到先得）。
+# 新增布局时只改这两个元组，禁止写家名 if/elif 散弹分支。
+_INDEX_PATH_CANDIDATES = ("literature_index.json", "data/literature_index.json")
+_INDEX_ID_FIELDS = ("id", "global_id", "citation_number")
+
+
+def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
     """从 literature_index.json（+ ref_evidence_cache.json abstract 兜底）建
-    ref_id → {abstract, article_type} 索引。缺失/损坏一律当空（fail-safe，不炸）。"""
+    ref_id → {abstract, article_type} 索引。缺失/损坏一律当空（fail-safe，不炸）。
+    返回 (索引, 索引本体条目数, 实际选中的索引路径或 None)——条目数为 0 时调用方
+    必须把"这次没有索引可依据"打出来，不许和"检查过且通过"混同。"""
     out: dict[str, dict] = {}
+    index_entries = 0
+    index_path: str | None = None
     if not root_dir:
-        return out
-    try:
-        data = json.loads((root_dir / "literature_index.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, ValueError):
-        data = None
+        return out, index_entries, index_path
+    data = None
+    for rel in _INDEX_PATH_CANDIDATES:
+        p = root_dir / rel
+        if not p.is_file():
+            continue
+        index_path = str(p)
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            data = None
+        break  # 第一个存在的候选定胜负：坏了也当空，不再向下读另一处可能陈旧的副本
     entries: list = []
     if isinstance(data, list):
         entries = data
@@ -77,18 +103,25 @@ def _load_ledger(root_dir: Path) -> dict:
                 entries = data[k]
                 break
     for e in entries:
-        if isinstance(e, dict) and e.get("id"):
-            out[str(e["id"])] = {
-                "abstract": str(e.get("abstract") or ""),
-                "article_type": str(e.get("article_type") or "unknown"),  # 缺字段 → unknown
-            }
-    # ref_evidence_cache abstract 作子串比对的兜底来源（不覆盖已有条目）
+        if not isinstance(e, dict):
+            continue
+        keys = [str(e[f]) for f in _INDEX_ID_FIELDS if e.get(f) not in (None, "")]
+        if not keys:
+            continue
+        index_entries += 1
+        rec = {
+            "abstract": str(e.get("abstract") or ""),
+            "article_type": str(e.get("article_type") or "unknown"),  # 缺字段 → unknown
+        }
+        for k in keys:
+            out.setdefault(k, rec)
+    # ref_evidence_cache abstract 作子串比对的兜底来源（不覆盖已有条目；不计入索引条目数）
     cache = _load_cache(root_dir / "ref_evidence_cache.json")
     for ref, rec in (cache.get("abstracts") or {}).items():
         if isinstance(rec, dict) and str(ref) not in out:
             out[str(ref)] = {"abstract": str(rec.get("retrieved_abstract") or ""),
                              "article_type": "unknown"}
-    return out
+    return out, index_entries, index_path
 
 
 # section 来自 claim_evidence（主会话写、非子代理可控），含 `/`、`..`、glob 通配符
@@ -231,6 +264,11 @@ def _row_blockers(row: dict) -> list[str]:
 
 VERDICT_CN = {"support": "✅支持", "weak": "🟡弱相关", "contradict": "❌不支持", "unknown": "❔无法判定"}
 
+# 200+ 条文献时 warnings/skipped_refs 逐条呈现会刷屏、淹没真正要处理的 blocker。
+# 只压缩呈现（stdout 与 summary JSON 都截断到此上限并给出总数），检查覆盖面一条不少：
+# 退出码与判定结论（ok/blockers/counts）与截断完全无关；全量明细加 --full-warnings 取。
+WARN_DISPLAY_LIMIT = 10
+
 
 def _render_table(rows: list[dict]) -> str:
     lines = ["## 引文核证矩阵（观点 ↔ 引文 ↔ 是否真支持）", "",
@@ -258,6 +296,9 @@ def main() -> int:
                     help="禁用缓存 backfill/回写（仅校验当前 claim_evidence，不跨批复用）")
     ap.add_argument("--check-quote-substring", action="store_true",
                     help="防伪：承重行 evidence_quote 必须是账本 abstract 子串，否则 fail-closed(exit2)")
+    ap.add_argument("--full-warnings", action="store_true",
+                    help="不截断警告/跳过明细的呈现（默认超过 %d 条截断；退出码与判定结论不受截断影响）"
+                         % WARN_DISPLAY_LIMIT)
     args = ap.parse_args()
 
     if args.evidence:
@@ -294,7 +335,7 @@ def main() -> int:
 
     # 账本索引（article_type + abstract）：缺 → 空，机械纪律只 warning 不炸
     root_dir = Path(args.root) if args.root else ev_path.parent
-    ledger = _load_ledger(root_dir)
+    ledger, ledger_entries, ledger_path = _load_ledger(root_dir)
 
     blockers: list[str] = []       # exit 2（沿用原承重核证 + G0b 防伪/纪律硬拦）
     soft_blockers: list[str] = []  # exit 1（preprint 未标注）
@@ -333,6 +374,8 @@ def main() -> int:
             discipline_checked += 1
             if ckind in ("mechanism", "efficacy") and atype in REVIEW_TYPES:
                 blockers.append(f"承重机制/疗效声明不得挂综述: {ref}")
+            elif ckind == "mechanism" and atype in MECHANISM_FORBIDDEN_TYPES:
+                blockers.append(f"承重机制声明不得挂二次文献（{atype}）: {ref}")
             # efficacy 挂 meta_analysis/clinical_trial → 合法上位证据，放行（no-op）
 
         # preprint 标注：正文引了该 ref 但缺 [Preprint] 标记 → soft fail(exit1)
@@ -348,16 +391,27 @@ def main() -> int:
 
     load_bearing = sum(1 for r in rows if r.get("is_load_bearing"))
     contradict = sum(1 for r in rows if r.get("verdict") == "contradict")
+    # 呈现层截断（B 段防刷屏）：只截 warnings / skipped_refs 明细，blocker 是要处理的
+    # 问题本身、逐条保留。判定（ok/blockers/counts/退出码）全部按全量算，与截断无关。
+    limit = None if args.full_warnings else WARN_DISPLAY_LIMIT
+    shown_warnings = warnings if limit is None else warnings[:limit]
+    shown_skipped_refs = discipline_skipped_refs if limit is None else discipline_skipped_refs[:limit]
     summary = {
         "ok": not blockers and not soft_blockers,
         "blockers": blockers,
         "soft_blockers": soft_blockers,
-        "warnings": warnings,
+        "warnings": shown_warnings,
+        "warnings_total": len(warnings),
         "counts": {"total": len(rows), "load_bearing": load_bearing, "contradict": contradict,
                    "discipline_checked": discipline_checked,
-                   "discipline_skipped": discipline_skipped},
-        # 哪些 ref 因 claim_kind/article_type 未就绪而没走机械纪律（去重、保序）
-        "discipline_skipped_refs": discipline_skipped_refs,
+                   "discipline_skipped": discipline_skipped,
+                   "ledger_entries": ledger_entries},
+        # 实际读到的文献索引路径（None=候选路径都不存在）；配合 ledger_entries 区分
+        # "没索引可依据" 和 "索引在、个别条目字段缺"
+        "ledger_path": ledger_path,
+        # 哪些 ref 因 claim_kind/article_type 未就绪而没走机械纪律（去重、保序；
+        # 呈现截断到 WARN_DISPLAY_LIMIT，全量总数看 counts.discipline_skipped）
+        "discipline_skipped_refs": shown_skipped_refs,
         "cache_reuse": reuse,
     }
     if blockers:
@@ -367,6 +421,16 @@ def main() -> int:
         print("")
     else:
         print("✅ 引文核证通过：承重论点均有真摘要支撑且已人工确认（背景句请在上表批量核对）。")
+    if ledger_entries == 0:
+        # 判据："读到 0 条"必须和"检查过且通过"看得出区别——说清是索引不存在还是
+        # 文件在但没有可识别条目，机械纪律与账本比对这次没有索引可依据。
+        if ledger_path:
+            where = f"读了 {ledger_path} 但没有可识别条目（主键候选 {'/'.join(_INDEX_ID_FIELDS)}）"
+        else:
+            tried = "、".join(str(root_dir / rel) for rel in _INDEX_PATH_CANDIDATES)
+            where = f"候选路径均不存在：{tried}"
+        print(f"🟡 文献索引 0 条——{where}。本次 article_type 全按 unknown 处理，"
+              f"「机制/疗效声明不得挂综述」纪律与账本 abstract 比对没有索引可依据。")
     if discipline_skipped:
         # 一句话说清"这次有多少没查"，别让人以为全查过了。逐条 ⚠️ 在下面，
         # 200 条时那堆 warning 就是噪音，这一行才是用户真正要看见的。
@@ -381,8 +445,11 @@ def main() -> int:
         print("🟠 预印本标注缺失（需在正文引用处补 [Preprint] 标记）：")
         for s in soft_blockers:
             print(f"  - {s}")
-    for w in warnings:
+    for w in shown_warnings:
         print(f"⚠️ {w}")
+    hidden = len(warnings) - len(shown_warnings)
+    if hidden > 0:
+        print(f"⚠️ ……同类警告另有 {hidden} 条未展示（加 --full-warnings 看全部；退出码与判定结论不受截断影响）")
     print(json.dumps(summary, ensure_ascii=False))
     if blockers:
         return 2
