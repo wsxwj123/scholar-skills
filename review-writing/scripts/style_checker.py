@@ -547,10 +547,24 @@ def main() -> int:
                    help="Max acceptable passive-voice ratio (review default 0.30)")
     args = p.parse_args()
 
+    # 输入路径先验证再用：路径打错过去会走到「没扫到文件」分支、以 ok:true exit 0
+    # 收场——去 AI 腔这道硬门少打一个字母就等于整道门没跑。区分两件事：
+    #   路径不存在/不是目录 = 调用方搞错了 → 非 0 拒绝（同 proofread.py 的 dir not found）
+    #   目录在但没有 .md    = 合法的空项目状态 → 维持 ok:true exit 0
+    if args.file:
+        if not os.path.isfile(args.file):
+            print(json.dumps({"ok": False, "error": f"file not found: {args.file}"},
+                             ensure_ascii=False))
+            return 1
+    elif not os.path.isdir(args.manuscript_dir):
+        print(json.dumps({"ok": False, "error": f"dir not found: {args.manuscript_dir}"},
+                         ensure_ascii=False))
+        return 1
+
     files: list[str] = []
     if args.file:
         files = [args.file]
-    elif os.path.isdir(args.manuscript_dir):
+    else:
         files = sorted(glob.glob(os.path.join(args.manuscript_dir, "*.md")))
         # Skip merge-generated derivatives (carry the AUTO-GENERATED banner;
         # double-scanning them and the banner em-dash cause false positives).

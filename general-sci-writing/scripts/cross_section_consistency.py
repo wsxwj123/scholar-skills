@@ -31,6 +31,10 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ref_section import is_reference_heading  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # 数值模式：只抓高价值、低歧义的科学数值。每条带一个 kind 标签。
@@ -55,9 +59,8 @@ LABEL_WINDOW = 14
 
 # References / 参考文献 段标题：命中后该段及之后到下一个一级标题之间视为引用区，
 # 整段跳过（PMID、编号、卷期页码全是数字噪声）。
-REF_HEADING = re.compile(
-    r"^\s*#{0,6}\s*(references?|bibliography|参考文献|引用文献)\b", re.IGNORECASE
-)
+# 口径统一在 ref_section.py（此前这里是第 4 份各自为政的正则，且只做前缀匹配 ——
+# 正文 "references were checked" 会被当成引用区起点）。
 # 一级/二级标题（用于判断引用区结束）。
 HEADING = re.compile(r"^\s*#{1,6}\s+\S")
 
@@ -126,12 +129,12 @@ def split_body_lines(content: str) -> list[str]:
     out: list[str] = []
     in_ref = False
     for line in content.splitlines():
-        if REF_HEADING.match(line):
+        if is_reference_heading(line):
             in_ref = True
             continue
         if in_ref:
             # 引用区在下一个普通标题处结束（非 references 标题）。
-            if HEADING.match(line) and not REF_HEADING.match(line):
+            if HEADING.match(line) and not is_reference_heading(line):
                 in_ref = False
             else:
                 continue

@@ -10,18 +10,32 @@ the same result. Run it after editing the FONT/SIZE constants below.
 
 Usage:
     python scripts/make_reference_docx.py [--template BASE.docx] [--output OUT.docx]
-    (default: read skill templates/reference.docx, write ./reference.docx in CWD)
+    (default: 按候选位置找基准模板，写 ./reference.docx 到当前目录)
 
-Requires: python-docx. The baseline templates/reference.docx must already exist
-(regenerate with: pandoc --print-default-data-file reference.docx > templates/reference.docx).
+Requires: python-docx。基准模板**不需要事先存在**：一个候选位置都没有时本脚本会用
+`pandoc --print-default-data-file reference.docx` 现产一份。此前它硬读
+scripts/../templates/reference.docx，而 /init 部署后的项目里根本没有 templates/ 目录
+—— merge 报"模板缺失，请跑 make_reference_docx.py"，make_reference_docx.py 又读同一个
+缺失文件报错，补救成了死循环。
 """
 
 import argparse
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
-from docx import Document
-from docx.shared import Pt
-from docx.oxml.ns import qn
+try:
+    from docx import Document
+    from docx.shared import Pt
+    from docx.oxml.ns import qn
+except ImportError as exc:  # 环境问题给可操作提示，不要甩裸 traceback
+    raise SystemExit(
+        f"缺少 python-docx（{exc}）。装上再跑：\n"
+        f"  {sys.executable} -m pip install python-docx\n"
+        "（本脚本只在生成 docx 样式模板时需要它；不导出 docx 的流程不受影响）"
+    )
 
 # ---------------------------------------------------------------------------
 # TUNABLES — edit these to change the locked fonts/sizes, then re-run the script.
@@ -63,6 +77,40 @@ CAPTION_STYLES = {
 TEMPLATE_PATH = Path(__file__).resolve().parent.parent / "templates" / "reference.docx"
 
 
+def baseline_candidates():
+    """基准模板可能在的位置，与 merge_manuscript.reference_doc_candidates() 对齐。"""
+    seen, out = set(), []
+    for p in (TEMPLATE_PATH,
+              Path.cwd() / "templates" / "reference.docx",
+              Path.cwd() / "reference.docx"):   # 上一次本脚本的产物，重跑幂等
+        if str(p) not in seen:
+            seen.add(str(p))
+            out.append(p)
+    return out
+
+
+def make_pandoc_baseline(dest):
+    """没有任何基准模板时，用 pandoc 现产一份 —— 补救路径不能读它自己要产的文件。"""
+    pandoc = shutil.which("pandoc")
+    if not pandoc:
+        raise SystemExit(
+            "基准模板在这些位置都找不到：\n  "
+            + "\n  ".join(str(p) for p in baseline_candidates())
+            + "\n且 PATH 里没有 pandoc，无法现产一份。二选一：\n"
+            "  1) 装 pandoc（macOS: brew install pandoc）后重跑本脚本；\n"
+            "  2) 从别处拷一份 reference.docx 过来，用 --template 指给本脚本。"
+        )
+    try:
+        proc = subprocess.run([pandoc, "--print-default-data-file", "reference.docx"],
+                              check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        raise SystemExit(
+            f"pandoc 产基准模板失败（exit {e.returncode}）：\n"
+            f"{(e.stderr or b'').decode('utf-8', 'replace').strip()}")
+    dest.write_bytes(proc.stdout)
+    return dest
+
+
 def set_style_font(style, size_pt, bold=None):
     """Force a style's font name + size, including the East-Asian font slot.
 
@@ -97,24 +145,31 @@ def main():
         description="Bake SCI manuscript fonts (TNR) into a pandoc reference.docx."
     )
     parser.add_argument(
-        "--template", default=str(TEMPLATE_PATH),
-        help="baseline reference.docx to read (default: skill templates/reference.docx)")
+        "--template", default=None,
+        help="baseline reference.docx to read (默认按候选位置找，都没有就用 pandoc 现产)")
     parser.add_argument(
         "--output", default=str(Path.cwd() / "reference.docx"),
         help="where to write the styled docx (default: ./reference.docx in CWD)")
     args = parser.parse_args()
 
-    template_path = Path(args.template).resolve()
     output_path = Path(args.output).resolve()
+    tmp_baseline = None
 
-    if not template_path.exists():
-        raise SystemExit(
-            f"baseline template not found: {template_path}\n"
-            "regenerate it first:\n"
-            "  pandoc --print-default-data-file reference.docx > templates/reference.docx"
-        )
+    if args.template:
+        template_path = Path(args.template).resolve()
+        if not template_path.exists():
+            raise SystemExit(f"--template 指定的基准模板不存在: {template_path}")
+    else:
+        template_path = next((p.resolve() for p in baseline_candidates() if p.exists()), None)
+        if template_path is None:
+            # 关键：补救路径不再去读它自己要产的那个文件。
+            tmp_baseline = Path(tempfile.mkdtemp(prefix="ref_docx_")) / "baseline.docx"
+            template_path = make_pandoc_baseline(tmp_baseline)
+            print(f"基准模板缺失，已用 pandoc 现产一份: {template_path}")
 
     doc = Document(str(template_path))
+    if tmp_baseline:  # 现产的基准只是中转，读完即清
+        shutil.rmtree(tmp_baseline.parent, ignore_errors=True)
     styles = {s.name: s for s in doc.styles}
 
     applied = []

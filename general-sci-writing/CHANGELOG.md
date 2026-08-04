@@ -1,5 +1,76 @@
 # Changelog - General SCI Writing Skill
 
+## [2.35.0] - 2026-08-04
+
+收尾批·文档层。这一批的重点不是"把写错的字改对"，是**把会反复写错的结构拆掉**。
+
+### 🔴 `$WORKROOT` 用 21 次、定义 0 次 → 改成写死的相对路径
+
+- Phase 10 步骤 9/10/11（数值 / 交叉引用 / 方法学三层核查）的全部命令都依赖
+  `$WORKROOT`，而 SKILL.md 从头到尾没定义过它。用户照着复制，shell 把它展开成
+  空串 → `manuscript not found: /_numeric_fulltext.md`。
+- 修法不是"补一句 `WORKROOT=...` 的定义"（那还是留着一个必须记得先跑的前置步骤，
+  且 bash 赋值在 PowerShell 上照样不成立），而是**全部换成写死的 `.state/check/`**：
+  21 处不再有变量，任何一条都能单独原样复制执行。`.state/` 已在 `.gitignore`、
+  不属于 `managed_globs`（`manuscripts/*.md`），`merge_manuscript` 会自动建目录。
+  实测三条锚脚本（`numeric_candidates` / `structure_outline` / `methods_terms`）
+  在该路径下全部 exit 0，且不干扰步骤 7/8 的扫描范围。
+
+### 🔴 版本号三处不一致 → 收成一处
+
+- 原状：frontmatter `2.34.0`、SKILL.md 正文 `2.20.0`、README / QUICK_REFERENCE /
+  USAGE_GUIDE / TEST_CHECKLIST 全是 `2.20.0`。
+- **根因是"同一个数手写在 6 处"**，逐一改齐下次照样漂。改成
+  **frontmatter 的 `version:` 是全仓唯一写死处**，其余文档一律不再写版本号、
+  只写"以 frontmatter 为准"。CHANGELOG 是变更史，最新条与 frontmatter 对齐。
+
+### 🔴 硬编码行号引用 → 换成函数名
+
+- `SKILL.md` 与 `references/figure-protocol.md` 都写着"prewrite gate
+  （state_manager.py:2403）"，而 2403 行早就漂到别处（真正的判定在
+  `postwrite_state()` 里）。两处改成引用函数名，不再写行号。
+
+### SKILL.md 内部矛盾逐条改准
+
+- `--journal` 说取 `storyline.json` 的 `target_journal` → 实际在
+  `project_config.json`（`storyline_template` 只有 `innovation_core` /
+  `main_hypothesis` / `sections` 三个键，根本没这个字段）。
+- "六项判定细则"与紧接着的"七项合规检查"打架 → `compliance-gate.md` 实为 7 节，改 7。
+- "step8–11 全部通过 → 进 Phase 10.5" → Phase 10 实为步骤 1–11，改"步骤 1–11"。
+- frontmatter 说 Phase 13B"不出回复包"，正文 13B step 4 明写生成
+  `reviews/response_letter.md` → 按正文为准改 frontmatter：13B 出**内部**
+  response letter，不出正式投稿用的完整回复包，正式回复包走 reviewer-response-sci。
+- 写作禁忌"严禁简略…视为失败"与"深度控制（软提示，非硬门）"打架 → 明确前者是
+  质量要求不是落盘阻断，门禁口径以后者为准。
+
+### 根目录四份文档：能跑的写清楚，跑不了的不许留
+
+- `README.md` / `QUICK_REFERENCE.md` 里 `config_manager.py load drug_delivery`
+  是位置参数写法，argparse 只有 `--field` / `--name`，原样跑 **exit 2**（实测）
+  → 全部改成 `--field` 写法，并显式写明这条坑。
+- 三份文档都指向 `tests/test_state_manager.py` / `tests/test_citation_guard.py`
+  与 `unittest discover -s tests`，而**技能里根本没有 `tests/` 目录**（实测
+  exit 1）。测试是 `scripts/test_*.py`，被 `.gitignore` 排除、不随包分发 →
+  改成如实说明"技能不分发测试，装完能自查的只有 py_compile"。
+- `TEST_CHECKLIST.md` 原来声称 "Status: PASS (20 tests)"，指的是不存在的测试
+  → 改成行为契约清单（改脚本的人要保证不倒退的行为），不再冒充测试报告。
+- `RUNTIME_LAYOUT.md` 原来只列 5 项运行时产物，实跑（`/init` 到 `/check`）产出
+  远不止 → 按实测重写，补上 `.state/transactions/`、`.state/check/`、
+  `backups/snapshot_*`、`env_status.json`、`active_field_config.json`、
+  各类报告、`structure_signoff.json`、`decisions_log.md` 等。
+- `USAGE_GUIDE.md` 整篇是 v2.0 时代的演示（`/check` 只出三行 Quality Report、
+  没有结构签字门禁、`/journal-study` 还在），演示的流程已经不存在
+  → **内容清空、改为指向真入口的路牌**。不重写：它唯一还准确的内容
+  （citation_guard 命令、`set-field`）在 README 与 QUICK_REFERENCE 都有，
+  重写一份等于再造一个漂移源。建议后续直接删除该文件。
+
+### 新增一致性护栏
+
+- `scripts/test_doc_consistency.py`（本机自测，不随包分发）静态锁死五类漂移：
+  版本号只许一处、不许出现 `xxx.py:<行号>`、shell 变量必须在同文件定义过、
+  文档提到的技能内路径必须真实存在、`config_manager.py` 不许写成位置参数。
+  修前 24 处红，修后全绿。
+
 ## [2.34.0] - 2026-08-04
 
 盲检打回三条，前两条致命，其中 R-1 是上一批自己引进的。

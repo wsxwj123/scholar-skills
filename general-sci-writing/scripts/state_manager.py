@@ -20,6 +20,9 @@ from pathlib import Path
 from collections import OrderedDict
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ref_section import is_reference_heading, strip_reference_section  # noqa: E402
+
 # Define state files map
 STATE_FILES = {
     "project_config": "project_config.json",
@@ -337,12 +340,12 @@ def safe_json_load(path):
     return json.loads(raw)
 
 def strip_references_markdown(content):
-    """Remove References/参考文献 section from markdown body for word counting."""
-    heading_re = re.compile(r"^\s{0,3}#{1,6}\s*(references|参考文献)\s*$", re.IGNORECASE | re.MULTILINE)
-    match = heading_re.search(content or "")
-    if not match:
-        return content or ""
-    return (content or "")[:match.start()]
+    """Remove References/参考文献 section from markdown body for word counting.
+
+    识别口径统一在 ref_section.py（此前这里的正则认不得 Bibliography /
+    **References** / 参考文献：，word-count 就把整段参考文献算进正文词数）。
+    """
+    return strip_reference_section(content)
 
 
 def calculate_word_counts(exclude_references=True, section=None):
@@ -1955,13 +1958,12 @@ def rewrite_reference_sections(
     changed = False
     i = 0
 
-    heading_re = re.compile(r"^\s{0,3}#{1,6}\s*(references|参考文献)\s*$", re.IGNORECASE)
     next_heading_re = re.compile(r"^\s{0,3}#{1,6}\s+\S+")
     ref_item_re = re.compile(r"^(\s*)(\d+)\.\s+(.*)$")
 
     while i < len(lines):
         line = lines[i]
-        if not heading_re.match(line):
+        if not is_reference_heading(line):  # 口径统一在 ref_section.py
             out.append(line)
             i += 1
             continue
@@ -2140,26 +2142,8 @@ def rewrite_manuscript_citations_strict(
 
 
 def prune_old_literature_backups(backup_root="backups", keep=DEFAULT_BACKUP_KEEP, max_age_days=None):
-    target_root = os.path.join(backup_root, "literature_sync")
-    if not os.path.exists(target_root):
-        return {"removed": [], "kept": 0}
-
-    dirs = [d for d in glob.glob(os.path.join(target_root, "lit_sync_*")) if os.path.isdir(d)]
-    dirs.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-    removed = []
-
-    now_ts = datetime.now().timestamp()
-    for idx, d in enumerate(dirs):
-        remove_by_count = idx >= max(1, int(keep))
-        remove_by_age = False
-        if max_age_days is not None:
-            age_days = (now_ts - os.path.getmtime(d)) / 86400.0
-            remove_by_age = age_days > float(max_age_days)
-        if remove_by_count or remove_by_age:
-            shutil.rmtree(d, ignore_errors=True)
-            removed.append(d)
-
-    return {"removed": removed, "kept": max(0, len(dirs) - len(removed))}
+    return prune_backup_dirs(os.path.join(backup_root, "literature_sync"), "lit_sync_*",
+                             keep=keep, max_age_days=max_age_days)
 
 def backup_literature_sync_assets(
     index_file="literature_index.json",
@@ -2993,11 +2977,13 @@ def _update_state_locked(payload, updated_files, problems):
     if problems:  # 校验不过 → 一个字都不写
         return
 
-    # 整文件覆盖前先做一次全量快照（复用 /snapshot 的同一实现），万一覆盖错了
-    # 可以直接 /rollback 找回来。只在确有已存在的目标文件时才拍，空项目不拍。
+    # 整文件覆盖前先给"本次将被覆盖的那几个文件"拍快照，万一覆盖错了可以直接
+    # /rollback 找回来。此前拍的是全项目快照：回退点只需要覆盖对象，多拷的稿子和
+    # 识图对回退毫无帮助，却让每次小字段更新都按整个项目体积涨盘。
+    # 目标文件一个都不存在（空项目/新建文件）时不拍——没有可被覆盖的内容。
     if any(os.path.exists(f) for _, f, _ in plan):
         try:
-            backup_project_state()
+            backup_files_snapshot([f for _, f, _ in plan])
         except Exception as e:
             # fail-closed：这是整文件覆盖，拿不到回退点就不许动手。此前只打一句
             # Warning 照写不误，一旦快照失败原始内容就没有任何找回路径。
@@ -3437,24 +3423,116 @@ def set_field_config(
     print(json.dumps(result, ensure_ascii=False))
     return result
 
-def backup_project_state(backup_dir="backups"):
-    """Creates a full project snapshot including all state files and manuscripts."""
+PARTIAL_SNAPSHOT_MANIFEST = ".partial_snapshot.json"
+
+
+def _new_snapshot_dir(backup_dir="backups"):
+    """占住一个还没人用的 snapshot_* 目录并返回它。
+
+    目录名只精确到秒：同一秒内第二次调用会撞上已有快照。此前撞名就直接往里
+    copy2，把先建那份污染成"覆盖后"的内容（原始数据现盘和快照两头都没了），
+    再崩在后面的 copytree 上。撞名一律另起一个，已建快照绝不被后来者改写。
+    exist_ok=False + 捕获 FileExistsError：并发下也只有一个进程能占住这个名字。
+    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     snapshot_dir = os.path.join(backup_dir, f"snapshot_{timestamp}")
-
-    # 目录名只精确到秒：同一秒内第二次调用会撞上已有快照。此前撞名就直接往里
-    # copy2，把先建那份污染成"覆盖后"的内容（原始数据现盘和快照两头都没了），
-    # 再崩在下面的 copytree 上。撞名一律另起一个，已建快照绝不被后来者改写。
-    # exist_ok=False + 捕获 FileExistsError：并发下也只有一个进程能占住这个名字。
     seq = 1
     while True:
         try:
             os.makedirs(snapshot_dir)
-            break
+            return snapshot_dir, timestamp
         except FileExistsError:
             seq += 1
             snapshot_dir = os.path.join(backup_dir, f"snapshot_{timestamp}_{seq}")
+
+
+def _record_snapshot(snapshot_dir, timestamp, backup_dir="backups"):
+    """把快照登进 version_history 并按 max_snapshots 清理磁盘目录。
+
+    此前只截 JSON 里的记录条目，磁盘上的 snapshot_* 目录永不删除 —— 记录看着
+    干净、盘一直涨。现在两边用同一个 keep 数，记录里有的目录就在，反之亦然。
+    """
     tag = os.path.basename(snapshot_dir)
+    version_file = STATE_FILES.get("version_history")
+    max_keep = DEFAULT_BACKUP_KEEP
+    if version_file:
+        try:
+            vh = read_json_file(version_file) if os.path.exists(version_file) else {}
+            if not isinstance(vh, dict):
+                vh = {}
+            snaps = vh.get("snapshots")
+            if not isinstance(snaps, list):
+                snaps = []
+            if isinstance(vh.get("max_snapshots"), int) and vh["max_snapshots"] > 0:
+                max_keep = vh["max_snapshots"]
+            snaps.append({"version": f"v_{tag}", "dir": snapshot_dir, "ts": timestamp})
+            vh["snapshots"] = snaps[-max_keep:]
+            vh["current_version"] = f"v_{tag}"
+            with open(version_file, "w", encoding="utf-8") as vf:
+                json.dump(vh, vf, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+    # 清理只按数量，不按年龄：快照是"上一次覆盖的回退点"，再旧也可能是唯一副本，
+    # 时间到了就删太危险。ponytail: keep=DEFAULT_BACKUP_KEEP(20)，要调就调这个常量。
+    prune_backup_dirs(backup_dir, "snapshot_*", keep=max_keep, protect=snapshot_dir)
+
+
+def prune_backup_dirs(root, prefix_glob, keep=DEFAULT_BACKUP_KEEP, max_age_days=None, protect=None):
+    """按 mtime 倒序保留最新 keep 个（可选再按年龄删），返回 {removed, kept}。
+
+    protect: 绝不删除的目录（刚建好的那个回退点）。同秒内 mtime 可能打平，排序
+    一旦把新建的那份排到 keep 之后，清理就会把唯一的回退点删掉。
+    """
+    if not os.path.isdir(root):
+        return {"removed": [], "kept": 0}
+    protected = os.path.normpath(protect) if protect else None
+    dirs = [d for d in glob.glob(os.path.join(root, prefix_glob)) if os.path.isdir(d)]
+    dirs.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    removed = []
+    now_ts = datetime.now().timestamp()
+    for idx, d in enumerate(dirs):
+        if protected and os.path.normpath(d) == protected:
+            continue
+        remove_by_count = idx >= max(1, int(keep))
+        remove_by_age = False
+        if max_age_days is not None:
+            age_days = (now_ts - os.path.getmtime(d)) / 86400.0
+            remove_by_age = age_days > float(max_age_days)
+        if remove_by_count or remove_by_age:
+            shutil.rmtree(d, ignore_errors=True)
+            removed.append(d)
+    return {"removed": removed, "kept": max(0, len(dirs) - len(removed))}
+
+
+def backup_files_snapshot(paths, backup_dir="backups"):
+    """只快照"这次将被覆盖的那几个文件"，作为一次整文件覆盖的回退点。
+
+    比 backup_project_state 省几个数量级的磁盘：回退点只需要覆盖对象，把整个
+    项目（20 节稿 + 识图）再拷一份对回退毫无帮助，纯粹是每次小字段更新都按项目
+    体积涨盘。落地目录仍是 backups/snapshot_*，所以 /rollback 照常能找到它。
+    带 PARTIAL_SNAPSHOT_MANIFEST 标记，restore 时按"逐文件盖回"而不是整目录重建。
+    """
+    targets = [p for p in dict.fromkeys(paths) if os.path.isfile(p)]
+    if not targets:
+        return None
+    snapshot_dir, timestamp = _new_snapshot_dir(backup_dir)
+    saved = []
+    for filename in targets:
+        dst = os.path.join(snapshot_dir, filename)
+        os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+        shutil.copy2(filename, dst)
+        saved.append(filename)
+    with open(os.path.join(snapshot_dir, PARTIAL_SNAPSHOT_MANIFEST), "w", encoding="utf-8") as f:
+        json.dump({"partial": True, "files": saved, "ts": timestamp}, f,
+                  ensure_ascii=False, indent=2)
+    _record_snapshot(snapshot_dir, timestamp, backup_dir=backup_dir)
+    print(f"✅ Pre-overwrite snapshot ({len(saved)} file(s)) created at: {snapshot_dir}")
+    return snapshot_dir
+
+
+def backup_project_state(backup_dir="backups"):
+    """Creates a full project snapshot including all state files and manuscripts."""
+    snapshot_dir, timestamp = _new_snapshot_dir(backup_dir)
 
 
     # 1. Backup State Files (Bug ③ 配套修复:含子目录路径保留结构)
@@ -3479,24 +3557,9 @@ def backup_project_state(backup_dir="backups"):
         shutil.copytree("figure_analysis", os.path.join(snapshot_dir, "figure_analysis"))
 
     # 5. Record this snapshot into version_history.json (此前从不写入的全局 bug)
-    version_file = STATE_FILES.get("version_history")
-    if version_file:
-        try:
-            vh = read_json_file(version_file) if os.path.exists(version_file) else {}
-            if not isinstance(vh, dict):
-                vh = {}
-            snaps = vh.get("snapshots")
-            if not isinstance(snaps, list):
-                snaps = []
-            max_keep = vh.get("max_snapshots") if isinstance(vh.get("max_snapshots"), int) else 10
-            snaps.append({"version": f"v_{tag}", "dir": snapshot_dir, "ts": timestamp})
-            vh["snapshots"] = snaps[-max_keep:]
-            vh["current_version"] = f"v_{tag}"
-            with open(version_file, "w", encoding="utf-8") as vf:
-                json.dump(vh, vf, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
-        
+    #    + 按 keep 数清理磁盘上的旧快照目录（此前只截 JSON 记录，目录永不清）
+    _record_snapshot(snapshot_dir, timestamp, backup_dir=backup_dir)
+
     print(f"✅ Full project snapshot created at: {snapshot_dir}")
     return snapshot_dir
 
@@ -3510,9 +3573,50 @@ def list_snapshot_backups(backup_dir="backups"):
     return dirs
 
 
+def _restore_partial_snapshot(snapshot_dir, manifest_path):
+    """逐文件盖回。
+
+    部分快照里只有"上次被覆盖的那几个文件"，绝不能走整目录 rmtree+copytree —— 那会
+    把快照里没有的稿子/识图一并删掉，回退反而变成第二次数据丢失。
+    """
+    try:
+        with open(manifest_path, encoding="utf-8") as f:
+            files = json.load(f).get("files") or []
+    except (OSError, ValueError, AttributeError):
+        files = []
+    restored_files = []
+    missing = []
+    for filename in files:
+        # 快照里的相对路径直接对应项目里的相对路径；不接受绝对路径/越级路径。
+        if os.path.isabs(filename) or ".." in filename.replace("\\", "/").split("/"):
+            missing.append(filename)
+            continue
+        src = os.path.join(snapshot_dir, filename)
+        if not os.path.isfile(src):
+            missing.append(filename)
+            continue
+        parent = os.path.dirname(filename)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        shutil.copy2(src, filename)
+        restored_files.append(filename)
+    return {
+        "restored": bool(restored_files),
+        "partial": True,
+        "snapshot_dir": snapshot_dir,
+        "restored_files_count": len(restored_files),
+        "restored_files": restored_files,
+        "missing_in_snapshot": missing,
+    }
+
+
 def restore_project_snapshot(snapshot_dir):
     if not snapshot_dir or not os.path.exists(snapshot_dir):
         return {"restored": False, "reason": "snapshot_not_found", "snapshot_dir": snapshot_dir}
+
+    manifest_path = os.path.join(snapshot_dir, PARTIAL_SNAPSHOT_MANIFEST)
+    if os.path.isfile(manifest_path):
+        return _restore_partial_snapshot(snapshot_dir, manifest_path)
 
     restored_files = []
 

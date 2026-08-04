@@ -15,7 +15,7 @@
 8. **收口（每完成一个大 Figure 更新一次状态）**：
    - **同步到 `figures_database.json`（用 `add-figure`，单条即可）**：把本 figure 写成**单个** JSON 对象（`figure_id` 必需、`section` = storyline 的 section_id；外加 `declared_panels`（可选，命令比对实际 panels 数、不符警告）/ `panels` / 比较对 / `p_value` / `n` / `stat_test`（供 Methods 联动）/ `data_status`，格式见下方「条目示例」），执行 `python scripts/state_manager.py add-figure <one_figure.json>`。该命令在 `FileLock` 下：① 按 `figure_id` 去重合并进 figures_database（**不覆盖其他 figure**）；② **顺带同步** `writing_progress`（追加 figure 事件）、`context_memory`（追加识图记录）、回写 `storyline.sections[].figures`——一次锁内全办，无需再调有 gate 的 `postwrite`。误传数组或缺 `figure_id` 会被拒；核心定量读不到的项 `data_status="pending"`，对接 SKILL.md §2 熔断。
    - **记识图确认到 section_memory**：执行 `python scripts/state_manager.py update <payload.json>`，payload 形如 `{"section_memory":{"section":"results_3.2","content":"Figure 2 A–E 已识别；用户确认 n=6、误差棒=SEM；Panel C 留 CITE_PENDING"}}`——让 `/write --include-draft` 写该节时能读到识图确认细节。
-   - **备份**：执行 `python scripts/state_manager.py snapshot`（无 gate；现已备份 `figure_analysis/` 并写入 `version_history`）。**勿用 `postwrite`**——它有 prewrite gate（state_manager.py:2403），识图阶段没跑 write-cycle 会 `sys.exit(2)`。
+   - **备份**：执行 `python scripts/state_manager.py snapshot`（无 gate；现已备份 `figure_analysis/` 并写入 `version_history`）。**勿用 `postwrite`**——它有 prewrite gate（`state_manager.py` 的 `postwrite_state()`），识图阶段没跑 write-cycle 会 `sys.exit(2)`。
    - **缩略词扫描（与 Phase 7 联动）**：扫描本 figure_{N}.md 新引入的 `Full Name (ABBR)` 模式，对每个未在 `abbreviations.json` 的缩写执行 `add-abbreviation`（first_defined_in 填本 figure 对应的 section_id）。**否则 `/write` 写正文时查表查不到、会重复展开**——这是 figure 与 Phase 7 跨阶段集成的必经一步。
    - 告知用户：`figure_analysis/figure_{N}.md` 就绪，将作为 `/write {section}` 的结果与讨论依据。
 

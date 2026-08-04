@@ -8,10 +8,42 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ref_section import is_reference_heading  # noqa: E402
+
 # Default pandoc reference template bundled with this skill: locks body to
 # Times New Roman 12pt and headings to TNR bold (see make_reference_docx.py).
-# Resolved relative to this script's skill directory so it works regardless of cwd.
 DEFAULT_REFERENCE_DOC = Path(__file__).resolve().parent.parent / "templates" / "reference.docx"
+
+
+def reference_doc_candidates():
+    """模板可能在的几个位置，按优先级。
+
+    只认 skill 布局（scripts/../templates/）会在**部署后的项目里必然落空**：
+    /init 只把 templates/*.json 扁平拷到项目根，既不建 templates/ 也不拷 .docx，
+    于是 scripts/../templates/reference.docx 指向一个不存在的文件 → docx 永远产不出，
+    而文档给的补救命令读的又正好是同一个缺失文件（死循环）。
+    第 3 个候选正是 make_reference_docx.py 的默认落点，补救跑完 merge 就能接上。
+    """
+    seen, out = set(), []
+    for p in (DEFAULT_REFERENCE_DOC,
+              Path.cwd() / "templates" / "reference.docx",
+              Path.cwd() / "reference.docx"):
+        key = str(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def resolve_reference_doc(explicit=None):
+    """返回第一个存在的模板路径；一个都没有返回 None。显式指定的必须存在。"""
+    if explicit:
+        return explicit if os.path.exists(explicit) else None
+    for cand in reference_doc_candidates():
+        if cand.exists():
+            return str(cand)
+    return None
 
 DEFAULT_PATTERNS = [
     "01_Abstract*.md",
@@ -145,11 +177,13 @@ def split_out_references_section(content):
     refs = []
     in_refs = False
     current = None
-    ref_heading = re.compile(r"^\s{0,3}#{1,6}\s*(references|参考文献)\s*$", re.IGNORECASE)
+    # 参考文献段标题口径统一在 ref_section.py：此前这里的正则认不得
+    # Bibliography / **References** / 参考文献：，那三种写法下各节的参考列表
+    # 会被当成正文原样并进合并稿。
     next_heading = re.compile(r"^\s{0,3}#{1,6}\s+")
     numbered = re.compile(r"^\s*(\d+)\.\s+(.*)\s*$")
     for line in lines:
-        if not in_refs and ref_heading.match(line):
+        if not in_refs and is_reference_heading(line):
             in_refs = True
             current = None
             continue
@@ -324,25 +358,29 @@ def run_merge(
     }
 
     if generate_docx:
-        # 模板是已提交的样式资产，缺失=安装损坏。硬失败让用户重生成，
+        # 模板是样式资产，缺失=部署不全。硬失败让用户重生成，
         # 不要 silently 产出字体不受控的 docx。仅 docx 步骤失败，md 已落盘不受影响。
-        if not DEFAULT_REFERENCE_DOC.exists() and (
-            reference_doc is None or not os.path.exists(reference_doc)
-        ):
-            missing = reference_doc if reference_doc else str(DEFAULT_REFERENCE_DOC)
+        resolved = resolve_reference_doc(reference_doc)
+        if resolved is None:
+            looked = ([reference_doc] if reference_doc
+                      else [str(p) for p in reference_doc_candidates()])
             result["ok"] = False
             result["docx"] = {
                 "attempted": False,
                 "ok": False,
                 "reason": "reference_doc_missing",
+                "searched": looked,
                 "message": (
-                    f"reference.docx 模板缺失: {missing}。"
-                    "请先运行 `python scripts/make_reference_docx.py` 重新生成后再导出 docx。"
+                    f"reference.docx 模板在这些位置都找不到: {', '.join(looked)}。"
+                    "在项目根跑 `python scripts/make_reference_docx.py` 生成一份"
+                    "（缺基准模板时它会用 pandoc 自动产生，不需要你先有这个文件），"
+                    "生成的 ./reference.docx 会被本命令自动认出。"
                     "（md 已生成，未产出 docx）"
                 ),
             }
             return result
-        docx_report = convert_docx(output_md=output_md, output_docx=output_docx, reference_doc=reference_doc)
+        docx_report = convert_docx(output_md=output_md, output_docx=output_docx, reference_doc=resolved)
+        docx_report["reference_doc"] = resolved
         result["docx"] = docx_report
     return result
 
@@ -370,12 +408,9 @@ def main():
     output_docx = args.output_docx or os.path.join(args.manuscript_dir, "Full_Manuscript.docx")
     patterns = [p.strip() for p in args.patterns.split(",") if p.strip()]
 
-    # Default to the bundled TNR-12pt reference template. If it (or an explicit
-    # --reference-doc) is missing when producing docx, run_merge hard-fails so we
-    # never emit an uncontrolled-font docx — see the docx branch in run_merge.
+    # 模板解析放在 run_merge 里统一做（要按候选位置逐个找），这里只把用户显式
+    # 指定的透传下去。找不到时 run_merge 硬失败，绝不产字体不受控的 docx。
     reference_doc = args.reference_doc
-    if reference_doc is None and DEFAULT_REFERENCE_DOC.exists():
-        reference_doc = str(DEFAULT_REFERENCE_DOC)
     report = run_merge(
         manuscript_dir=args.manuscript_dir,
         output_md=output_md,

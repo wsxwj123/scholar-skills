@@ -79,16 +79,26 @@ _INDEX_PATH_CANDIDATES = ("literature_index.json", "data/literature_index.json")
 _INDEX_ID_FIELDS = ("id", "global_id", "citation_number")
 
 
-def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
+def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None, list[str], list[str]]:
     """从 literature_index.json（+ ref_evidence_cache.json abstract 兜底）建
     ref_id → {abstract, article_type} 索引。缺失/损坏一律当空（fail-safe，不炸）。
-    返回 (索引, 索引本体条目数, 实际选中的索引路径或 None)——条目数为 0 时调用方
-    必须把"这次没有索引可依据"打出来，不许和"检查过且通过"混同。"""
+
+    返回 (索引, 索引本体条目数, 实际选中的索引路径或 None, 重复主键列表, 冲突主键列表)。
+    - 条目数为 0 时调用方必须把"这次没有索引可依据"打出来，不许和"检查过且通过"混同。
+    - **重复主键取舍 = 先到先得**（同 setdefault，行为不变）：谁"更对"没有依据，
+      改成后到覆盖只会把静默丢弃换个方向、照样静默。所以保留原取舍，
+      但把丢弃这件事**计数并报出来**——过去 272 条里 20 个 global_id 撞车一声不吭，
+      两条重复条目 article_type 不同时纪律就按错的那条判，用户完全看不见。
+    - 冲突主键 = 被丢弃那条的 article_type/abstract 与胜出条**不一致**，
+      即"按哪条判"会改变结论的那些，是真正要人去修索引的子集。
+    """
     out: dict[str, dict] = {}
     index_entries = 0
     index_path: str | None = None
+    dup_refs: list[str] = []       # 撞了主键、后来者被丢弃的 ref（去重、保序）
+    dup_conflict_refs: list[str] = []
     if not root_dir:
-        return out, index_entries, index_path
+        return out, index_entries, index_path, dup_refs, dup_conflict_refs
     data = None
     for rel in _INDEX_PATH_CANDIDATES:
         p = root_dir / rel
@@ -115,6 +125,9 @@ def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
             # 两边挑法一旦分叉就会串行。
             dict_keys = _dict_entry_keys(data)
             entries = [data[k] for k in dict_keys]
+    # key → 首次登记它的条目序号。用来把两件事分开：同一条目的 id/global_id/
+    # citation_number 取值相同（合法，不是重复）vs 两个不同条目抢同一个 ref_id（真重复）。
+    owner: dict[str, int] = {}
     for pos, e in enumerate(entries):
         if not isinstance(e, dict):
             continue
@@ -129,14 +142,25 @@ def _load_ledger(root_dir: Path) -> tuple[dict, int, str | None]:
             "article_type": str(e.get("article_type") or "unknown"),  # 缺字段 → unknown
         }
         for k in keys:
-            out.setdefault(k, rec)
+            if k in out:
+                if owner.get(k) == pos:
+                    continue  # 同一条目的多个主键字段取值相同 —— 合法，不算重复
+                prev = out[k]
+                if k not in dup_refs:
+                    dup_refs.append(k)
+                if (prev["article_type"] != rec["article_type"]
+                        or prev["abstract"] != rec["abstract"]) and k not in dup_conflict_refs:
+                    dup_conflict_refs.append(k)
+                continue  # 先到先得：保留已登记的那条（见 docstring 取舍理由）
+            out[k] = rec
+            owner[k] = pos
     # ref_evidence_cache abstract 作子串比对的兜底来源（不覆盖已有条目；不计入索引条目数）
     cache = _load_cache(root_dir / "ref_evidence_cache.json")
     for ref, rec in (cache.get("abstracts") or {}).items():
         if isinstance(rec, dict) and str(ref) not in out:
             out[str(ref)] = {"abstract": str(rec.get("retrieved_abstract") or ""),
                              "article_type": "unknown"}
-    return out, index_entries, index_path
+    return out, index_entries, index_path, dup_refs, dup_conflict_refs
 
 
 # section 来自 claim_evidence（主会话写、非子代理可控），含 `/`、`..`、glob 通配符
@@ -350,7 +374,7 @@ def main() -> int:
 
     # 账本索引（article_type + abstract）：缺 → 空，机械纪律只 warning 不炸
     root_dir = Path(args.root) if args.root else ev_path.parent
-    ledger, ledger_entries, ledger_path = _load_ledger(root_dir)
+    ledger, ledger_entries, ledger_path, dup_refs, dup_conflict_refs = _load_ledger(root_dir)
 
     blockers: list[str] = []       # exit 2（沿用原承重核证 + G0b 防伪/纪律硬拦）
     soft_blockers: list[str] = []  # exit 1（preprint 未标注）
@@ -420,10 +444,18 @@ def main() -> int:
         "counts": {"total": len(rows), "load_bearing": load_bearing, "contradict": contradict,
                    "discipline_checked": discipline_checked,
                    "discipline_skipped": discipline_skipped,
-                   "ledger_entries": ledger_entries},
+                   "ledger_entries": ledger_entries,
+                   # 索引里撞同一 ref_id、按"先到先得"被丢弃的条目数（其中 conflict
+                   # 那些是"按哪条判会改变结论"的）。过去这两个数都是 0 也说不出来，
+                   # 因为丢弃本身没人统计。
+                   "ledger_duplicate_refs": len(dup_refs),
+                   "ledger_conflicting_refs": len(dup_conflict_refs)},
         # 实际读到的文献索引路径（None=候选路径都不存在）；配合 ledger_entries 区分
         # "没索引可依据" 和 "索引在、个别条目字段缺"
         "ledger_path": ledger_path,
+        # 重复/冲突主键明细（呈现同样截断到 WARN_DISPLAY_LIMIT，总数看 counts）
+        "duplicate_refs": dup_refs if limit is None else dup_refs[:limit],
+        "conflicting_refs": dup_conflict_refs if limit is None else dup_conflict_refs[:limit],
         # 哪些 ref 因 claim_kind/article_type 未就绪而没走机械纪律（去重、保序；
         # 呈现截断到 WARN_DISPLAY_LIMIT，全量总数看 counts.discipline_skipped）
         "discipline_skipped_refs": shown_skipped_refs,
@@ -446,6 +478,20 @@ def main() -> int:
             where = f"候选路径均不存在：{tried}"
         print(f"🟡 文献索引 0 条——{where}。本次 article_type 全按 unknown 处理，"
               f"「机制/疗效声明不得挂综述」纪律与账本 abstract 比对没有索引可依据。")
+    if dup_refs:
+        # 静默丢弃是这条的病根：索引里同一个 ref_id 出现多次，只有第一条进了账本，
+        # 用户既不知道丢了、更不知道 article_type 可能按错的那条判。
+        head = "、".join(dup_refs[:5])
+        more = f" 等 {len(dup_refs)} 个" if len(dup_refs) > 5 else ""
+        print(f"🟡 文献索引有 {len(dup_refs)} 个重复主键（按先到先得保留首条、其余丢弃）："
+              f"{head}{more}")
+        if dup_conflict_refs:
+            chead = "、".join(dup_conflict_refs[:5])
+            cmore = f" 等 {len(dup_conflict_refs)} 个" if len(dup_conflict_refs) > 5 else ""
+            print(f"   其中 {len(dup_conflict_refs)} 个重复条目内容不一致"
+                  f"（article_type 或 abstract 不同）——「机制/疗效声明不得挂综述」"
+                  f"这次按胜出的首条判，可能判错，请回索引去重：{chead}{cmore}")
+
     if discipline_skipped:
         # 一句话说清"这次有多少没查"，别让人以为全查过了。逐条 ⚠️ 在下面，
         # 200 条时那堆 warning 就是噪音，这一行才是用户真正要看见的。
