@@ -114,7 +114,10 @@ def discover_markdown_files(manuscript_dir, patterns):
     for pattern in patterns:
         for path in sorted(glob.glob(os.path.join(manuscript_dir, pattern)), key=natural_key):
             name = os.path.basename(path)
-            if name.lower() in {"full_manuscript.md"}:
+            lower = name.lower()
+            # 排除合并产物与上一轮中间稿（与 prewrite_gate.py / abbreviation_consistency.py
+            # 的排除口径同构）：否则默认 *.md 会把 Draft_RoundN_Manuscript.md 旧稿并回来。
+            if lower in {"full_manuscript.md"} or lower.startswith("draft_round"):
                 continue
             if path in seen:
                 continue

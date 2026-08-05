@@ -42,8 +42,12 @@ def hint(tool: str, osname: str) -> str:
 
 def parse_list(flag: str, argv) -> list:
     if flag in argv:
-        raw = argv[argv.index(flag) + 1]
-        return [x.strip() for x in raw.split(",") if x.strip()]
+        i = argv.index(flag) + 1
+        # 值缺失（flag 在末尾）或下一个 token 是另一个 flag：按空列表处理，
+        # 不裸崩 IndexError、也不把 "--py" 这类 flag 名当工具名检。
+        if i >= len(argv) or argv[i].startswith("--"):
+            return []
+        return [x.strip() for x in argv[i].split(",") if x.strip()]
     return []
 
 
@@ -149,9 +153,10 @@ def _install_gate_hook() -> None:
             print(f'CITATION_CHECK_CMD: python "{citation_check}" --root <project_root>')
         else:
             print("⚠️ 缺少 scripts/citation_claim_check.py(vendored 副本),对应功能不可用;跑 python3 _shared/sync_vendored.py --sync 或重新安装完整技能包")
-        # references/ 从不拷进项目(SKILL.md §1 只拷 scripts/templates/configs),故凡是
-        # 要"传给 shell 命令 / 交给子代理"的 references 文件,都在这里给绝对路径;
-        # 相对路径在项目根 cwd 下必然找不到(delegate_review 会 exit 2,盲检标记落不下,
+        # references/ 虽在 /init 时拷进项目(SKILL.md §1 第 5 步强制拷),但子代理/
+        # shell 命令的 cwd 未必在项目根,相对路径不保险;故凡是要"传给 shell 命令 /
+        # 交给子代理"的 references 文件,都在这里给绝对路径;
+        # 相对路径在 cwd 不在项目根时必然找不到(delegate_review 会 exit 2,盲检标记落不下,
         # 下一节被 prewrite_gate 硬拦 = 锁死)。
         refs = here.parent / "references"
         for token, fname in (("DOD_CHECKLIST", "dod_checklist.json"),

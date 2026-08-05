@@ -41,9 +41,9 @@ Methods 有独立于 Results/Discussion 的写作要求：
 
 ## Figure Prompt 生成规范（为需 AI 绘制的示意图/机制图生成结构化提示词）
 
-> **双轨澄清**：`figures_database.json`（via `/figure` + `add-figure`）存的是**用户已有实验图的识图数据**（WB/HE/统计图等，用于写正文）；本节的 `figures/figure_index.md` + `figure_prompts.md` 是**让 AI 帮画的图**（示意图/机制图的绘图提示词）。二者用途不同、不冲突；若同一 figure 既有实验数据又需重绘，以 `figures_database` 为数据源。
+> **双轨澄清**：`figures_database.json`（via `/figure` + `add-figure`）存的是**用户已有实验图的识图数据**（WB/HE/统计图等，用于写正文）；本节的 `figures/figure_prompts.md` 是**让 AI 帮画的图**（示意图/机制图的绘图提示词）。二者用途不同、不冲突；若同一 figure 既有实验数据又需重绘，以 `figures_database` 为数据源。
 
-When a figure is registered in `figures/figure_index.md`, generate a Figure Prompt block and append to `figures/figure_prompts.md`:
+When a figure needs AI drawing (schematic/mechanism), generate a Figure Prompt block and append to `figures/figure_prompts.md`:
 
 ```
 [FIGURE PROMPT — Figure N: <title>]

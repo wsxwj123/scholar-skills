@@ -13,6 +13,7 @@ change a threshold globally, edit this file once and re-mirror it.
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import time
@@ -68,7 +69,10 @@ def _http_get_json(
                 attempt += 1
                 continue
             return None
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError,
+                http.client.IncompleteRead):
+            # ConnectionError/IncompleteRead 在 read() 阶段抛出、不被 URLError 包住，
+            # 同属瞬时网络故障：按同一 retry 语义处理，耗尽返回 None（fail-closed）。
             if attempt < retries:
                 time.sleep(backoff_sec * (2**attempt))
                 attempt += 1

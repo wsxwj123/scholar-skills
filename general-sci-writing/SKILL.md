@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.35.3
+version: 2.36.1
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色；Phase 13B 做退稿后的逐条 gap 分析与改稿，并出一份内部 response letter（reviews/response_letter.md），但不出正式投稿用的完整回复包、也不单独出修订稿docx——要正式回复包走reviewer-response-sci。
 license: Proprietary
 ---
@@ -33,6 +33,7 @@ license: Proprietary
 2. **贴报告 + 握手**：把接续报告原样贴给用户，说明"我准备从 __ 接着写，对吗？"，**等用户确认后再动手**；用户纠正口径以用户当前会话为准（磁盘旧文件不得反驳用户）。
 3. **用户临时插要求 → 立即 log**：写作过程中用户提出任何临时要求/口径变更，**立即**用 `LOG_CMD` 记进 `decisions_log.md`，即 `python "<本技能>/scripts/session_journal.py" log --root <project_root> --note "<用户原话>"`，供后续会话必读遵守。
 4. 首次 `/init` 新项目无历史时 resume 会提示为空，直接进入 Phase 0 即可。
+5. **握手确认后的续写动作**：用户确认接续点后，执行命令表 `/resume` 那条链路——`state_manager.py load` 加载全局状态 → 读 `writing_progress.json` 的 `last_section` → `write-cycle --section [last_section]`。即：**先 session_journal resume 贴报告握手，确认后再 load → write-cycle**，两步不互相替代。
 
 （`RESUME_CMD` / `LOG_CMD` / `CITATION_CHECK_CMD` / `SIGNOFF_CMD` 均由 Phase 0 `env_preflight.py` 打印绝对路径，避免相对路径的 cwd 依赖。）
 
@@ -66,6 +67,11 @@ license: Proprietary
 | `references/cover-letter-guide.md` | `/submission-pack` 写 cover letter 前（四段结构 / Innovation≠Contribution / **期刊 scope 契合强制**） |
 | `references/interaction-protocol.md` | §4/§7/§9/§12/§13 执行时；`/change-journal`、`/upgrade-scripts` 触发时 |
 | `references/compliance-gate.md` | `/compliance-check`（Phase 10.5）执行时 |
+| `references/prep_subagent_prompt.md` | Phase 8 派备料子代理起草核证矩阵时（pack-prep；用 preflight 打印的 `PREP_PROMPT` 绝对路径） |
+| `references/section_writer_prompt.md` | Phase 8 派撰写子代理盲写正文时（pack-write；用 preflight 打印的 `WRITER_PROMPT` 绝对路径） |
+| `references/dod_checklist.json` | 节末 DoD 盲检 `delegate_review.py pack/verify` 的运行时输入（用 preflight 打印的 `DOD_CHECKLIST` 绝对路径）；Phase 11 `submission-pack-dod` 核查时 |
+| `references/research-fields-config.md` | 设/自定义研究方向（`set-field` / `config_manager`）时 |
+| `references/presubmission_checklist.md` | Phase 11 终稿前 soft 自查时 |
 
 ---
 
@@ -86,7 +92,7 @@ license: Proprietary
 - **路径询问（Mandatory）**：`/init` 前必须先问用户保存路径。建议 Mac `~/Desktop/Manuscripts`，Windows `C:\Users\[User]\Desktop\Manuscripts`。
 - **Command Logic**（便携部署：把运行所需文件拷进项目根，换机也能用）：
   1. `mkdir -p [Target_Path]/scripts [Target_Path]/configs [Target_Path]/references [Target_Path]/manuscripts [Target_Path]/section_memory [Target_Path]/figures [Target_Path]/figure_analysis [Target_Path]/reviews [Target_Path]/submission`
-  2. `cp [Skill_Path]/scripts/*.py [Skill_Path]/scripts/*.json [Target_Path]/scripts/`（同时拷入 gate_registry.json 等 json；测试文件 test_*.py 属技能自测、不进项目,拷完即删:`rm -f [Target_Path]/scripts/test_*.py`,保证项目 scripts/ 有 gate_registry.json、无 test_*.py）
+  2. `cp [Skill_Path]/scripts/*.py [Skill_Path]/scripts/*.json [Target_Path]/scripts/`（同时拷入 gate_registry.json 等 json；测试文件 test_*.py 属技能自测、不进项目,拷完即删:`rm -f [Target_Path]/scripts/test_*.py`,保证项目 scripts/ 有 gate_registry.json、无 test_*.py；技能仓 scripts/ 里可能躺着维护者本机的运行时残留 env_status.json（gitignore 的运行时产物、不是技能文件），同样不许进项目，拷完即删:`rm -f [Target_Path]/scripts/env_status*.json`）
   3. `cp [Skill_Path]/templates/*.json [Skill_Path]/templates/reference.docx [Target_Path]/`（`reference.docx` 是 `/merge` 导 docx 的字体锁定模板，与 json 一样扁平落到项目根，merge 按候选位置自动认出；漏拷 = 首次导 docx 必撞 `reference_doc_missing` 硬失败）
   4. `cp [Skill_Path]/configs/*.json [Target_Path]/configs/`
   5. `cp [Skill_Path]/references/* [Target_Path]/references/`（**不能省**：`dod_checklist.json` 是盲检门 `delegate_review.py` 的运行时输入，不拷则盲检 pack/verify 在项目根 exit 2 → `.review_pass/` 落不下 → 下一节被 `prewrite_gate` 硬拦；其余 `references/*.md` 是写作时按需 `Read` 的口径真源，拷进来才符合"项目自包含"）
@@ -289,7 +295,7 @@ license: Proprietary
 **中文文献支线**：AI发现→用户取证（路径A/B/C）→合规入库的完整流程见 `references/citation-policy.md`（中文文献支线节）。
 
 **执行红线**：本阶段必须遵守“文献真实性硬约束”，任何未通过同源核验的条目不得进入 `literature_index.json`，也不得在正文中引用。
-**新增硬门禁**：完成本阶段后必须运行 `citation_guard.py --require-mcp`，仅当 `citation_guard_report.json` 为 `ok=true` 才能进入 `/write`。`--require-mcp` 在 Phase 3 结束时为强制参数，确保所有文献有 MCP 证据轨。
+**新增硬门禁**：完成本阶段后必须运行 `python scripts/citation_guard.py --index literature_index.json --mcp-cache mcp_literature_cache.json --require-mcp --report citation_guard_report.json --manual-review manual_review_queue.json`，仅当 `citation_guard_report.json` 为 `ok=true` 才能进入 `/write`。`--require-mcp` 在 Phase 3 结束时为强制参数，确保所有文献有 MCP 证据轨。
 **阻断条件**：只要 `manual_review_queue.json` 非空，或报告存在 provider policy / bidirectional verification failure 相关失败项，都必须先处理后再写作。
 **退出条件（Escalation Protocol）**：若人工处理后条目仍无法核验（无法获取 DOI/PMID/S2 ID），则将该条目标记为 `status=dropped`，从 `literature_index.json` 中移除，并在写作时写入占位注释 `<!-- [REF_DROPPED: 原标题] -->`，待用户手动补充替代文献后再重新分配编号。最多处理 2 轮；若问题未解决，必须告知用户并给出可操作的替代文献检索建议，不得无限等待。
 
@@ -378,7 +384,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 
 **执行流程**：
 0. **Scoped Load (Mandatory)**: 先执行章节局部加载命令，确保只读当前章节。
-0a. **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写任何 section 前必须先跑 `python3 scripts/prewrite_gate.py --section [section_id] --root .`，exit≠0 禁止开写。它统一硬检查：上一节完成（`writing_progress.json` 该节最新 status=done）、故事线就位（`storyline.json` 含本节）、素材就位（subprocess 调 `figure_analysis_gate.py`）、上一节占位符清零（无 `CITE_PENDING`/`DATA_PENDING`/`【待`）、缩略词一致（subprocess 调 `abbreviation_consistency.py`）；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记。还含一条按 section 角色的软文献门（读该 section 的 role、统计矩阵里归属它的文献条数），Intro 硬地板 6 篇软目标 10 篇、Discussion 硬 8 软 12，Methods/Results/其它一律不设篇数门（0 篇也放行）；硬地板不达算 failures 拦截，软目标不达只进 warnings。过此闸门后再走下面 0b。
+0a. **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写任何 section 前必须先跑 `python3 scripts/prewrite_gate.py --section [section_id] --root .`，exit≠0 禁止开写。它统一硬检查：上一节完成（`writing_progress.json` 该节最新 status=done）、故事线就位（`storyline.json` 含本节）、素材就位（subprocess 探查 `figure_analysis_gate.py`，**仅信息性记录、绝不阻断**，硬判定在 step 0b）、上一节占位符清零（无 `CITE_PENDING`/`DATA_PENDING`/`【待`）、缩略词一致（subprocess 调 `abbreviation_consistency.py`）；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记。还含一条按 section 角色的软文献门（读该 section 的 role、统计矩阵里归属它的文献条数），Intro 硬地板 6 篇软目标 10 篇、Discussion 硬 8 软 12，Methods/Results/其它一律不设篇数门（0 篇也放行）；硬地板不达算 failures 拦截，软目标不达只进 warnings。过此闸门后再走下面 0b。
 0b. **🔴 figure_analysis 加载门禁 (Mandatory，脚本兜底)**：跑 `python scripts/figure_analysis_gate.py --section [section_id] --root .`。该 gate 比对 `figures_database.json` 中该节涉及的 figure，确认每张 `figure_analysis/figure_{N}.md` 存在、非空、无 `❓待确认` 残留；任一未就绪 → 脚本 exit 1，**禁止开写**，先回 `/figure` 补齐再回来。Introduction/Methods 等无 figure 的小节脚本自然放行（exit 0）。过 gate 后**必须显式 `Read` 本节对应的 `figure_analysis/figure_{N}.md`**（write-cycle 不自动加载，见 §13 白名单第 7 项），作为 Results/Discussion 的事实依据。
 0c. **🟢 引文核证脚手架 (Citation-Claim Matrix，写对的脚手架，非事后墙)**：开写本节前，先把"本节承重论点 ↔ 拟引文献"建成矩阵，用**真 abstract** 判每条引用是否真支撑它挂的论点，再下笔，避免写完才发现引文对不上、又得返工重写。
    - **🟢 备料子代理起草（一律派，把"读摘要判 verdict"的重活从主会话吸走）**：本节（非白名单节）核证矩阵**先派备料子代理起草**——`python3 scripts/delegate_write.py pack-prep --section [section_id] --root .` 生成 `.prep_task_[section_id].json`，把 `[PREP_PROMPT]`（Phase 0 打印的绝对路径；项目内有 `references/`，但子代理 cwd 未必在项目根，故一律传绝对路径）（角色 + 数据/指令隔离）+ 任务包路径交给一个独立子代理，它只产草案 `.claim_evidence_draft_[section_id].json`（`evidence_quote` 必须是账本 abstract 原文子串、`user_confirmed` 一律 false、提议 `claim_kind`），**绝不碰账本**。空草案 `{"claims":[]}` 合法（本节无承重配对）→ 跳过核证直接进撰写打包。白名单琐节不派备料。
@@ -413,7 +419,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 
    **🔴 委托盲检（不得主 agent 自评）**：你刚写完本节，自评会失真地默认通过、且易漏项。落盘前必须把 DoD 清单**委托给独立上下文的subagent盲检**，自己不直接打勾：
    1. 生成任务包：`python scripts/delegate_review.py pack --checklist "[DOD_CHECKLIST]" --gate section-dod --files <本节文件>`（`[DOD_CHECKLIST]` = Phase 0 `env_preflight.py` 打印的那个绝对路径。项目内**有** `references/dod_checklist.json`（/init 第 5 步拷入），相对路径只在 cwd 恰好是项目根时才成立，**一律用绝对路径**，找不到文件 pack 会 exit 2）
-   2. **派一个独立subagent**(Claude Code 用 `academic-blind-reviewer`;其他平台派通用subagent)，把任务包原样给它、**不要给它本节的写作上下文**，要求按任务包返回 JSON 数组。
+   2. **派一个 fresh-context 独立通用 subagent**（全新一次性上下文、不依赖任何具名代理类型；本环境没有名为 `academic-blind-reviewer` 的代理，不要按名字找），把任务包原样给它、**不要给它本节的写作上下文**，要求按任务包返回 JSON 数组。
    3. 校验返回:`python scripts/delegate_review.py verify --checklist "[DOD_CHECKLIST]" --gate section-dod --return <subagent返回.json> --section <当前section_id> --root <项目根>`;退出码非 0(任一缺项/fail/无证据)= **fail-closed**,据subagent证据修复后重跑,**未过不得声明完成**。verify 通过会落盘 `.review_pass/<当前section_id>.json`,下一节 `prewrite_gate.py` 会**硬校验**它(缺失即拒绝开写)。
 
    🔴 **[P4·盲检降级告警]**：若环境派不出真正独立的subagent，**绝不能同一 AI 自问自答冒充盲检**（自证）。告诉用户「本环境盲检不可靠，请你亲自复核：__（列出该盲检本应查的关键点）__」，交回用户。
@@ -439,15 +445,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 > 
 > **结构目标不受影响、仍然保留**：字数上限、主图张数、Abstract 结构/词数、Methods 形式（Online vs STAR）等**结构约束**由 **Phase 2 `/storyline` 的 `target_journal` 早已捕获并写入 `project_config.word_limits`**，全流程沿用，不依赖本 Phase。停用的只是"写完再回头学期刊语言风格"这一步，不动 Phase 2 的早期结构约束。
 > 
-> 因此 Phase 8 写完所有 Results/Discussion 后**直接进 Phase 9 `/abstract`**；abstract/正文的目标刊语言调性对齐留到末尾 `polish-sci`。下方原步骤仅作归档参考，**不执行**。
-
-<details><summary>（已归档，原 /journal-study 步骤，不执行）</summary>
-
-原 Phase 8.6 在写完正文后深度学习目标刊近 5 年代表作、产出对标风格报告（`journal_study/target_journal_study.json`，含 DoD gate `journal-study-dod`）的完整步骤已停用，不再执行。
-期刊语言风格适配改到全文定稿后用 `polish-sci` 技能做；结构约束（字数/图数/Abstract 结构/Methods 形式）由 Phase 2 `target_journal` 早已捕获，不依赖本 Phase。
-需要历史细节时查 CHANGELOG.md / 版本库旧版本。
-
-</details>
+> 因此 Phase 8 写完所有 Results/Discussion 后**直接进 Phase 9 `/abstract`**；abstract/正文的目标刊语言调性对齐留到末尾 `polish-sci`。原步骤的历史细节查 CHANGELOG.md / 版本库旧版本，**不执行**。
 
 ### Phase 9: 摘要撰写 (`/abstract`)
 **时机**：全部正文章节完成后、质量控制前。Abstract 是全文的压缩精华，必须最后写。Abstract 的**结构约束**（结构化与否、词数上限）按 Phase 2 `target_journal` 已捕获的规则来（见 Phase 2 表）；**期刊语言调性对齐留到末尾 `polish-sci`**，本阶段不再依赖 `/journal-study`（已停用）。
@@ -633,7 +631,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 | 命令 | 功能 | 说明 |
 |------|------|------|
 | `/init` | 初始化项目 | - |
-| `/resume` | 恢复写作 | 执行 `state_manager.py load` 加载全局状态 → 读取 `writing_progress.json` 的 `last_section` → 自动进入 `write-cycle --section [last_section]` |
+| `/resume` | 恢复写作 | 先跑 `session_journal.py resume`（即 RESUME_CMD）贴接续报告、与用户握手确认（见文首「每次进入/续写：先接续再动手」节），确认后再 `state_manager.py load` → 读 `last_section` → `write-cycle --section [last_section]` |
 | `/preview` | 预审报告 | - |
 | `/storyline` | 构建提纲 | 自动规划融合式章节 |
 | `/figure-plan` | 主图集规划 | storyline 确认后、识图前，规划 Figure 1–N 信息载荷与 main/SI 分配；允许回修 storyline（见 Phase 2.5） |
@@ -643,7 +641,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
 | `/change-journal` | 中途转投另一家期刊 | 改 word_limits→重查投稿包变化项（见 Phase 2） |
 | `/upgrade-scripts` | 升级项目内的 scripts/ 到最新版 | 项目用了几个月技能更新后,补 add-figure 等新命令（见 Phase 0） |
 | `/figure` | Figure 识图与讨论 | 逐张读图→读图清单确认→存 `figure_analysis/figure_{N}.md` 作正文依据；只读符号化信息，读不到问用户（见 Phase 6） |
-| `/rename-figure` | 重整 figure 编号 | 全局改名 + 同步 figures_database/storyline/正文/识图文件，支持 --dry-run（脚本 rename-figure） |
+| `/rename-figure` | 重整 figure 编号 | 全局改名 + 同步 figures_database/storyline/正文/识图文件：`python scripts/state_manager.py rename-figure --old "Figure 3" --new "Figure 5" --dry-run` 先预览，确认后去掉 `--dry-run` 真改 |
 | `/write` | 撰写章节 | **章节局部读取 + 自我修正 + 智能快照** |
 | `/journal-study` | 🚫 已停用（DEPRECATED） | 期刊语言风格适配改到末尾 `polish-sci`；结构约束由 Phase 2 `target_journal` 早已捕获（见 Phase 8.6 停用说明） |
 | `/abstract` | 撰写摘要 | 全文完成后最后写，≤250词，含定量结果 |
@@ -706,7 +704,6 @@ python scripts/state_manager.py add-abbreviation <one.json>
 ## 📝 模板文件说明
 - `project_init.json`: 包含初始配置。
 - `reviewer_concerns.json`: 包含针对不同研究方向的审稿人质疑库（由 `set-field` 命令根据 configs/ 中的配置自动生成到项目根目录）。
-- `search_rules.json`: 包含文献检索强度定义。
 
 ---
 

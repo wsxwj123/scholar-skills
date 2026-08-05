@@ -1,4 +1,4 @@
-# 研究方向配置系统 (v2.16.2)
+# 研究方向配置系统
 
 > 被 SKILL.md 的 §Skill概述 与 Phase 0 (`/init`) 引用。设研究方向用 `set-field --field [id]`；查可用配置列表、自定义方法、config_manager 用法时 `Read` 本文件。
 

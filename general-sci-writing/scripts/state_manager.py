@@ -162,6 +162,12 @@ class FileLock:
                     f"lock '{self.name}' is held by pid={existing_pid} "
                     f"since {existing.get('created_at')}"
                 )
+        # 两轮都撞上"刚删掉又出现"的陈旧锁竞态：必须 fail-closed。
+        # 此前循环自然退出、带 acquired=False 正常返回，调用方无锁进临界区。
+        raise RuntimeError(
+            f"lock '{self.name}' could not be acquired after {attempts} attempts "
+            "(stale lock kept reappearing; possible race)"
+        )
 
     def release(self):
         if not self.acquired:
@@ -416,9 +422,13 @@ def extract_numeric_section(section):
     # Examples:
     # - results_3.1 -> 3.1
     # - intro_2 -> 2
-    # - 04_results_3.2 -> 3.2
-    match = re.search(r"(\d+(?:\.\d+)*)", section)
-    return match.group(1) if match else None
+    # - 04_results_3.2 -> 3.2（优先带小数的节号；前导文件名序号 04 不是节号，
+    #   此前返回 "04"，下游拿 \b04\b 扫正文会命中 "p value was 0.04" 这类无关内容）
+    dotted = re.search(r"\d+\.\d+", section)
+    if dotted:
+        return dotted.group(0)
+    match = re.search(r"\d+", section)
+    return match.group(0) if match else None
 
 def filename_matches_section(filename, section):
     # Prefer strict-ish boundary matches to avoid false positives.
@@ -537,6 +547,12 @@ def expand_citation_numbers(text):
             if a.strip().isdigit() and b.strip().isdigit():
                 start, end = int(a.strip()), int(b.strip())
                 if start <= end:
+                    # 区间上限与 manuscript_index.expand_citation_group 同口径(hi-lo<500)：
+                    # 超限拒绝展开并留痕，否则 [1-10000000] 这种能吃掉几个 GB 内存。
+                    if end - start >= 500:
+                        print(f"warning: citation range {start}-{end} exceeds limit "
+                              f"(hi-lo<500), expansion skipped", file=sys.stderr)
+                        continue
                     numbers.extend(list(range(start, end + 1)))
                 else:
                     numbers.extend([start, end])
@@ -2141,9 +2157,9 @@ def rewrite_manuscript_citations_strict(
     }
 
 
-def prune_old_literature_backups(backup_root="backups", keep=DEFAULT_BACKUP_KEEP, max_age_days=None):
+def prune_old_literature_backups(backup_root="backups", keep=DEFAULT_BACKUP_KEEP, max_age_days=None, protect=None):
     return prune_backup_dirs(os.path.join(backup_root, "literature_sync"), "lit_sync_*",
-                             keep=keep, max_age_days=max_age_days)
+                             keep=keep, max_age_days=max_age_days, protect=protect)
 
 def backup_literature_sync_assets(
     index_file="literature_index.json",
@@ -2185,7 +2201,8 @@ def backup_literature_sync_assets(
     prune = prune_old_literature_backups(
         backup_root=backup_root,
         keep=backup_keep,
-        max_age_days=backup_max_days
+        max_age_days=backup_max_days,
+        protect=backup_dir  # mtime 打平时排序可能把刚建的这份排到 keep 之后，必须免删
     )
     with open(os.path.join(backup_dir, "prune_report.json"), "w", encoding="utf-8") as f:
         json.dump(prune, f, indent=2, ensure_ascii=False)
@@ -2895,7 +2912,8 @@ def _shrink_warning(filename, content):
         return None
     try:
         old = read_json_file(filename)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        # GBK 等旧编码文件也走"读不出就不拦"（UnicodeDecodeError 不是 OSError 子类）。
         return None
     return _lost_items(old, content)
 
@@ -3104,7 +3122,7 @@ def add_figure_state(payload_path):
         if not isinstance(hist, list):
             hist = []
         hist.append({"ts": ts, "event": "figure_analyzed", "figure_id": fid,
-                     "section": sec, "panels": len(panels), "data_status": entry.get("data_status")})
+                     "figure_section": sec, "panels": len(panels), "data_status": entry.get("data_status")})
         prog["update_history"] = hist[-50:]
         prog["last_figure_analyzed"] = fid
         prog["last_figure_ts"] = ts
@@ -3490,10 +3508,13 @@ def prune_backup_dirs(root, prefix_glob, keep=DEFAULT_BACKUP_KEEP, max_age_days=
     dirs.sort(key=lambda p: os.path.getmtime(p), reverse=True)
     removed = []
     now_ts = datetime.now().timestamp()
-    for idx, d in enumerate(dirs):
-        if protected and os.path.normpath(d) == protected:
-            continue
-        remove_by_count = idx >= max(1, int(keep))
+    # protect 不占用 keep 名额（它本就是那个名额里的最新一份）：打平场景下若让
+    # protect 白占一个槽位，旧备份会清不动，等于 keep 悄悄 +1。总量仍恒等于 keep。
+    prunable = [d for d in dirs
+                if not (protected and os.path.normpath(d) == protected)]
+    keep_slots = max(1, int(keep)) - (1 if len(prunable) != len(dirs) else 0)
+    for idx, d in enumerate(prunable):
+        remove_by_count = idx >= keep_slots
         remove_by_age = False
         if max_age_days is not None:
             age_days = (now_ts - os.path.getmtime(d)) / 86400.0
@@ -3610,6 +3631,32 @@ def _restore_partial_snapshot(snapshot_dir, manifest_path):
     }
 
 
+def _restore_tree(src, dst):
+    """先完整拷到临时目录、再原子换入：copytree 中途失败时现目录一个字节都不动。
+
+    此前是 rmtree(现目录) 再 copytree —— copytree 半途死掉（盘满/中断）现稿已没，
+    回退操作本身成了数据销毁入口。
+    """
+    tmp = f"{dst}.restore_tmp_{os.getpid()}"
+    old = f"{dst}.restore_old_{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        shutil.copytree(src, tmp)
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    if os.path.exists(dst):
+        os.rename(dst, old)
+    try:
+        os.rename(tmp, dst)
+    except Exception:
+        if os.path.exists(old):
+            os.rename(old, dst)  # 换入失败把现稿换回来
+        raise
+    if os.path.exists(old):
+        shutil.rmtree(old, ignore_errors=True)
+
+
 def restore_project_snapshot(snapshot_dir):
     if not snapshot_dir or not os.path.exists(snapshot_dir):
         return {"restored": False, "reason": "snapshot_not_found", "snapshot_dir": snapshot_dir}
@@ -3630,34 +3677,25 @@ def restore_project_snapshot(snapshot_dir):
             shutil.copy2(src, filename)
             restored_files.append(filename)
 
-    # Restore manuscripts (rmtree+copytree:完全还原到快照时点,清除快照后新建文件,与 figure_analysis 对齐).
-    src_manuscripts = os.path.join(snapshot_dir, "manuscripts")
-    if os.path.exists(src_manuscripts):
-        if os.path.exists(DEFAULT_MANUSCRIPT_DIR):
-            shutil.rmtree(DEFAULT_MANUSCRIPT_DIR)
-        shutil.copytree(src_manuscripts, DEFAULT_MANUSCRIPT_DIR)
-        for root, _, files in os.walk(DEFAULT_MANUSCRIPT_DIR):
-            for fn in files:
-                restored_files.append(os.path.join(root, fn))
-
-    # Restore section memory (rmtree+copytree:同上,完全还原).
-    src_memory = os.path.join(snapshot_dir, "section_memory")
-    if os.path.exists(src_memory):
-        if os.path.exists("section_memory"):
-            shutil.rmtree("section_memory")
-        shutil.copytree(src_memory, "section_memory")
-        for root, _, files in os.walk("section_memory"):
-            for fn in files:
-                restored_files.append(os.path.join(root, fn))
-
-    # Restore figure analysis (对称于 backup 用 copytree —— 递归恢复含子目录).
-    src_figs = os.path.join(snapshot_dir, "figure_analysis")
-    if os.path.exists(src_figs):
-        dst_figs = "figure_analysis"
-        if os.path.exists(dst_figs):
-            shutil.rmtree(dst_figs)  # 避免 copytree 报 FileExistsError
-        shutil.copytree(src_figs, dst_figs)
-        for root, _, files in os.walk(dst_figs):
+    # Restore manuscripts / section_memory / figure_analysis：
+    # 全部走 _restore_tree（先拷后换），任一目录恢复失败现稿原样保留、如实上报。
+    for src_name, dst_name in (("manuscripts", DEFAULT_MANUSCRIPT_DIR),
+                               ("section_memory", "section_memory"),
+                               ("figure_analysis", "figure_analysis")):
+        src_dir = os.path.join(snapshot_dir, src_name)
+        if not os.path.exists(src_dir):
+            continue
+        try:
+            _restore_tree(src_dir, dst_name)
+        except Exception as e:
+            return {
+                "restored": False,
+                "reason": f"restore of '{dst_name}' failed, current files kept in place: {e}",
+                "snapshot_dir": snapshot_dir,
+                "restored_files_count": len(restored_files),
+                "restored_files": restored_files,
+            }
+        for root, _, files in os.walk(dst_name):
             for fn in files:
                 restored_files.append(os.path.join(root, fn))
 

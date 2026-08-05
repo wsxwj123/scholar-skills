@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -42,6 +43,11 @@ _CITATION_GROUP_RE = re.compile(
 )
 
 
+# 区间展开上限（跨度），与 manuscript_index._expand_citation_group 的 hi-lo<500 同口径：
+# [1-10000000] 这类区间展开实测 +724MB，超上限拒绝展开、留痕、不炸内存。
+_MAX_RANGE_SPAN = 500
+
+
 def _extract_cited_numbers(text: str) -> set[int]:
     """Every citation number appearing as [n] / [a,b-c] in manuscript text."""
     out: set[int] = set()
@@ -54,7 +60,13 @@ def _extract_cited_numbers(text: str) -> set[int]:
             rng = re.fullmatch(r"(\d+)\s*[-–]\s*(\d+)", token)
             if rng:
                 a, b = int(rng.group(1)), int(rng.group(2))
-                out.update(range(min(a, b), max(a, b) + 1))
+                lo, hi = min(a, b), max(a, b)
+                if hi - lo >= _MAX_RANGE_SPAN:
+                    sys.stderr.write(
+                        f"[citation_guard] 引文区间 [{a}-{b}] 跨度 {hi - lo} ≥ {_MAX_RANGE_SPAN}，"
+                        "拒绝展开（防内存爆炸），该区间不计入 A4 比对\n")
+                    continue
+                out.update(range(lo, hi + 1))
     return out
 
 
@@ -156,7 +168,34 @@ def load_json(path: Path, default: Any) -> Any:
 
 def save_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 写前留 .bak（可回退）；tmp+os.replace 原子替换（中途崩溃不留半截文件）。
+    if path.exists():
+        path.with_suffix(path.suffix + ".bak").write_bytes(path.read_bytes())
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _reinsert_checked(raw_list: list[Any], checked: list[dict[str, Any]]) -> list[Any]:
+    """把核验后的 dict 条目按原位填回 raw 列表，非 dict 元素原样保留在原位置。
+
+    checked 与 raw 中的 dict 元素一一对应（同序，源自 _normalize_index 的过滤）。
+    数量对不上 = 账目不平 → raise，调用方拒绝写回，绝不静默丢条目。
+    """
+    out: list[Any] = []
+    consumed = 0
+    for x in raw_list:
+        if isinstance(x, dict):
+            if consumed >= len(checked):
+                raise ValueError("索引 dict 条目多于核验结果，拒绝写回防丢条目")
+            out.append(checked[consumed])
+            consumed += 1
+        else:
+            out.append(x)
+    if consumed != len(checked):
+        raise ValueError(
+            f"核验条目数({len(checked)})与索引 dict 条目数({consumed})对不上，拒绝写回防丢条目")
+    return out
 
 
 
@@ -439,8 +478,10 @@ def main() -> int:
         status = "verified" if (checked and verified_count == len(checked)) else ("failed" if checked else "empty")
 
     report = {
-        # ok 是"本次没查出问题"（=退出码 0），不是"文献已核实"；后者只看 status。
-        "ok": status in ("verified", "unverified"),
+        # ok 是"整体可采信"：只有本轮真联网核验且全部通过（status=verified）才 true；
+        # 离线（unverified）/有硬失败（failed）/空索引（empty）一律 false。
+        # "是否阻断"看退出码，与 ok 解耦：离线无硬失败仍 exit 0。
+        "ok": status == "verified",
         "status": status,
         "shape": shape,
         "checked_entries": len(checked),
@@ -478,28 +519,34 @@ def main() -> int:
     save_json(run_log_path, logs)
 
     if args.write_back:
-        if isinstance(raw, list):
-            save_json(index_path, checked)
-        elif isinstance(raw, dict):
-            out = dict(raw)
-            if shape in {"entries", "papers", "items", "references", "data"}:
-                out[shape] = checked
-            elif shape == "dict_values":
-                # 按原键写回原位。绝不另起一份 out["entries"]：那会让同一批文献
-                # 在同一个文件里存两份，而所有读取侧（本脚本 _normalize_index、
-                # citation_claim_check._load_ledger）都优先读 entries ——
-                # 用户之后手工改原键的内容将永远不被任何检查看见。
-                for k, e in zip(_dict_entry_keys(raw), checked):
-                    out[k] = e
-            else:
-                out["entries"] = checked
-            md = out.get("metadata") if isinstance(out.get("metadata"), dict) else {}
-            md.update({"verification_status": status, "last_updated": now_utc.isoformat(), "verification_stats": report})
-            out["metadata"] = md
-            save_json(index_path, out)
+        try:
+            if isinstance(raw, list):
+                save_json(index_path, _reinsert_checked(raw, checked))
+            elif isinstance(raw, dict):
+                out = dict(raw)
+                if shape in {"entries", "papers", "items", "references", "data"}:
+                    out[shape] = _reinsert_checked(raw[shape], checked)
+                elif shape == "dict_values":
+                    # 按原键写回原位。绝不另起一份 out["entries"]：那会让同一批文献
+                    # 在同一个文件里存两份，而所有读取侧（本脚本 _normalize_index、
+                    # citation_claim_check._load_ledger）都优先读 entries ——
+                    # 用户之后手工改原键的内容将永远不被任何检查看见。
+                    for k, e in zip(_dict_entry_keys(raw), checked):
+                        out[k] = e
+                else:
+                    out["entries"] = checked
+                md = out.get("metadata") if isinstance(out.get("metadata"), dict) else {}
+                md.update({"verification_status": status, "last_updated": now_utc.isoformat(), "verification_stats": report})
+                out["metadata"] = md
+                save_json(index_path, out)
+        except ValueError as exc:
+            # 账目不平（核验结果与索引条目对不上）：拒绝写回并明确报错，绝不静默丢条目。
+            sys.stderr.write(f"[citation_guard] 写回被拒绝: {exc}\n")
+            return 2
 
     print(json.dumps(report, ensure_ascii=False))
-    return 0 if report["ok"] else 2
+    # 退出码与 ok 解耦（E1b）：离线（unverified）无硬失败仍 exit 0，硬失败/空索引非 0。
+    return 0 if status in ("verified", "unverified") else 2
 
 
 if __name__ == "__main__":

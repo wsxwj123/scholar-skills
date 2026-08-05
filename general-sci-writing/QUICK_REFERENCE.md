@@ -29,8 +29,11 @@ python scripts/citation_guard.py \
   --mcp-ttl-days 30 \
   --manual-review manual_review_queue.json \
   --log verification_run_log.json \
-  --report citation_guard_report.json
+  --report citation_guard_report.json \
+  --write-back \
+  --require-mcp
 ```
+`--write-back` 与 Phase 3 结束/最终交付时的 `--require-mcp` 为强制项，完整细则见 `references/citation-policy.md`。
 
 - 只允许 `pubmed-cli` 与 `paper-search` provider family。
 - `tavily` 仅用于文献真实性的反向核验，不得作为检索/入库来源。

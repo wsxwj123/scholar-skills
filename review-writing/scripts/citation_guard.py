@@ -298,9 +298,13 @@ def main() -> int:
     else:
         status = "verified" if (checked and verified_count == len(checked)) else ("failed" if checked else "empty")
 
+    # 退出码/stderr PASS 门与 report 的 ok 解耦（E1b）：离线（unverified）无硬失败
+    # 仍 exit 0，硬失败/空索引非 0。ok 只表达"整体可采信"，不再参与阻断判定。
+    unblocked = status in ("verified", "unverified")
     report = {
-        # ok 是"本次没查出问题"（=退出码 0），不是"文献已核实"；后者只看 status。
-        "ok": status in ("verified", "unverified"),
+        # ok 是"整体可采信"：只有本轮真联网核验且全部通过（status=verified）才 true；
+        # 离线（unverified）/有硬失败（failed）/空索引（empty）一律 false。
+        "ok": status == "verified",
         "status": status,
         "shape": shape,
         "checked_entries": len(checked),
@@ -360,11 +364,11 @@ def main() -> int:
 
     print(json.dumps(report, ensure_ascii=False))
     # 诚实化：PASS 只代表引文来源合规层过关，不代表论点被文献支持（stderr，不污染 stdout JSON）。
-    if report["ok"]:
+    if unblocked:
         sys.stderr.write(
             "CITATION_GUARD: PASS — 仅核验引文来源合规层（标识符/provider 白名单/标题比对）；"
             "论点是否被所引文献支持、结论科学价值未核验。\n")
-    return 0 if report["ok"] else 2
+    return 0 if unblocked else 2
 
 
 if __name__ == "__main__":

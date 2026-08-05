@@ -1,5 +1,12 @@
 # Revise-Sci Changelog
 
+## [2.29.1] - 2026-08-05
+
+第十轮共享件修复同步（SPEC-round10）：delegate_review 重复 id 往严处倒 +
+--section 路径消毒（#14/#15，fork 同构修）；citation_claim_check 非 str 摘要
+防崩（#16）；citation_guard_core 连接重置/IncompleteRead fail-closed（#6）；
+proofread 4 位年份不再误报数字格式不一致（#9）。
+
 ## 第十七轮完成记录（2026-03-09）
 
 1. 已完成语义角色定位增强：`revise_units.py` 新增 `front/introduction/methods/results/discussion/conclusion` 角色映射，并在缺少显式结构锚点时尝试按评论语义将抽象评论路由到最可能 section。

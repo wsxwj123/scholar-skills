@@ -181,6 +181,10 @@ UNIT_PATTERNS = [
 # 检测:同文档内出现大于 4 位数字、有的带逗号、有的不带 = 不一致
 NUMBER_RE = re.compile(r"(?<![\d.,])\d{4,}(?![\d.,])")
 NUMBER_WITH_COMMA_RE = re.compile(r"\d{1,3}(,\d{3})+")
+# 年份形态（2020 这类四位年）不算"不带逗号数字"——年份永远不写千分位，
+# 把它算进来会让"年份 + 10,000 并存"的正常稿必报不一致。口径同
+# numeric_candidates.py 的年份豁免先例。
+_YEAR_RE = re.compile(r"^(?:19|20)\d{2}$")
 
 # ── Term consistency tracking ────────────────────────────────────────────────
 # 检测同概念多种写法。每组列「互斥」的表面形态(空格/连字符/连写)，仅当 ≥2 种
@@ -388,8 +392,8 @@ def check_number_consistency(text):
     nums_no_comma = NUMBER_RE.findall(text)
     nums_with_comma = NUMBER_WITH_COMMA_RE.findall(text)
     issues = []
-    # 阈值:≥4 位数字
-    big_nums = [n for n in nums_no_comma if len(n) >= 4]
+    # 阈值:≥4 位数字；年份形态（^(19|20)\d{2}$）豁免——年份本就不带逗号。
+    big_nums = [n for n in nums_no_comma if len(n) >= 4 and not _YEAR_RE.match(n)]
     if big_nums and nums_with_comma:
         issues.append({
             "type": "number_format_inconsistent",

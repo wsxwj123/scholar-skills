@@ -1,5 +1,51 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.1] - 2026-08-05
+
+第十一轮：文档失配修正 + 死重清除（SPEC-round11-docs，分支 fix/round11-docs）。
+
+- 文档与现实对齐：素材就位步骤标明"信息性探查不阻断"（≠硬检查）；/rename-figure
+  写成真实子命令；citation_guard 两处命令显式带 --report/--manual-review；
+  删掉不存在的具名代理写法；/resume 两套口径统一；submission-guide Phase 引用
+  8→11；compliance-gate 六项→七项；references 地图补 5 行；§1 拷贝步加
+  env_status 残留清理。
+- 死重删除：templates/search_rules.json（零消费者）、writing-templates 里
+  figures/figure_index.md 断头注册流程、dod_checklist 的 journal-study-dod
+  死 gate、reporting_checklists 的 STROBE/TRIPOD/ClinPK 悬空映射（同步修正
+  submission-guide 的虚假承诺）。
+
+## [2.36.0] - 2026-08-05
+
+第十轮：外部审计 46 条经四路独立验证（35 真/6 部分/5 假）后修复 20 条脚本 bug
+（SPEC-round10，分支 fix/round10，盲检首判 #2 不合格返工后复检合格）。
+
+- 数据安全：FileLock 重试耗尽 fail-closed raise（#1）；restore 改先拷后换，
+  copytree 中途失败现稿原样保留（#21）；账本写回原子化 + .bak + list 形状
+  非 dict 条目不丢（#5-①）；prune 透传 protect，mtime 打平刚建备份必留（#20）。
+- 门禁/判定：figure_analyzed 事件写侧改名 + 读侧跳过无 status 条目，
+  不再吃掉节的 done 状态（#2）；merge 排除 Draft_Round 旧中间稿（#3）；
+  delegate_review 重复 id 往严处倒 + --section 路径消毒（#14/#15，三向同修）；
+  extract_numeric_section 优先带小数节号（#13）。
+- 健壮性：GBK 混入不裸崩（#8/#12，errors="replace" / except 补 UnicodeDecodeError）；
+  _http_get_json 对连接重置/IncompleteRead fail-closed（#6，共享件）；
+  citation_claim_check 非 str 摘要防崩（#16，共享件）；env_preflight argv
+  越界防护（#17）；引文区间展开 500 上限（#22 两处）。
+- 误报消除：proofread 4 位年份不再误报数字格式不一致（#9，共享件铺 6 家）；
+  export_bibtex 缺年份不再静默编 2024（#10）；中文全称（ABBR）定义认得出（#11）；
+  跨节聚类数值归一化（"45%" vs "45.0%" 不再误报漂移）（#19）。
+
+## [2.35.4] - 2026-08-05
+
+citation_guard 离线时 report `ok` 压 false（SPEC-round9 缺陷 E1，分支 fix/round9）。
+
+- 缺陷：report `"ok": status in ("verified", "unverified")` —— 离线跑
+  （status=unverified，一轮没做任何联网核验）照样 ok=true，只看 ok 的调用方会
+  误判"文献已核实"；旁边注释"ok=本次没查出问题"的语义本身易误读。
+- 修复：ok 改为 `status == "verified"`，语义=整体可采信；退出码与 ok 解耦
+  （E1b 用户口径）：离线无硬失败仍 exit 0，条目有真硬失败/空索引仍非 0，
+  退出码行为一字不变。不新增 failure_reason 码。
+- 验收：scripts/test_e1_offline_ok.py 修前红（离线 ok=true）修后绿。
+
 ## [2.35.3] - 2026-08-05
 
 行首特征误判三连修复（SPEC-gsw-block-recognition，分支 fix/gsw-block-recognition）。

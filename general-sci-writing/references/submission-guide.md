@@ -1,6 +1,6 @@
 # 投稿包详细指南 (submission-guide)
 
-> 被 SKILL.md 的 **Phase 8 (`/submission-pack`)** 引用。执行该阶段时 `Read` 本文件。
+> 被 SKILL.md 的 **Phase 11 (`/submission-pack`)** 引用。执行该阶段时 `Read` 本文件。
 
 ## 1. 逐项询问明细（必须主动问，不要静默用空白）
 
@@ -23,7 +23,7 @@
 
 ## 3. 报告规范 checklist（强制）
 
-`Read templates/reporting_checklists.json` → 按 `project_config.json` 的 `research_field` 自动挂对应 checklist（如 `drug_delivery`→ARRIVE，`clinical_pharmacy_llm`→CONSORT/STROBE/TRIPOD，CS→ML reproducibility）。再叠加 `target_journal` 特定要求（Nature Reporting Summary、Cell STAR Methods 等）。逐项核查 Methods 与 Results 是否齐全，缺项必须补到 Methods 后才能 `/merge`。**动物实验 ARRIVE 不全 = 多数期刊编辑桌面拒**。
+`Read templates/reporting_checklists.json` → 按 `project_config.json` 的 `research_field` 自动挂对应 checklist（文件实际内置五份：ARRIVE / CONSORT / MIQE / PRISMA / ML reproducibility；如 `drug_delivery`→ARRIVE，`clinical_pharmacy_llm`→CONSORT，CS→ML reproducibility；STROBE/TRIPOD/ClinPK 等未内置，需要时人工补查对应清单）。再叠加 `target_journal` 特定要求（Nature Reporting Summary、Cell STAR Methods 等）。逐项核查 Methods 与 Results 是否齐全，缺项必须补到 Methods 后才能 `/merge`。**动物实验 ARRIVE 不全 = 多数期刊编辑桌面拒**。
 
 ## 4. Source Data .xlsx 准备（Nature/Cell 强制，其他多数期刊 strongly preferred）
 

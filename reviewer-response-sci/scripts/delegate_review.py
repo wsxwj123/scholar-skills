@@ -205,7 +205,21 @@ def _project_root_for_verify(args: argparse.Namespace) -> str:
     return args.workdir or "."
 
 
+def _section_id_safe(section: str) -> bool:
+    """--section 要拼进 <root>/.review_pass/<section>.json：只许单段文件名，
+    拒绝空串/路径分隔符/..（否则标记能写到项目根之外）。"""
+    s = section.strip()
+    if not s or s in (".", "..") or ".." in s:
+        return False
+    return "/" not in s and "\\" not in s
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
+    if getattr(args, "section", None) is not None and not _section_id_safe(args.section):
+        sys.stderr.write(
+            f"[delegate_review] --section 非法: {args.section!r}"
+            "（只许单段文件名，拒绝空串/路径分隔符/..）\n")
+        return 2
     checklist = _load_json(args.checklist)
     gate = _get_gate(checklist, args.gate)
     items = _get_items(gate, args.gate)
@@ -224,6 +238,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
     for entry in returned:
         if not isinstance(entry, dict) or "id" not in entry:
             problems.append(f"返回项格式非法: {entry!r}")
+            continue
+        if entry["id"] in by_id:
+            # 重复 id 往严处倒：后到的行不许覆盖先到的（先 fail 后 pass 会把 fail 吞掉）。
+            problems.append(f"重复 id: {entry['id']}（返回数组同 id 出现多次，取首行、余者作废）")
             continue
         by_id[entry["id"]] = entry
 

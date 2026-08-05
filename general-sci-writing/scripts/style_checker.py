@@ -371,7 +371,9 @@ def _is_cjk_dominant(text: str, total_words: int) -> bool:
 
 def check_file(filepath: str, journal: str = "") -> dict[str, Any]:
     """Run all checks on a single manuscript file."""
-    with open(filepath, "r", encoding="utf-8") as f:
+    # errors="replace"：GBK 等非 UTF-8 稿混入时坏字节替换为 U+FFFD 而非
+    # UnicodeDecodeError 裸崩（只读扫描语义不变，坏字节本就不构成合法命中）。
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         raw_text = f.read()
 
     prose = _extract_prose(raw_text)

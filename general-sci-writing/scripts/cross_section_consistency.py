@@ -202,7 +202,9 @@ def extract_pairs(files: list[str], patterns: list) -> list[dict]:
     pairs: list[dict] = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            # errors="replace"：GBK 稿混入不崩（except OSError 接不住
+            # UnicodeDecodeError），守住本脚本"永不硬拦 exit 0"的契约。
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue
@@ -228,12 +230,24 @@ def extract_pairs(files: list[str], patterns: list) -> list[dict]:
     return pairs
 
 
+def _norm_value(value: str):
+    """数值归一化键：'45' 与 '45.0' 是同一个数，不该算两种取值。
+
+    非数值（理论上来不了，模式只抓数字）原样返回字符串兜底。
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return value
+
+
 def cluster_suspicions(pairs: list[dict]) -> list[dict]:
     """同 (label, kind) 跨**不同位置**出现**不同 value** → 嫌疑。
 
     保守：
       - 同一行内的同标签数值不算跨段（如 "分别为 45% 和 47%" 是并列，非漂移）。
       - 至少 2 个不同 value 且分布在 ≥2 个不同位置才报。
+      - value 按数值比对（45 == 45.0），字符串不同但数值相等不报。
     """
     by_key: dict[tuple[str, str], list[dict]] = {}
     for p in pairs:
@@ -241,10 +255,10 @@ def cluster_suspicions(pairs: list[dict]) -> list[dict]:
 
     suspicions: list[dict] = []
     for (label, kind), items in by_key.items():
-        # 每个独特 value 取首个出现位置代表。
-        value_to_item: dict[str, dict] = {}
+        # 每个独特 value 取首个出现位置代表（按数值归一化判等）。
+        value_to_item: dict = {}
         for it in items:
-            value_to_item.setdefault(it["value"], it)
+            value_to_item.setdefault(_norm_value(it["value"]), it)
         distinct_values = list(value_to_item.keys())
         if len(distinct_values) < 2:
             continue
@@ -319,7 +333,7 @@ def reconcile_sections(root: str) -> dict:
     file_contents: dict[str, str] = {}
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 file_contents[fp] = f.read()
         except OSError:
             file_contents[fp] = ""

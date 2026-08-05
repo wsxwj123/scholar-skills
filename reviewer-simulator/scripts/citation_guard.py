@@ -30,6 +30,7 @@ from citation_guard_core import (  # noqa: E402
     check_completeness,
     check_recency,
     check_self_citation,
+    entry_is_fresh_verified,
     validate_core,
 )
 
@@ -366,17 +367,30 @@ def main() -> int:
 
     t0 = time.perf_counter()
     now_utc = datetime.now(timezone.utc)
-    checked = [
-        validate_entry(
-            dict(e),
-            online_check=not args.offline,
-            mcp_index=mcp_index,
-            require_mcp=args.require_mcp,
-            mcp_ttl_days=max(0, int(args.mcp_ttl_days)),
-            now_utc=now_utc,
-        )
-        for e in entries
-    ]
+    ttl_days = max(0, int(args.mcp_ttl_days))
+    # 本轮的核验强度：缓存只有在"当初至少这么严"时才准短路（否则一条 --offline
+    # 验过的记录能顶掉 --require-mcp / 联网核验，硬门禁形同虚设）。
+    # 离线跑绝不短路：离线一轮一次联网都没做，不能拿旧记录冒充本次。
+    strictness = {"require_mcp": bool(args.require_mcp), "require_online": not args.offline}
+    # L1 per-entry short-circuit: TTL 内已在线核验的条目复用上次 --write-back 落盘的
+    # 结果，不重新联网。entry_is_fresh_verified 是 fail-safe（缺/旧时间戳、
+    # verified!=True、缓存强度弱于本轮一律返回 False → 全量重验），门禁绝不因此变松。
+    checked = []
+    for e in entries:
+        e = dict(e)
+        if not args.offline and entry_is_fresh_verified(e, ttl_days, now_utc, **strictness):
+            checked.append(e)  # reuse cached verified result verbatim
+        else:
+            checked.append(
+                validate_entry(
+                    e,
+                    online_check=not args.offline,
+                    mcp_index=mcp_index,
+                    require_mcp=args.require_mcp,
+                    mcp_ttl_days=ttl_days,
+                    now_utc=now_utc,
+                )
+            )
 
     failure_counter: Counter[str] = Counter()
     advisory_counter: Counter[str] = Counter()
@@ -418,8 +432,11 @@ def main() -> int:
         status = "verified" if (checked and verified_count == len(checked)) else ("failed" if checked else "empty")
 
     report = {
-        # ok 是"本次没查出问题"（=退出码 0），不是"文献已核实"；后者只看 status。
-        "ok": status in ("verified", "unverified"),
+        # ok 是"整体可采信"：本轮真做了联网核验且全部通过（status=verified）才为 true。
+        # 离线轮一次联网核验都没做 → ok 恒 false（哪怕无硬失败、status=unverified）。
+        # 但 ok 与退出码在此处解耦：无硬失败的离线跑仍 exit 0，是否阻断只看条目自己
+        # 有没有真的硬失败（status=failed 才非 0）。
+        "ok": status == "verified",
         "status": status,
         "shape": shape,
         "checked_entries": len(checked),
@@ -435,7 +452,7 @@ def main() -> int:
         "checked_at": now_utc.isoformat(),
         "online_check": not args.offline,
         "require_mcp": bool(args.require_mcp),
-        "mcp_ttl_days": max(0, int(args.mcp_ttl_days)),
+        "mcp_ttl_days": ttl_days,
         "provider_policy": {
             "allowed_provider_families": sorted(ALLOWED_PROVIDER_FAMILIES),
             "forbidden_provider_families": sorted(FORBIDDEN_PROVIDER_FAMILIES),
@@ -457,28 +474,54 @@ def main() -> int:
     save_json(run_log_path, logs)
 
     if args.write_back:
+        to_write = checked
+        if args.offline:
+            # E3a 数据安全：离线轮一次联网核验都没做，写回时绝不许把索引里此前在线
+            # 验过的 verified:true 刷成 false。判据看原始条目的 verified 字段本身：
+            # 是 True 就整条保留原值（连同它的时间戳与 sources 证据），其余条目照常
+            # 写回本轮离线结果。fail-closed 方向：能证明是 TTL 内在线核验来源的静默
+            # 保留；证明不了的（缺时间戳/来源字段）同样保留但留痕 stderr——
+            # 宁可不刷也不误刷，绝不静默乱写。
+            merged = []
+            unproven = []
+            for i, (orig, new) in enumerate(zip(entries, checked), 1):
+                if orig.get("verified") is True:
+                    merged.append(orig)
+                    if not entry_is_fresh_verified(orig, ttl_days, now_utc,
+                                                   require_online=True):
+                        unproven.append(_entry_ref_id(orig, i))
+                else:
+                    merged.append(new)
+            if unproven:
+                sys.stderr.write(
+                    "WRITE-BACK: %d 条 verified:true 记录缺新鲜时间戳/在线来源证明，"
+                    "已按 fail-closed 保留原值（未写入本轮离线结果）：%s\n"
+                    % (len(unproven), unproven))
+            to_write = merged
         if isinstance(raw, list):
-            save_json(index_path, checked)
+            save_json(index_path, to_write)
         elif isinstance(raw, dict):
             out = dict(raw)
             if shape in {"entries", "papers", "items", "references", "data"}:
-                out[shape] = checked
+                out[shape] = to_write
             elif shape == "dict_values":
                 # 按原键写回原位。绝不另起一份 out["entries"]：那会让同一批文献
                 # 在同一个文件里存两份，而所有读取侧（本脚本 _normalize_index、
                 # citation_claim_check._load_ledger）都优先读 entries ——
                 # 用户之后手工改原键的内容将永远不被任何检查看见。
-                for k, e in zip(_dict_entry_keys(raw), checked):
+                for k, e in zip(_dict_entry_keys(raw), to_write):
                     out[k] = e
             else:
-                out["entries"] = checked
+                out["entries"] = to_write
             md = out.get("metadata") if isinstance(out.get("metadata"), dict) else {}
             md.update({"verification_status": status, "last_updated": now_utc.isoformat(), "verification_stats": report})
             out["metadata"] = md
             save_json(index_path, out)
 
     print(json.dumps(report, ensure_ascii=False))
-    return 0 if report["ok"] else 2
+    # 退出码与 ok 解耦（ok 离线恒 false 之后不能再用 ok 当退出码）：维持既有映射
+    # 一字不变——verified/unverified → 0，failed/empty → 2。
+    return 2 if status in ("failed", "empty") else 0
 
 
 if __name__ == "__main__":

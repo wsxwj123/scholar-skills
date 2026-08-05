@@ -1,0 +1,43 @@
+# Changelog - Review Writing Skill
+
+## [2.36.4] - 2026-08-05
+
+第十轮共享件修复同步（SPEC-round10）：delegate_review 重复 id 往严处倒 +
+--section 路径消毒（#14/#15）；citation_claim_check 非 str 摘要防崩（#16）；
+citation_guard_core 连接重置/IncompleteRead fail-closed（#6）；
+proofread 4 位年份不再误报数字格式不一致（#9）。
+
+## [2.36.3] - 2026-08-05
+
+citation_guard 离线时 report `ok` 压 false（SPEC-round9 缺陷 E1，分支 fix/round9）。
+
+- 缺陷：report `"ok": status in ("verified", "unverified")` —— 离线跑
+  （status=unverified，一轮没做任何联网核验）照样 ok=true，只看 ok 的调用方会
+  误判"文献已核实"；旁边注释"ok=本次没查出问题"的语义本身易误读。
+- 修复：ok 改为 `status == "verified"`，语义=整体可采信；退出码与 ok 解耦
+  （E1b 用户口径）：引入 `unblocked = status in ("verified", "unverified")`
+  同时喂退出码与 stderr 的 PASS 提示门——离线无硬失败仍 exit 0、stderr 文本与
+  触发条件一字不变，条目有真硬失败/空索引仍非 0。不新增 failure_reason 码。
+- 验收：scripts/test_e1_offline_ok.py 修前红（离线 ok=true）修后绿。
+
+## [2.36.2] - 2026-08-05
+
+参考文献识别收敛到共享件（SPEC-round9 缺陷 E2b/E2c，分支 fix/round9）。
+
+- style_checker.py 删掉自带的独立识别实现（REF_HEADING_RE 前缀匹配 +
+  `_is_reference_label_line` 三条词表，即 gsw 第六轮已删的那套），改为模块级
+  import `_shared/ref_section.py` 的 vendored 副本（与 gsw/nsfc 逐字节一致）。
+  修前 7 个案例与 ref_section 全部分歧：`## Reference List` / `#References` /
+  `## 7. References` / `## 引用文献` / 裸行 `Reference` / `References and Notes`
+  认不得（文献条目泄进 prose 误报），`####### References` 反而误开块
+  （整段被误剥漏报）。修后分歧归零（`####### References` 一例是有意的判严
+  方向变化：7 个 # 不是 markdown 标题，其后条目此后被当正文扫）。
+- E2c 用户拍板 D2/D3 一并对齐 gsw 第八轮：图注剥行加段落起点判据
+  （pandoc 硬换行的正文续行 `Figure 5E ...` 不再被整行误剥，独立成段的
+  真图注照样剥）；CRediT 作者贡献行 / 通讯作者 boilerplate 剥出 prose
+  （封闭标准词表判据，不枚举人名；正文真解释性冒号照样 hard_fail）。
+- rw 独有逻辑原样保留：review 语态阈值 ≤30%（info 软提示）、长句 >30 词检查、
+  `from X to Y` 模式不收（误报）、默认目录 drafts/、--passive-max 参数。
+- 验收：scripts/test_style_ref_converge.py（7 分歧 + 不误伤 + 线性时间）、
+  scripts/test_block_recognition.py（D1/D2/D3 两侧）修前红修后绿；
+  三份 ref_section.py 与 `_shared/` 真源 md5 一致，sync_vendored --check 绿。

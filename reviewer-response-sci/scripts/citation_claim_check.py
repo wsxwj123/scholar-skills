@@ -289,7 +289,7 @@ def _row_blockers(row: dict) -> list[str]:
     problems: list[str] = []
     ref = row.get("ref_id") or "?"
     verdict = row.get("verdict")
-    if not (row.get("retrieved_abstract") or "").strip():
+    if not str(row.get("retrieved_abstract") or "").strip():
         problems.append(f"[{ref}] 承重句但未取到被引文献摘要，无法核证（需人工或重取摘要）")
         return problems  # 没摘要就没法谈 verdict
     if verdict not in VALID_VERDICTS:

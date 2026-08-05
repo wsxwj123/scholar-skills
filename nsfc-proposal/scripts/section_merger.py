@@ -15,6 +15,8 @@ try:
 except ImportError:  # structure_profile.py 尚未落地/半安装 → 一律走内置默认
     structure_profile = None
 
+from ref_section import is_reference_heading  # noqa: E402  同目录 vendored 共享件
+
 # 内置国自然 2026 章节清单（结构真源缺失时的 fallback，INTERFACE §0；勿删）
 ORDER = [
     "00_摘要_中文.md",
@@ -205,14 +207,23 @@ def merge_selected(sections_dir: Path, selected: list[str], output_path: Path) -
 # 正文参考文献角标：纯数字方括号，形如 [1] / [2,3] / [4-6] / [2，3]（全角逗号）。
 # 限定纯数字 + 分隔符，天然排除 [图1]/[表2]（含中文）与公式区间等。
 _CITATION_RE = re.compile(r"\[\d+(?:[-,，]\d+)*\]")
-# 参考文献章节标题：进入后停止上标处理，避免误伤列表条目编号 [1] 张三...
-_REF_HEADING_RE = re.compile(r"^\s*(参考文献|References)\s*$")
 
 
 def _is_ref_heading(text: str) -> bool:
-    # 去掉可能的 markdown 标题残留符号后匹配
-    stripped = text.strip().lstrip("#").strip()
-    return bool(_REF_HEADING_RE.match(stripped))
+    """docx 段落文本是否"参考文献章节标题"（进入后停止上标处理）。
+
+    判据收敛到共享件 ref_section.is_reference_heading（SPEC-round9 E2d）。
+    此前这里的正则 `^\\s*(参考文献|References)\\s*$` 只认两种整行，
+    `## **8. 参考文献**`（pandoc 渲染成 Heading 段落、纯文本 "8. 参考文献"）与
+    `## 参考文献：`（渲染成 "参考文献："）都认不得，文献列表的条目编号 [1] 被
+    误转上标。
+
+    docx 段落文本没有 markdown 符号，而共享件只在带 # 的标题里吃编号前缀
+    （裸行不吃：目录里的 "3. References" 是条目不是段起点）。docx 侧 Heading
+    段落的等价形态 = 补一个 "# " 前缀再判；两次判定都是线性扫描，无正则回溯。
+    """
+    stripped = (text or "").strip()
+    return is_reference_heading(stripped) or is_reference_heading("# " + stripped)
 
 
 def _superscript_citations(docx_path: Path) -> int:

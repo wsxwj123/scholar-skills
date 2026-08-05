@@ -42,7 +42,9 @@ def build_entry(ref, idx):
     cite_key = normalize_cite_key(ref.get("ref_id") or ref.get("citation_key"), idx)
     title = ref.get("title") or ref.get("citation") or "Unknown Title"
     journal = ref.get("journal") or "Unknown Journal"
-    year = ref.get("year") or "2024"
+    # 缺 year 不编年份（此前静默写 "2024"，等于伪造文献信息）：
+    # 该字段直接省略，缺失条数由 convert_to_bibtex 计数报告。
+    year = ref.get("year")
     doi = ref.get("doi") or ""
     authors = normalize_authors(ref)
     volume = ref.get("volume") or ""
@@ -53,8 +55,9 @@ def build_entry(ref, idx):
         f"@article{{{cite_key},",
         f"  title = {{{bibtex_escape(title)}}},",
         f"  journal = {{{bibtex_escape(journal)}}},",
-        f"  year = {{{bibtex_escape(year)}}},",
     ]
+    if year:
+        lines.append(f"  year = {{{bibtex_escape(year)}}},")
     if authors:
         lines.append(f"  author = {{{bibtex_escape(authors)}}},")
     if volume:
@@ -78,8 +81,11 @@ def convert_to_bibtex(index_file="literature_index.json", output_file="reference
         return {"ok": False, "error": f"failed to parse index: {e}"}
 
     entries = []
+    missing_year = 0
     for i, ref in enumerate(refs, 1):
         if isinstance(ref, dict):
+            if not ref.get("year"):
+                missing_year += 1
             entries.append(build_entry(ref, i))
 
     try:
@@ -94,6 +100,7 @@ def convert_to_bibtex(index_file="literature_index.json", output_file="reference
         "output_file": output_file,
         "references_input_count": len(refs),
         "references_exported_count": len(entries),
+        "references_missing_year_count": missing_year,
     }
 
 

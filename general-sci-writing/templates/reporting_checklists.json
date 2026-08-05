@@ -4,8 +4,8 @@
   "_field_to_checklist": {
     "drug_delivery": ["ARRIVE 2.0", "ARRIVE essential 10 (animal studies)"],
     "biomedical_pharma": ["ARRIVE 2.0", "ARRIVE essential 10"],
-    "clinical_pharmacy_llm": ["CONSORT 2010 (RCT)", "STROBE (observational)", "TRIPOD (prediction models)"],
-    "quantitative_pharmacology": ["CONSORT 2010", "TRIPOD", "ClinPK reporting checklist"],
+    "clinical_pharmacy_llm": ["CONSORT 2010 (RCT)"],
+    "quantitative_pharmacology": ["CONSORT 2010"],
     "computer_science": ["ML reproducibility (NeurIPS) checklist"],
     "default": ["assess case-by-case"]
   },

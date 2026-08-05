@@ -139,7 +139,11 @@ def section_status_from_progress(root, section):
     last = None
     if isinstance(history, list):
         for entry in history:
-            if isinstance(entry, dict) and str(entry.get("section")) == str(section):
+            # 无 status 键的条目（figure_analyzed 等事件）不是状态记录，跳过——
+            # 否则事件会把该节已读到的 done 盖成 None，硬拦下一节开写。
+            if not isinstance(entry, dict) or "status" not in entry:
+                continue
+            if str(entry.get("section")) == str(section):
                 last = entry.get("status")
     # 兜底：last_section 直读
     if last is None and str(payload.get("last_section")) == str(section):
@@ -171,7 +175,8 @@ def scan_placeholders(files):
     hits = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            # errors="replace"：GBK 稿混入不崩（except OSError 接不住 UnicodeDecodeError）。
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue
@@ -330,7 +335,7 @@ def main():
         residual = []
         for fp in all_md:
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     residual += [k for k in NEW_KEY_RE.findall(f.read()) if k not in keymap]
             except OSError:
                 continue

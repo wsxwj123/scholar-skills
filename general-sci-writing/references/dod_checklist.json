@@ -149,48 +149,6 @@
         }
       ]
     },
-    "journal-study-dod": {
-      "title": "目标期刊风格深度学习 DoD(落盘前委托独立子代理盲检)",
-      "applies_when": "Phase 8.6 journal_study/target_journal_study.json 落盘前",
-      "items": [
-        {
-          "id": "JS1",
-          "name": "代表作数量",
-          "check": "recent_representative_papers ≥5 篇且均为近 5 年"
-        },
-        {
-          "id": "JS2",
-          "name": "真实性核验",
-          "check": "每篇过 citation_guard --require-mcp 且 verified=true、带 DOI/PMID",
-          "script": "python scripts/citation_guard.py --index journal_study/journal_study_index.json --mcp-cache mcp_literature_cache.json --require-mcp --report journal_study/journal_study_guard.json"
-        },
-        {
-          "id": "JS3",
-          "name": "四维特征非空",
-          "check": "abstract_structure_features / writing_style_features / figure_conventions / format_preferences 四字段均非空"
-        },
-        {
-          "id": "JS4",
-          "name": "可操作建议",
-          "check": "actionable_recommendations ≥5 条,每条 maps_to ∈ {abstract,正文,图表}"
-        },
-        {
-          "id": "JS5",
-          "name": "目标刊一致",
-          "check": "target_journal 与 storyline.json 的目标刊一致"
-        },
-        {
-          "id": "JS6",
-          "name": "防抄袭",
-          "check": "报告只含风格/结构特征,无目标文原句或具体科学论断/数据"
-        },
-        {
-          "id": "JS7",
-          "name": "占位清零",
-          "check": "无 {{}}/TBD/空必填字段"
-        }
-      ]
-    },
     "submission-pack-dod": {
       "title": "投稿包 DoD(Phase 11 产出后核查,Phase 10.5 含阻断)",
       "applies_when": "Phase 11 /submission-pack 产出后",

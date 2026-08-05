@@ -444,8 +444,10 @@ def main() -> int:
         status = "verified" if (checked and verified_count == len(checked)) else ("failed" if checked else "empty")
 
     report = {
-        # ok 是"本次没查出问题"（=退出码 0），不是"文献已核实"；后者只看 status。
-        "ok": status in ("verified", "unverified"),
+        # ok 是"整体可采信"：只有本轮真联网核验且全部通过（status=verified）才 true；
+        # 离线（unverified）/有硬失败（failed）/空索引（empty）一律 false。
+        # "是否阻断"看退出码，与 ok 解耦：离线无硬失败仍 exit 0。
+        "ok": status == "verified",
         "status": status,
         "shape": shape,
         "checked_entries": len(checked),
@@ -505,7 +507,8 @@ def main() -> int:
             save_json(index_path, out)
 
     print(json.dumps(report, ensure_ascii=False))
-    return 0 if report["ok"] else 2
+    # 退出码与 ok 解耦（E1b）：离线（unverified）无硬失败仍 exit 0，硬失败/空索引非 0。
+    return 0 if status in ("verified", "unverified") else 2
 
 
 if __name__ == "__main__":

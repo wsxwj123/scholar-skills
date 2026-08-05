@@ -1,6 +1,6 @@
 # 投稿前合规门禁细则 (compliance-gate)
 
-> 被 SKILL.md Phase 10.5 (`/compliance-check`) 指针引用。包含六项合规检查的完整判定细则与阻断条件。
+> 被 SKILL.md Phase 10.5 (`/compliance-check`) 指针引用。包含七项合规检查的完整判定细则与阻断条件。
 
 ---
 
