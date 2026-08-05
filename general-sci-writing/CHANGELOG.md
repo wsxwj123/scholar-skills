@@ -1,5 +1,109 @@
 # Changelog - General SCI Writing Skill
 
+## [2.35.3] - 2026-08-05
+
+行首特征误判三连修复（SPEC-gsw-block-recognition，分支 fix/gsw-block-recognition）。
+三个缺陷同族：脚本按"行首特征"判断文字块性质，判错了就多报（假报警）或漏查（假阴性）。
+
+⚠️ 版本号未 bump：SPEC D6 要求 frontmatter 2.35.2→2.35.3，但同一份 SPEC 与任务书
+的文件边界都写明"明确不许碰 SKILL.md"，两条指令冲突。按"指令矛盾停下上报"处理，
+SKILL.md frontmatter 仍是 2.35.2，待主会话裁决后补 bump。
+
+### D1 ref_section 认得"编号包在加粗里"的参考文献标题
+
+- 缺陷：`## **8. References**`（编号被 `**` 包住，两份真稿同位置复发）被
+  `is_reference_heading` 判 False——先剥编号后剥装饰符号，顺序对不上。
+  相邻形态（`## **References**` / `## 8. References` / `## References`）全部正常。
+  后果：116 条文献泄进 prose，score 19（剥掉后 49）、115 条 bullet 假报警、
+  字数统计把 116 条算进正文词数；该函数是五处调用的唯一口径。
+- 修法：装饰符号剥掉之后再吃一次编号前缀（仍只在带 # 的标题里吃，裸行口径不变）。
+  识别路径保持线性，无正则、无回溯；`__main__` 自检原有 YES/NO 一字未动，
+  新增夹心 YES×3（`## **8. References**` 等）与 NO×4（`## **8. References** extra` /
+  `## **7. Competing Interests**` / `## **8. Reference genome**` / 裸 `**8. References**`）。
+
+### D2 硬换行的正文续行不再被当图注整行剥掉
+
+- 缺陷：pandoc 硬换行让正文句子的续行以 `Figure <数字>` 开头，被
+  `FIGURE_LEGEND_RE` 无条件当图注剥掉（真稿 3 处），同性质的 `Figure S4C` 续行
+  因 S 前缀不匹配正则反而幸存——主图被剥、附图留下，漏查方向。
+- 修法（`_extract_prose`）：结构性判据"图注是独立段落、续行在段落中间"——
+  行首匹配 `Figure/Fig./Table + 编号` 的行仅在**段落起点**（前一行空行/块边界/
+  文件开头）才剥；上一行非空（未完句与完句两种都测）一律留下被检查。
+  独立成段的 `Figure 5: caption` / `Table 2: ...` 照样剥，力度与续行侧相同。
+
+### D3 CRediT 作者贡献块与通讯作者行不再当正文扫
+
+- 缺陷：`## **5. Author Contributions**` 下的 CRediT 角色行
+  （`Wenjie Xu: Conceptualization, Methodology, ...`）与
+  `Corresponding authors:` 邮箱行，每行稳定命中一条 explanatory_colon_in_prose
+  （真稿 10 条假阳性）。这是期刊模板 boilerplate，不是正文 prose。
+- 修法（`_extract_prose`，单函数内，未动架构）：新增两个行级判据——
+  ① CRediT 行：冒号后整段按逗号/分号切开后**每一项**都落在 CRediT 14 角色
+  封闭标准词表内（归一化破折号三态、&/and、大小写），不枚举人名；
+  ② 通讯作者行：冒号前头部整体落在封闭标签集（corresponding author(s) /
+  correspondence (to)）内。命中的行整行剥出 prose。
+  不误伤：正文解释性冒号（`The mechanism is simple: Drug X inhibits Y.`）照样报
+  （hard_fail）；统计方法 `Correspondence analysis showed: ...` 头部不在标签集，不剥。
+
+### 复现/验收
+
+- `scripts/test_block_recognition.py`（gitignore 排除，不分发）：10 条用例，
+  修前 7 红（exit 1）修后全绿（exit 0）；三条缺陷各自"拦得住 + 不误伤"两侧同力度。
+- 已知边界（登记，不处理）：`Key contribution: Validation.` 这种整段恰好只有一个
+  CRediT 角色词的电报句会被剥——它本就撞解释性冒号硬门禁，同方向；
+  作者忘空行的真图注（紧贴上一正文行）此后会被当续行留下，漏查方向，与 SPEC 口径一致。
+- style_checker md5 锁（tests/acceptance/test_style_checker_guard.py）按预期撞锁：
+  登记 771606659667f12024aa92650b6e93f1 → 实得 d916c339990b4eae0f98876a76d2cf97，
+  开发代理未改锁，待主会话确认后刷新。
+
+## [2.35.2] - 2026-08-05
+
+/init 把 docx 字体模板拷进项目（SPEC-gsw-init-template，分支 fix/gsw-init-template）。
+
+### §1 Command Logic 第 3 步补上 reference.docx
+
+- 缺陷：`/init` 只把 `templates/*.json` 扁平拷到项目根，`templates/reference.docx`
+  从不进项目 → 每个新项目第一次 `/merge` 导 docx 必撞一次硬失败
+  （exit 2、`reason: reference_doc_missing`），用户要多跑一条
+  `python scripts/make_reference_docx.py` 自愈命令才能继续。
+- 修法：第 3 步改为 `cp [Skill_Path]/templates/*.json [Skill_Path]/templates/reference.docx [Target_Path]/`，
+  模板与 json 一样扁平落到项目根（`merge_manuscript.py` 候选位第 3 位
+  `cwd/reference.docx` 自动认出，与 `make_reference_docx.py` 默认落点一致）。
+  不建 `templates/` 目录，其余 4 步一字不变。
+- 覆盖语义：与 §1 现有步骤一致——全部用裸 `cp`，目标已存在即覆盖，
+  无"跳过已存在"保护（如实登记，未发明新语义）。改字体的正规路径
+  （重跑 `make_reference_docx.py` 覆盖项目根 `reference.docx`）不受影响。
+- 文档口径同步三处：§1 第 3 步、Phase 0 Copy Resources 清单、
+  Phase 16 docx 段（删"项目目录里模板缺失是常态（/init 不把 templates/ 拷进项目）"
+  这句已过时的话，改为"init 已拷、老项目或被删时才缺、硬失败与自愈语义不变"）。
+- 复现/验收测试：`scripts/test_init_reference_docx.py`（gitignore 排除，不分发）。
+  守两层：SKILL.md 第 3 步拷贝指令被删即红；裸临时目录照指令初始化后
+  首次 merge exit 0 且 docx 产出、项目模板与技能仓模板 md5 一致。
+
+## [2.35.1] - 2026-08-05
+
+参考文献识别收敛 + docx 模板口径改正（SPEC-gsw-refconverge，分支 fix/gsw-refconverge）。
+
+### style_checker 参考文献段识别收敛到 ref_section 单一口径
+
+- style_checker 里原有一份独立的段标题识别（`REF_HEADING_RE` + `_is_reference_label_line`，
+  词表只有 References/参考文献/Bibliography 三条），与同目录 `ref_section.py`
+  对同一份稿判定不一致：`## Reference List` / `#References` / `## 7. References` /
+  `## 引用文献` / 裸行 `Reference` / `References and Notes` 全认不得（条目泄进 prose
+  被当正文扫，误报），`####### References` 反而误开块（整段被误剥，漏报）。
+- 删除旧实现，`_extract_prose` 直接调 `ref_section.is_reference_heading`
+  （函数对象同一性）；非参考文献标题关块语义不变（`## Appendix` 后的正文仍被检查）。
+- 有意的行为变化：`####### References`（7 个 # 在 markdown 里不是标题）其后条目
+  此后被当正文扫。识别路径保持线性消费，未回正则。
+- 复现/验收测试：`scripts/test_style_ref_converge.py`（gitignore 排除，不分发）。
+
+### SKILL.md Phase 16 docx 模板口径改正
+
+- 原文「缺失=安装损坏」与现行事实不符：`/init` 不把 `templates/` 拷进项目，
+  项目里缺模板是常态；`make_reference_docx.py` 能在裸目录用 pandoc 兜底自产模板，
+  merge 自动认出 `./reference.docx`。改为「缺失是常态、docx 步骤失败但 md 照常落盘、
+  一条命令自愈」，三条命令已在裸目录实测走通。
+
 ## [2.35.0] - 2026-08-04
 
 收尾批·文档层。这一批的重点不是"把写错的字改对"，是**把会反复写错的结构拆掉**。

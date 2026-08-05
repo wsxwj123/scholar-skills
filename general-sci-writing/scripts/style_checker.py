@@ -23,6 +23,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ref_section import is_reference_heading  # noqa: E402
+
 
 def is_merged_derivative(path: str) -> bool:
     """True for merge_manuscript.py outputs (Full_Manuscript.md / Draft_Round*_Manuscript.md).
@@ -200,54 +203,77 @@ CJK_CHARS_PER_WORD = 2
 # positive source (bullets / explanatory colons read out of bibliography
 # entries). Once we know we are inside a reference block we drop every line
 # until the block is closed; see _extract_prose.
-HEADING_RE = re.compile(r"^#+\s+", re.MULTILINE)
-# Heading text (after stripping leading #/space) that marks a reference section.
-REF_HEADING_RE = re.compile(r"^(?:References|参考文献|Bibliography)", re.IGNORECASE)
-# A standalone reference label line that is not a markdown heading
-# ("References" / "**References**" / "参考文献：" / "Bibliography").
-# Anchored at both ends on purpose: a prose sentence that merely starts with
-# "References were formatted per…" must NOT open the block, otherwise the
-# whole rest of the file would be swallowed.
 #
-# ReDoS fix (2026-08-03) — do NOT turn this back into a regex. It used to be
-#   ^\**\s*(?:References|参考文献|Bibliography)\s*\**\s*[:：]?\s*$
-# where the adjacent optional quantifiers (\s* \** \s*) all compete for the
-# same whitespace run: cubic backtracking on near-miss lines. Measured with a
-# single .match() call:
-#   "References" + " "*400  + "x"  →  0.067 s
-#   "References" + " "*800  + "x"  →  0.512 s
-#   "References" + " "*1600 + "x"  →  4.035 s   (≈×8 per doubling)
-# The trigger shape is real: PDF/HTML-to-text TOC lines are exactly
-# "References" + <long space run> + <page number>, and a few dozen of them
-# hang the checker for minutes → users skip the check → silent failure.
-# Merging segments into character classes ([\s*]*[:：]?[\s*]*$) is NOT a fix
-# either: still O(n²), 29 s measured. Hence a plain left-to-right consumer —
-# each greedy strip below is equivalent to the regex because no later segment
-# can accept the characters an earlier segment consumes.
-_REF_LABEL_KEYWORDS = ("references", "参考文献", "bibliography")
-
-
-def _is_reference_label_line(stripped: str) -> bool:
-    """Linear-time, semantics-preserving replacement for the retired regex."""
-    s = stripped.lstrip("*")            # ^\**
-    s = s.lstrip()                      # \s*
-    for kw in _REF_LABEL_KEYWORDS:      # (?:References|参考文献|Bibliography), re.I
-        # Compare a fixed-length slice, lowercased: indices stay in the
-        # original string even for rare chars whose lower() changes length.
-        if s[: len(kw)].lower() == kw:
-            s = s[len(kw):]
-            break
-    else:
-        return False
-    s = s.lstrip()                      # \s*
-    s = s.lstrip("*")                   # \**
-    s = s.lstrip()                      # \s*
-    if s[:1] in (":", "："):            # [:：]?
-        s = s[1:]
-    return not s.lstrip()               # \s*$
+# 段标题识别唯一口径在 ref_section.py（模块级 import，函数对象同一性）。
+# 这里曾放着同技能的第五份独立实现（REF_HEADING_RE + _is_reference_label_line，
+# 词表只有 References/参考文献/Bibliography 三条），与 ref_section 对同一份稿
+# 判定不一致：`## Reference List` / `#References` / `## 7. References` /
+# `## 引用文献` / 裸行 `Reference` / `References and Notes` 全认不得（条目泄进
+# prose 误报），`####### References` 反而误开块（整段被误剥漏报）。已删除收敛。
+# 那份实现里的 ReDoS 事故记录与线性消费要求一并由 ref_section.py 继承，
+# 识别路径不许回到正则。
+HEADING_RE = re.compile(r"^#+\s+", re.MULTILINE)
 FIGURE_LEGEND_RE = re.compile(r"^(?:Figure|Fig\.?|Table)\s+\d", re.IGNORECASE | re.MULTILINE)
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
 CITATION_RE = re.compile(r"\[\d+(?:[,\-\s]*\d+)*\]")
+
+# ── CRediT 作者贡献行 / 通讯作者 boilerplate ──────────────────────────────────
+# `Wenjie Xu: Conceptualization, Methodology, ...` 与 `Corresponding authors: 邮箱`
+# 是期刊模板 boilerplate，不是正文 prose——留着每行稳定命中一条解释性冒号硬门禁
+# （真稿 10 条假阳性，正文真实冒号 0 条）。CRediT 的 14 个角色是封闭标准词表
+# （https://credit.niso.org/），按"冒号后整段全部落在词表内"判，不枚举人名。
+_CREDIT_ROLES = frozenset({
+    "conceptualization", "data curation", "formal analysis", "funding acquisition",
+    "investigation", "methodology", "project administration", "resources",
+    "software", "supervision", "validation", "visualization",
+    "writing - original draft", "writing - review and editing",
+})
+# 通讯作者 boilerplate 的封闭标签集（冒号前的全部头部，词表外不剥）。
+_CORRESPONDING_HEADS = frozenset({
+    "corresponding author", "corresponding authors", "correspondence", "correspondence to",
+})
+
+
+def _normalize_credit(text: str) -> str:
+    """归一 CRediT 角色写法：破折号三态并到连字符、& 并到 and、压空白、小写。"""
+    t = text.lower().replace("–", "-").replace("—", "-").replace("&", " and ")
+    return " ".join(t.split())
+
+
+def _is_credit_role_line(stripped: str) -> bool:
+    """整行是 CRediT 贡献行（人名: 角色, 角色, ...）时返回 True。
+
+    结构性判据：冒号后整段按逗号/分号切开后**每一项**都是 CRediT 角色词。
+    正文解释性冒号（`The mechanism is simple: X inhibits Y.`）的冒号后不是
+    角色词表，不剥。已知天花板：`Key contribution: Validation.` 这种整段恰好
+    只有一个角色词的电报句也会被剥——它本就撞解释性冒号硬门禁，同方向。
+    """
+    head, sep, tail = stripped.partition(":")
+    if not sep or not head.strip() or not tail.strip():
+        return False
+    items = [it for it in re.split(r"[,;]", tail) if it.strip(" .")]
+    if not items:
+        return False
+    for it in items:
+        norm = _normalize_credit(it.strip(" ."))
+        if norm.startswith("and "):
+            norm = norm[4:]
+        if norm not in _CREDIT_ROLES:
+            return False
+    return True
+
+
+def _is_corresponding_line(stripped: str) -> bool:
+    """整行是通讯作者 boilerplate（标签: 邮箱/地址）时返回 True。
+
+    判据是冒号前头部**整体**落在封闭标签集内；正文里的
+    `Correspondence analysis showed: ...`（对应分析，统计方法）头部不在集内，不剥。
+    """
+    head, sep, _ = stripped.partition(":")
+    if not sep:
+        return False
+    return _normalize_credit(head).strip("*_ ") in _CORRESPONDING_HEADS
+
 
 
 def _extract_prose(text: str) -> str:
@@ -256,6 +282,11 @@ def _extract_prose(text: str) -> str:
     lines = text.splitlines()  # 跨平台：兼容 \r\n/\r 换行
     prose_lines = []
     in_ref_block = False
+    # 段落起点标记：图注是独立段落（前面是空行/块边界），pandoc 硬换行的正文续行
+    # 在段落中间（上一行非空）——两者行首都可能是 "Figure 5"，只有前者该剥。
+    # 此前无条件剥，正文续行被整行吞掉（真稿 3 处：As shown in ↵ Figure 5E ...），
+    # 而 `Figure S4C` 因 S 前缀不匹配正则幸存，同性质句子主图被剥、附图留下。
+    para_start = True
     for line in lines:
         stripped = line.strip()
         if not stripped:
@@ -264,17 +295,19 @@ def _extract_prose(text: str) -> str:
             # between the "References" label and the first entry. Closing on a
             # blank line meant the block never survived past its own label.
             prose_lines.append("")
+            para_start = True
+            continue
+        if is_reference_heading(line):
+            # 参考文献段标题开块（markdown 标题与裸标签行两类都由这一个函数认）。
+            in_ref_block = True
+            para_start = True
             continue
         if HEADING_RE.match(stripped):
-            # A "## References"/"参考文献"/"Bibliography" heading opens the ref
-            # block; any other heading closes it. Without this, the heading
-            # branch swallowed "## References" first and unconditionally reset
-            # in_ref_block, so the block could never open at all.
-            heading_text = HEADING_RE.sub("", stripped, count=1).strip()
-            in_ref_block = bool(REF_HEADING_RE.match(heading_text))
-            continue
-        if _is_reference_label_line(stripped):
-            in_ref_block = True
+            # 任何非参考文献标题关块：`## References` 之后若还有 `## Appendix`
+            # 这类带自己标题的正文节，该节正文必须继续被检查，不许一个参考
+            # 文献标题截断全文。
+            in_ref_block = False
+            para_start = True
             continue
         if in_ref_block:
             # Inside a reference block every line is bibliography, whatever its
@@ -285,10 +318,19 @@ def _extract_prose(text: str) -> str:
             # false positives per draft instead, which is the worse failure.
             continue
         if stripped.startswith("---"):
+            para_start = True
             continue
-        if FIGURE_LEGEND_RE.match(stripped):
+        if _is_credit_role_line(stripped) or _is_corresponding_line(stripped):
+            # CRediT 贡献行 / 通讯作者 boilerplate：期刊模板内容，不是正文 prose，
+            # 留着每行稳定命中一条解释性冒号假阳性。
+            para_start = True
+            continue
+        if para_start and FIGURE_LEGEND_RE.match(stripped):
+            # 段首的 Figure/Table 编号行是图注，剥；段落中间的同形行是硬换行
+            # 续行（上一行非空），必须留下被检查。
             continue
         prose_lines.append(line)
+        para_start = False
     return "\n".join(prose_lines)
 
 

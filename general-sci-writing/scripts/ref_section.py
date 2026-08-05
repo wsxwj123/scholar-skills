@@ -48,7 +48,8 @@ def is_reference_heading(line):
     """整行就是一个参考文献段标题时返回 True。
 
     认得：``## References`` / ``## Bibliography`` / ``**References**`` /
-    ``## 参考文献：`` / ``## 参考文献`` / 裸行 ``References`` / ``## 7. References``。
+    ``## 参考文献：`` / ``## 参考文献`` / 裸行 ``References`` / ``## 7. References`` /
+    编号包在装饰里的夹心形态 ``## **8. References**``。
 
     不认（关键的不误伤）：行里除了标签词还有别的内容，例如正文
     ``The method cites references [1,2] for details.`` —— 两端都锚定，
@@ -70,6 +71,11 @@ def is_reference_heading(line):
         s = _strip_leading_number(s)
 
     s = s.lstrip(_DECOR).lstrip()
+    # 编号包在装饰符号里的夹心形态（## **8. References**，两份真稿复发）：装饰剥掉
+    # 之后编号才露头，再吃一次。仍只在带 # 的标题里吃，裸行口径不变（目录里的
+    # 裸 "**8. References**" 是条目不是段起点，与裸 "8. References" 同样不认）。
+    if hashes:
+        s = _strip_leading_number(s)
 
     for kw in REF_LABELS:
         if s[:len(kw)].lower() == kw:
@@ -108,12 +114,15 @@ if __name__ == "__main__":
            "## 参考文献", "# REFERENCES", "References", "参考文献",
            "## 7. References", "###  Bibliography  ", "**参考文献**", "## References ##",
            "__References__", "## 引用文献", "#References",
-           "## References and Notes", "## Reference List"]
+           "## References and Notes", "## Reference List",
+           "## **8. References**", "## **7. Bibliography**", "## **3. 参考文献**"]
     NO = ["The method cites references [1,2] for details.",
           "References were formatted per journal style.",
           "## Reference genome alignment", "1. Smith J. Title. Journal. 2020;1:1-9.",
           "参考文献格式见附录", "本节引用文献共 30 条", "", "   ",
-          "####### References", "## Reference standards apply"]
+          "####### References", "## Reference standards apply",
+          "## **8. References** extra", "## **7. Competing Interests**",
+          "## **8. Reference genome**", "**8. References**"]
     for line in YES:
         assert is_reference_heading(line), f"该认得却认不得: {line!r}"
     for line in NO:

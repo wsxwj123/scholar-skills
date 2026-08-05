@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.35.0
+version: 2.35.3
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色；Phase 13B 做退稿后的逐条 gap 分析与改稿，并出一份内部 response letter（reviews/response_letter.md），但不出正式投稿用的完整回复包、也不单独出修订稿docx——要正式回复包走reviewer-response-sci。
 license: Proprietary
 ---
@@ -87,7 +87,7 @@ license: Proprietary
 - **Command Logic**（便携部署：把运行所需文件拷进项目根，换机也能用）：
   1. `mkdir -p [Target_Path]/scripts [Target_Path]/configs [Target_Path]/references [Target_Path]/manuscripts [Target_Path]/section_memory [Target_Path]/figures [Target_Path]/figure_analysis [Target_Path]/reviews [Target_Path]/submission`
   2. `cp [Skill_Path]/scripts/*.py [Skill_Path]/scripts/*.json [Target_Path]/scripts/`（同时拷入 gate_registry.json 等 json；测试文件 test_*.py 属技能自测、不进项目,拷完即删:`rm -f [Target_Path]/scripts/test_*.py`,保证项目 scripts/ 有 gate_registry.json、无 test_*.py）
-  3. `cp [Skill_Path]/templates/*.json [Target_Path]/`
+  3. `cp [Skill_Path]/templates/*.json [Skill_Path]/templates/reference.docx [Target_Path]/`（`reference.docx` 是 `/merge` 导 docx 的字体锁定模板，与 json 一样扁平落到项目根，merge 按候选位置自动认出；漏拷 = 首次导 docx 必撞 `reference_doc_missing` 硬失败）
   4. `cp [Skill_Path]/configs/*.json [Target_Path]/configs/`
   5. `cp [Skill_Path]/references/* [Target_Path]/references/`（**不能省**：`dod_checklist.json` 是盲检门 `delegate_review.py` 的运行时输入，不拷则盲检 pack/verify 在项目根 exit 2 → `.review_pass/` 落不下 → 下一节被 `prewrite_gate` 硬拦；其余 `references/*.md` 是写作时按需 `Read` 的口径真源，拷进来才符合"项目自包含"）
 
@@ -191,6 +191,7 @@ license: Proprietary
 3. **Copy Resources**: 将 Skill 中的文件拷贝到项目（参见 §1 Command Logic）：
    - `scripts/*.py` → `[Project_Root]/scripts/`
    - `templates/*.json` → `[Project_Root]/`
+   - `templates/reference.docx` → `[Project_Root]/reference.docx`（`/merge` 字体模板，漏拷 = 首次导 docx 硬失败）
    - `configs/*.json` → `[Project_Root]/configs/`
    - `references/*` → `[Project_Root]/references/`（`dod_checklist.json` 是盲检门的运行时输入，漏拷 = 下一节开不了写）
 4. **Init Config**: 基于 `project_init.json` 中的模板生成独立状态文件：
@@ -620,7 +621,7 @@ python scripts/state_manager.py add-abbreviation <one.json>
   - **中间版本（给导师 / 自己核对）**：`python scripts/merge_manuscript.py --manuscript-dir manuscripts --output-md manuscripts/Draft_Round{N}_Manuscript.md --skip-docx`，文件名带 round 编号，不覆盖 Full_Manuscript.md。
   - **最终版本（投稿用）**：`python scripts/merge_manuscript.py --manuscript-dir manuscripts`（默认输出 `manuscripts/Full_Manuscript.md` + .docx）。**只在 `/check` 全过 + `/submission-pack` 已生成后才允许跑最终版**；否则视为中间稿。
   - 可选：`--skip-docx`（仅生成 Markdown）
-  - **docx 字体锁定**：`/merge` 默认带上 `--reference-doc templates/reference.docx`（脚本自动按 skill 目录解析），把正文锁为 Times New Roman 12pt、标题 TNR 加粗。图注和表注比正文小一号锁 10pt，摘要走独立样式层同样 10pt。**模板是已提交的样式资产，缺失=安装损坏：产出 docx 时若模板缺失，docx 步骤硬失败（退出非零、不产出 docx，md 仍正常生成），并提示运行 `python scripts/make_reference_docx.py` 重新生成**，不会悄悄产出字体不受控的 docx。要改字体/字号：编辑 `scripts/make_reference_docx.py` 顶部常量后重跑 `python scripts/make_reference_docx.py` 重生成模板（基准模板由 `pandoc --print-default-data-file reference.docx > templates/reference.docx` 产生）。
+  - **docx 字体锁定**：`/merge` 自动按候选位置找模板（技能自带 `templates/reference.docx` → 项目 `templates/reference.docx` → 项目根 `reference.docx`，也可用 `--reference-doc` 显式指定），把正文锁为 Times New Roman 12pt、标题 TNR 加粗。图注和表注比正文小一号锁 10pt，摘要走独立样式层同样 10pt。**`/init` 已把模板拷到项目根 `reference.docx`**（§1 Command Logic 第 3 步），正常项目首次导 docx 零人工步骤。模板缺失只出现在老项目（init 时没拷）或模板被删时：docx 步骤硬失败（退出非零、不产出 docx，md 仍正常落盘），不会悄悄产出字体不受控的 docx。自愈只需一条命令：在项目根跑 `python scripts/make_reference_docx.py`（缺基准模板时它会用 pandoc 现产一份，不需要你先有这个文件），生成的 `./reference.docx` 会被 `/merge` 自动认出。要改字体/字号：编辑 `scripts/make_reference_docx.py` 顶部常量后重跑 `python scripts/make_reference_docx.py` 重生成模板（会覆盖项目根 `reference.docx`，这正是改字体的正规路径）。
   - 可选：`--patterns "01_Abstract*.md,02_Introduction*.md,03_Methods*.md,04_Results*.md,05_Discussion*.md,06_Conclusion*.md,07_References*.md,*.md"`（自定义合并顺序与兜底匹配；默认值同此，与 `merge_manuscript.py` DEFAULT_PATTERNS 一致）
 - `/export_bib` → `python scripts/export_bibtex.py --index-file literature_index.json --output-file references.bib`
   - 支持 `literature_index.json` 为 list 或 dict（`references/items/entries/data`）
