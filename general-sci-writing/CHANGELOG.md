@@ -1,5 +1,13 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.3] - 2026-08-06
+
+第十二轮小批（SPEC-round12）：`_http_get_json` 异常覆盖补 ssl.SSLError /
+http.client.BadStatusLine（此前仍逃逸致整批核验 traceback 死亡，本机 Clash
+MITM 环境高发；retry 语义逐点等价，HTTPError 分支顺序未动）；SKILL.md 四处
+`<本技能>` 占位符改为"项目内 scripts 绝对路径"口径（部署后跑的是 /init
+拷进项目的副本，不是技能安装目录）。
+
 ## [2.36.2] - 2026-08-06
 
 写保护批次（SPEC-round10-protected）：install_gate_hook settings.json 写盘原子化

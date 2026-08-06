@@ -1,6 +1,6 @@
 ---
 name: revise-sci
-version: 2.29.2
+version: 2.29.3
 description: 退稿/返修全管道，同时出逐条回复信+修改后正文docx+Patch修订。触发词：改稿、修改稿子、修订正文、退稿改进、返修、revise manuscript、major revision、minor revision、revise and resubmit、point-by-point response、revised manuscript。路由说明：与reviewer-response-sci区分，本技能同时改主稿+出回复包，后者只出回复不改稿；与gsw区分，gsw写新稿，本技能专处理已有稿子的审稿意见驱动修改。
 ---
 

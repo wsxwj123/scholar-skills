@@ -1,5 +1,10 @@
 # Revise-Sci Changelog
 
+## [2.29.3] - 2026-08-06
+
+第十二轮共享件同步（SPEC-round12）：citation_guard_core 的 _http_get_json
+补 ssl.SSLError / BadStatusLine 异常覆盖（fail-closed，retry 语义不变）。
+
 ## [2.29.2] - 2026-08-06
 
 写保护批次（SPEC-round10-protected）：install_gate_hook settings.json 写盘原子化

@@ -1,6 +1,6 @@
 ---
 name: reviewer-response-sci
-version: 2.28.2
+version: 2.28.3
 description: 用于SCI审稿意见逐条回复的全流程技能，适用于期刊大修/小修阶段，只出回复包（HTML），不改主稿。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：与revise-sci区分，本技能只出回复包不改主稿，需同时改主稿并出修订稿docx请用revise-sci；与reviewer-simulator区分，本技能针对已收到的意见写回复，后者是模拟生成审稿意见。
 ---
 

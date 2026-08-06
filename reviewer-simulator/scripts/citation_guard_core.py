@@ -16,6 +16,7 @@ from __future__ import annotations
 import http.client
 import json
 import re
+import ssl
 import time
 import unicodedata
 import urllib.error
@@ -70,9 +71,11 @@ def _http_get_json(
                 continue
             return None
         except (urllib.error.URLError, TimeoutError, ConnectionError,
-                http.client.IncompleteRead):
+                ssl.SSLError, http.client.IncompleteRead,
+                http.client.BadStatusLine):
             # ConnectionError/IncompleteRead 在 read() 阶段抛出、不被 URLError 包住，
-            # 同属瞬时网络故障：按同一 retry 语义处理，耗尽返回 None（fail-closed）。
+            # SSLError（如 MITM 代理握手失败）与 BadStatusLine 同属瞬时网络故障：
+            # 按同一 retry 语义处理，耗尽返回 None（fail-closed）。
             if attempt < retries:
                 time.sleep(backoff_sec * (2**attempt))
                 attempt += 1
