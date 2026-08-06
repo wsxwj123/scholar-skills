@@ -1,5 +1,9 @@
 # Changelog - Review Writing Skill
 
+## [2.36.7] - 2026-08-06
+
+第十三轮同款 bug 修复（SPEC-round13）：prewrite_gate/style_checker GBK 混入不崩；abbreviation_consistency 中文全称（ABBR）认得 + GBK 不崩。
+
 ## [2.36.6] - 2026-08-06
 
 第十二轮共享件同步（SPEC-round12）：citation_guard_core 的 _http_get_json

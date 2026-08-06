@@ -96,10 +96,14 @@ def papers_rel(section):
 
 
 def _read_text(path):
-    """存在且读得出 → 文本；不存在 → None；读不出（权限/IO）→ 抛 OSError。"""
+    """存在且读得出 → 文本；不存在 → None；读不出（权限/IO）→ 抛 OSError。
+
+    errors="replace"：GBK 等非 UTF-8 稿混入时坏字节替换为 U+FFFD 而非抛
+    UnicodeDecodeError（ValueError 子类，下游 except OSError 接不住，会裸崩逃逸）。
+    """
     if not os.path.exists(path):
         return None
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
         return f.read()
 
 
@@ -192,7 +196,7 @@ def _load_json(path):
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -216,7 +220,7 @@ def load_outline_order(root):
     subsection_pattern = re.compile(r"^(\d+(?:\.\d+)+)\b")
     order = []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.read().splitlines()
     except OSError:
         return []
@@ -317,7 +321,7 @@ def scan_placeholders(files):
     hits = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue
@@ -435,7 +439,7 @@ def main():
         residual = []
         for fp in draft_files(root):
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     residual += [(os.path.basename(fp), k) for k in ATKEY_RE.findall(f.read())]
             except OSError:
                 continue

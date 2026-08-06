@@ -58,7 +58,7 @@ def _load_json(path):
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -131,7 +131,7 @@ def file_nonempty(path):
     if not path:
         return False
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return bool(f.read().strip())
     except OSError:
         return False
@@ -199,7 +199,7 @@ def check_new_refs_merged(root, prev_section, prev_fp):
     # 残留 [@new: 扫描（编排与否都查；真源正文里不该有未翻号的新键）
     if prev_fp and os.path.isfile(prev_fp):
         try:
-            with open(prev_fp, "r", encoding="utf-8") as f:
+            with open(prev_fp, "r", encoding="utf-8", errors="replace") as f:
                 if NEWKEY_RE.search(f.read()):
                     failures.append(f"上一节残留未并表新键 [@new: in {os.path.basename(prev_fp)}")
         except OSError:
@@ -211,7 +211,7 @@ def scan_placeholders(files):
     hits = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue

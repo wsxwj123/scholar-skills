@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.4] - 2026-08-06
+
+第十三轮（SPEC-round13）：env_preflight docstring 订正（分叉非逐字节共享）；本轮 gsw 仅文档性订正，同款 bug 修复在分叉各家。
+
 ## [2.36.3] - 2026-08-06
 
 第十二轮小批（SPEC-round12）：`_http_get_json` 异常覆盖补 ssl.SSLError /

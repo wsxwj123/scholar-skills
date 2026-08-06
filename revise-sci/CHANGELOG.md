@@ -1,5 +1,9 @@
 # Revise-Sci Changelog
 
+## [2.29.4] - 2026-08-06
+
+第十三轮同款 bug 修复（SPEC-round13）：cross_section_consistency GBK 不崩 + 聚类数值归一（45% 与 45.0% 不再误报漂移）；env_preflight argv 守卫。
+
 ## [2.29.3] - 2026-08-06
 
 第十二轮共享件同步（SPEC-round12）：citation_guard_core 的 _http_get_json

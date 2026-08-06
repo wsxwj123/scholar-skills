@@ -362,7 +362,9 @@ def check_file(filepath: str, passive_max: float = 0.30) -> dict[str, Any]:
 
     passive_max: maximum acceptable passive-voice ratio (review default 0.30).
     """
-    with open(filepath, "r", encoding="utf-8") as f:
+    # errors="replace"：GBK 等非 UTF-8 稿混入时坏字节替换为 U+FFFD 而非抛
+    # UnicodeDecodeError 裸崩（SPEC-round13 F3，与 gsw 同款）。
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         raw_text = f.read()
 
     prose = _extract_prose(raw_text)

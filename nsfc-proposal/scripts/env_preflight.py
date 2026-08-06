@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""统一开工前环境预检（全部学术技能共用，字节一致分发）。
+"""统一开工前环境预检（各家技能共用同一套预检框架，按各自需求分叉维护（非逐字节共享件））。
 
 软门禁语义：检测 OS / Python / git（+ 技能可选工具），写 <root>/env_status.json，
 末行打印机器可读状态 `PRECHECK: OK | ASK | BLOCKED`。
@@ -42,8 +42,12 @@ def hint(tool: str, osname: str) -> str:
 
 def parse_list(flag: str, argv) -> list:
     if flag in argv:
-        raw = argv[argv.index(flag) + 1]
-        return [x.strip() for x in raw.split(",") if x.strip()]
+        i = argv.index(flag) + 1
+        # 值缺失（flag 在末尾）或下一个 token 是另一个 flag：按空列表处理，
+        # 不裸崩 IndexError、也不把 "--py" 这类 flag 名当工具名检。
+        if i >= len(argv) or argv[i].startswith("--"):
+            return []
+        return [x.strip() for x in argv[i].split(",") if x.strip()]
     return []
 
 

@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.25.4] - 2026-08-06
+
+第十三轮同款 bug 修复（SPEC-round13）：env_preflight parse_list argv 越界守卫。
+
 ## [2.25.3] - 2026-08-06
 
 写保护批次（SPEC-round10-protected）：install_gate_hook settings.json 写盘原子化

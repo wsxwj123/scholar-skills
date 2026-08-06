@@ -1,5 +1,9 @@
 # Changelog - sci2doc Skill
 
+## [2.31.6] - 2026-08-06
+
+第十三轮同款 bug 修复（SPEC-round13）：prewrite_gate GBK 混入不崩；env_preflight parse_list argv 越界守卫。
+
 ## [2.31.5] - 2026-08-06
 
 第十二轮共享件同步（SPEC-round12）：citation_guard_core 的 _http_get_json

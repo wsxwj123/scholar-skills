@@ -52,15 +52,22 @@ UNIVERSAL_ABBREVIATIONS = {
 _ABBR_TOKEN = r"[A-Z](?:[A-Z0-9]+(?:-[A-Z0-9Α-Ωα-ω]+)*|(?:-[A-Z0-9Α-Ωα-ω]+)+)"
 
 # 匹配定义模式，兼容半角/全角括号 [（(] [）)] 与全角逗号 [,，]（参考 sci2doc）。
-# 两种形态：
+# 三种形态：
 #   A) 英文全称在括号外：  Full Name (ABBR) / Full Name（ABBR）
 #   B) 全角场景全称在括号内、逗号分隔： 聚焦超声（focused ultrasound，FUS）
-# 捕获组：group(1)=A 形态全称，group(2)=B 形态全称，group(3)=缩写。
+#   C) 中文全称在括号外：  活性氧（ROS）/ 程序性死亡受体1（PD-1）
+#      中文无空格分词，无法像 A 那样按词定界，取括号前紧邻的最长中文串；
+#      full name 仅供报告参考，判定义只看 ABBR。括号内必须是纯 ABBR token，
+#      "（对照组）"这类非定义括号不会命中。
+# 捕获组：group(1)=A 形态全称，group(2)=B 形态全称，group(3)=C 形态全称，
+# group(4)=缩写。
 DEFINITION_PATTERN = re.compile(
     r"(?:"
     r"((?:[A-Za-z][\w\-]*\s+){1,6})[（(]"
     r"|"
     r"[（(]\s*([A-Za-z][\w\- ]*?)\s*[,，]\s*"
+    r"|"
+    r"((?:[一-鿿][\w\-]*)+)[（(]"
     r")"
     r"(" + _ABBR_TOKEN + r")[）)]"
 )
@@ -92,7 +99,8 @@ def find_title_file(files: list[str]) -> str | None:
 
 def extract_title_line(filepath: str) -> str:
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        # errors="replace"：GBK 等非 UTF-8 稿混入不裸崩（坏字节替换为 U+FFFD）。
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
                 stripped = line.strip()
                 if stripped.startswith("# ") and not stripped.startswith("## "):
@@ -106,13 +114,13 @@ def scan_definitions(files: list[str]) -> dict:
     first_def: dict = {}
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = _strip_nonprose(f.read())
         except OSError:
             continue
         for match in DEFINITION_PATTERN.finditer(content):
-            full_name = (match.group(1) or match.group(2) or "").strip()
-            abbr = match.group(3).strip().upper()
+            full_name = (match.group(1) or match.group(2) or match.group(3) or "").strip()
+            abbr = match.group(4).strip().upper()
             first_def.setdefault(abbr, []).append((fp, full_name))
     return first_def
 
@@ -121,7 +129,7 @@ def scan_bare_uses(files: list[str], defined: set) -> dict:
     bare: dict = {}
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = _strip_nonprose(f.read())
         except OSError:
             continue

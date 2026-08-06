@@ -187,7 +187,7 @@ def extract_pairs(files: list[str], patterns: list) -> list[dict]:
     pairs: list[dict] = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue
@@ -213,6 +213,17 @@ def extract_pairs(files: list[str], patterns: list) -> list[dict]:
     return pairs
 
 
+def _numeric_key(value: str) -> str:
+    """数值归一化聚类键："45" 与 "45.0" 数值相等应同簇（纯文本差异不报漂移）。
+
+    本脚本抓到的 value 全部来自数值捕获组（百分比 / p 值 / n=），float 解析
+    实际不会失败；留 try 兜底，非数值原样返回退化为字符串比对。"""
+    try:
+        return repr(float(value))
+    except ValueError:
+        return value
+
+
 def cluster_suspicions(pairs: list[dict]) -> list[dict]:
     by_key: dict[tuple[str, str], list[dict]] = {}
     for p in pairs:
@@ -222,11 +233,11 @@ def cluster_suspicions(pairs: list[dict]) -> list[dict]:
     for (label, kind), items in by_key.items():
         value_to_item: dict[str, dict] = {}
         for it in items:
-            value_to_item.setdefault(it["value"], it)
-        distinct_values = list(value_to_item.keys())
-        if len(distinct_values) < 2:
+            value_to_item.setdefault(_numeric_key(it["value"]), it)
+        distinct_items = list(value_to_item.values())
+        if len(distinct_items) < 2:
             continue
-        distinct_locs = {it["location"] for it in value_to_item.values()}
+        distinct_locs = {it["location"] for it in distinct_items}
         if len(distinct_locs) < 2:
             continue
         suspicions.append({
@@ -234,11 +245,11 @@ def cluster_suspicions(pairs: list[dict]) -> list[dict]:
             "kind": kind,
             "values": [
                 {
-                    "value": value_to_item[v]["value"],
-                    "location": value_to_item[v]["location"],
-                    "context": value_to_item[v]["context"],
+                    "value": it["value"],
+                    "location": it["location"],
+                    "context": it["context"],
                 }
-                for v in distinct_values
+                for it in distinct_items
             ],
         })
     suspicions.sort(key=lambda s: (s["kind"], s["label"]))

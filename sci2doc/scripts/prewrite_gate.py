@@ -95,7 +95,7 @@ def _load_json(path):
     if not os.path.exists(path):
         return None
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -133,7 +133,7 @@ def section_files_in_chapter(root, chapter):
 
 def file_nonempty(path):
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             return bool(f.read().strip())
     except OSError:
         return False
@@ -188,7 +188,7 @@ def scan_placeholders(files):
     hits = []
     for fp in files:
         try:
-            with open(fp, "r", encoding="utf-8") as f:
+            with open(fp, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
         except OSError:
             continue
@@ -342,7 +342,7 @@ def main():
         prev_md_new_keys = []
         for fp in prev_section_md_files(root, chapter, sub - 1):
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     prev_md_new_keys += NEW_KEY_RE.findall(f.read())
             except OSError:
                 continue
@@ -374,7 +374,7 @@ def main():
         residual = []
         for fp in prev_section_md_files(root, chapter, sub - 1):
             try:
-                with open(fp, "r", encoding="utf-8") as f:
+                with open(fp, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
             except OSError:
                 continue
