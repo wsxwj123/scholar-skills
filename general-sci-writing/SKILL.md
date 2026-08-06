@@ -1,6 +1,6 @@
 ---
 name: general-sci-writing
-version: 2.36.4
+version: 2.36.5
 description: 用于从零撰写或润色符合Nature/Science/Cell标准的SCI研究论文（Article类型），适用于多学科。触发词：写论文、SCI论文、学术写作、科研写作、论文润色、研究论文、学术投稿、投稿、润色论文、polish paper、write SCI paper、academic writing、draft paper、manuscript writing。路由说明：退稿/返修改主稿→用revise-sci；只写审稿意见回复→用reviewer-response-sci；独立成稿的纯语言润色（拿到别人写好的整稿只改语言、不进本管道）→用polish-sci，本技能的润色仅指管道内 Phase 10 对自写稿的润色；综述/文献综述→用review-writing。本技能侧重写新稿与自写稿润色；Phase 13B 做退稿后的逐条 gap 分析与改稿，并出一份内部 response letter（reviews/response_letter.md），但不出正式投稿用的完整回复包、也不单独出修订稿docx——要正式回复包走reviewer-response-sci。
 license: Proprietary
 ---
@@ -259,7 +259,7 @@ license: Proprietary
 
 > **[用户确认检查点 Mandatory]** 展示 storyline 草稿（章节标题、核心论点、关键图序、**各节预估引用数**、**3 个 title 候选**），等待用户明确确认后才进入 Phase 2.5。禁止在故事线未确认的情况下启动图集规划。
 >
-> **[结构签字·强制门禁落锁]** 用户在对话里明确确认 storyline 后（且**仅在此之后**），运行 Phase 0 env_preflight 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径）落盘签字，即 `python "<项目内 scripts 绝对路径>/structure_signoff_gate.py" confirm --root <project_root> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会在工具层拦下（deny）任何对 `manuscripts/*.md` 的写入**（这是防跳步的硬门，不是提示词纪律：写文件类工具一律 deny，经 shell 的写入另有一条 Bash 钩子拦，任何绕行都会记进项目根的 `.academic_gate_audit.jsonl` 供用户复核）。该 hook 由 Phase 0 `env_preflight.py` 开工时经本技能 `scripts/install_gate_hook.py`（vendored）自动安装并校验，它先把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里，单独分发的技能也能自装（改 `settings.json` 前先备份、只追加不覆盖、校验失败即回滚），preflight 返回 `active` 表示 hook 已在岗、拦截真实生效；若返回 `degraded`/`error`，preflight 会输出告警，此时硬门已降级为提示词纪律，需人工留意并手动守住未签字不写正文。若后续回修 storyline（Phase 2.5 允许），改完让用户重新确认并重跑本命令覆盖签字。**签字与它签的那份大纲绑定**：节号/标题/层级/顺序任一变化（含只增不删的细化扩展），下次写正文会被门禁拦下并逐条列出哪几节变了，须由用户重新确认后重跑本命令；进度、统计、时间戳这类变动不触发重签。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
+> **[结构签字·强制门禁落锁]** 用户在对话里明确确认 storyline 后（且**仅在此之后**），运行 Phase 0 env_preflight 打印的那条 `SIGNOFF_CMD`（已含解析好的绝对路径）落盘签字，即 `python "<项目内 scripts 绝对路径>/structure_signoff_gate.py" confirm --root <project_root> --note "<用户确认原话摘录>"`。这一步解锁正文写作：**未落签字，PreToolUse hook 会在工具层拦下（deny）任何对 `manuscripts/*.md` 的写入**（这是防跳步的硬门，不是提示词纪律：写文件类工具一律 deny，经 shell 的写入另有一条 Bash 钩子拦，任何绕行都会记进项目根的 `.academic_gate_audit.jsonl` 供用户复核）。该 hook 由 Phase 0 `env_preflight.py` 开工时经本技能 `scripts/install_gate_hook.py`（vendored）自动安装并校验，安装器按环境分两轨：机器上已装 academic-gate 插件（`~/.claude/skills/academic-gate/`）时，hook 由插件在 Claude Code 启动时自动加载，安装器不再部署 `~/.claude/academic-gate/`，只负责摘掉它曾写进 `settings.json` 的旧条目以免重复拦截；插件不在场时（如单独分发的技能），安装器走 legacy 自装，把门禁四件套部署到 `~/.claude/academic-gate/`（稳定位置，不随技能目录增删而动），再让 `settings.json` 的 hook 指向那里（改 `settings.json` 前先备份、只追加不覆盖、校验失败即回滚）。两轨下 preflight 返回 `active` 都表示 hook 已在岗、拦截真实生效；若返回 `degraded`/`error`，preflight 会输出告警，此时硬门已降级为提示词纪律，需人工留意并手动守住未签字不写正文。若后续回修 storyline（Phase 2.5 允许），改完让用户重新确认并重跑本命令覆盖签字。**签字与它签的那份大纲绑定**：节号/标题/层级/顺序任一变化（含只增不删的细化扩展），下次写正文会被门禁拦下并逐条列出哪几节变了，须由用户重新确认后重跑本命令；进度、统计、时间戳这类变动不触发重签。⚠️ 严禁在用户未确认时自行运行 confirm，那等于伪造用户签字。
 
 ### Phase 2.5: 主图集规划 (`/figure-plan`)
 

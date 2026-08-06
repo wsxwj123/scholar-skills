@@ -1,6 +1,6 @@
 ---
 name: reviewer-simulator
-version: 2.29.11
+version: 2.29.12
 description: 用于模拟高标准学术同行评审，对医学、生物、药学等领域稿件进行法医式检查、目标期刊契合度评估和证据锚定批评，输出结构化中文审稿报告。当用户提到模拟审稿、帮我审稿、预审、审稿报告、做reviewer、审一下这篇文章、投稿前自查、审稿人会怎么挑刺、这篇能不能中、peer review、simulate reviewer、review manuscript 时优先调用。注意与 reviewer-response-sci（用于回复审稿意见）区分：本技能是模拟审稿人写审稿意见，后者是针对已收到的审稿意见撰写回复。
 ---
 
@@ -20,7 +20,9 @@ description: 用于模拟高标准学术同行评审，对医学、生物、药�
 - 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
 - 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
 
-**【接续与握手·每次进入/续写先做】** 每次进入本技能或续写既有审稿任务，**先跑 `RESUME_CMD`**（`python ~/.claude/skills/reviewer-simulator/scripts/session_journal.py resume --root <项目根>`，可直接复制运行）读回上次进度与用户历次要求，把接续报告原样贴给用户完成握手，再动手。**用户中途插入任何临时要求，立即用 `LOG_CMD`**（`python ~/.claude/skills/reviewer-simulator/scripts/session_journal.py log --root <项目根> --note "<用户原话>"`）记一条，避免跨 session 丢失。首次全新任务无接续记录时，resume 会提示"暂无"，照常开工即可。
+**【技能安装目录解析·与 Python 探测同次，一次解析全程沿用】** 本文所有 `$SKILL_DIR` 指代**本 SKILL.md 所在目录**（即技能安装目录；脚本从该目录直接调用、不拷进项目）。按本文件实际加载位置解析一次（Claude Code 安装位为 `~/.claude/skills/reviewer-simulator`，Codex 为 `~/.codex/skills/reviewer-simulator`，OpenCode 为 `~/.config/opencode/skills/reviewer-simulator`），之后所有命令沿用同一个值。
+
+**【接续与握手·每次进入/续写先做】** 每次进入本技能或续写既有审稿任务，**先跑 `RESUME_CMD`**（`python "$SKILL_DIR/scripts/session_journal.py" resume --root <项目根>`；环境预检 `env_preflight.py` 跑完也会打印解析好绝对路径的 RESUME_CMD/LOG_CMD，可照抄）读回上次进度与用户历次要求，把接续报告原样贴给用户完成握手，再动手。**用户中途插入任何临时要求，立即用 `LOG_CMD`**（`python "$SKILL_DIR/scripts/session_journal.py" log --root <项目根> --note "<用户原话>"`）记一条，避免跨 session 丢失。首次全新任务无接续记录时，resume 会提示"暂无"，照常开工即可。
 </CRITICAL_INSTRUCTIONS>
 
 审稿人模拟系统 - 完整执行手册
@@ -131,7 +133,7 @@ description: 用于模拟高标准学术同行评审，对医学、生物、药�
 </SEARCH_EVIDENCE_GATE>
 
 <CITATION_GUARD_RULE>
-任何写入评审报告正文的外部文献结论，必须先通过统一核验脚本。**脚本位于技能安装目录的 `scripts/` 下（≠用户 CWD），调用时必须用其绝对路径**；本技能固定安装于 `~/.claude/skills/reviewer-simulator`，下文以 `$SKILL_DIR` 指代（直接用该固定路径，不要动态推导）：`SKILL_DIR=~/.claude/skills/reviewer-simulator`。`--index` 等数据文件仍用 `$WORKROOT/data/...`（锚定 CWD，见第四步初始化）：
+任何写入评审报告正文的外部文献结论，必须先通过统一核验脚本。**脚本位于技能安装目录的 `scripts/` 下（≠用户 CWD），调用时必须用其绝对路径**；技能安装目录以 `$SKILL_DIR` 指代，按文首【技能安装目录解析】从本 SKILL.md 实际加载位置动态解析（不是固定路径，各 runtime 安装位不同）。`--index` 等数据文件仍用 `$WORKROOT/data/...`（锚定 CWD，见第四步初始化）：
 `python "$SKILL_DIR/scripts/citation_guard.py" --index "$WORKROOT/data/literature_index.json" --mcp-cache "$WORKROOT/data/mcp_literature_cache.json" --mcp-ttl-days 30 --manual-review "$WORKROOT/data/manual_review_queue.json" --log "$WORKROOT/data/verification_run_log.json" --report "$WORKROOT/data/citation_guard_report.json"`
 
 硬门禁：
@@ -391,7 +393,7 @@ python -c "import os,json; r=os.getcwd(); d=os.path.join(r,'data'); os.makedirs(
 
 第七步：产出前硬门禁校验
 
-在输出最终HTML前,必须执行以下校验命令并确保通过。**脚本位于技能安装目录（≠用户 CWD），须用其绝对路径 `$SKILL_DIR/scripts/...` 调用**（`$SKILL_DIR` 见第三部分 CITATION_GUARD_RULE，本技能固定安装于 `~/.claude/skills/reviewer-simulator`）：
+在输出最终HTML前,必须执行以下校验命令并确保通过。**脚本位于技能安装目录（≠用户 CWD），须用其绝对路径 `$SKILL_DIR/scripts/...` 调用**（`$SKILL_DIR` 解析见文首【技能安装目录解析】）：
 `python "$SKILL_DIR/scripts/validate_report_html.py" <生成后的报告HTML路径>`
 
 紧接着对同一 HTML 跑审稿意见去AI脚本（B7 兜底，剥离 head/script/style/footer 后抽正文文本喂 humanizer）：
@@ -419,10 +421,10 @@ python -c "import os,json; r=os.getcwd(); d=os.path.join(r,'data'); os.makedirs(
 > **硬规则**：以下各项未逐项确认通过，**不得向用户声明"审稿报告完成"**。能脚本核的项目在第七步已由 `validate_report_html.py` 覆盖；其余委托独立subagent盲检。
 
 **🔴 委托盲检（不得主 agent 自评）**：主 agent 刚完成审稿分析，自评容易默认通过、漏项。报告交付前把 DoD 清单**委托给独立上下文的subagent盲检**，主 agent 不直接打勾：
-1. 生成任务包：`python ~/.claude/skills/reviewer-simulator/scripts/delegate_review.py pack --checklist ~/.claude/skills/reviewer-simulator/references/dod_checklist.json --gate report-dod --files <生成的报告HTML路径>`
+1. 生成任务包：`python "$SKILL_DIR/scripts/delegate_review.py" pack --checklist "$SKILL_DIR/references/dod_checklist.json" --gate report-dod --files <生成的报告HTML路径>`
 2. **派一个独立subagent**（Claude Code 用 `academic-blind-reviewer`；其他平台派通用subagent，默认继承主 agent 模型/用户指定），把任务包原样给它、**不要给它本次审稿的分析上下文**，要求按任务包返回 JSON 数组。
    ⚠️ **盲检降级告警（DoD 段同样适用）**：若本环境**派不出真正独立的subagent**，绝不能同一 AI 自问自答冒充盲检。此时明确告诉用户「本环境 DoD 盲检不可靠，请你亲自逐项复核下列清单证据」，把清单与证据交回用户人工确认，**不得静默自评通过**。
-3. 校验返回：`python ~/.claude/skills/reviewer-simulator/scripts/delegate_review.py verify --checklist ~/.claude/skills/reviewer-simulator/references/dod_checklist.json --gate report-dod --return <subagent返回.json>`；退出码非 0（任一缺项/fail/无证据）= **fail-closed**，据subagent证据修复后重跑，**未过不得声明完成**。
+3. 校验返回：`python "$SKILL_DIR/scripts/delegate_review.py" verify --checklist "$SKILL_DIR/references/dod_checklist.json" --gate report-dod --return <subagent返回.json>`；退出码非 0（任一缺项/fail/无证据）= **fail-closed**，据subagent证据修复后重跑，**未过不得声明完成**。
 🔴 报告出具前置闸口：delegate_review verify 必须 exit 0（含 B8 结构完整性 + 所有视角已汇总），否则不得向用户出具审稿报告。
 
 **🛑 ①DoD 停（盲检通过后仍须停，等用户确认才声明完成）**：delegate_review verify exit 0 **不等于自动交付**。verify 通过后，把 DoD 清单**逐项结论**（每项 pass/na + 一句证据，特别是 verdict 档位与其致命伤锚点）摆给用户，并**HALT 等待用户确认**；用户确认后才可声明"审稿报告完成"。用户若质疑某项（如"这条批评稿里根本没有""这个拒稿档位不成立"），退回修复对应项再走一遍，不得跳过确认径直收口。

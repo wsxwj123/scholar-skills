@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.5] - 2026-08-06
+
+第十四轮（SPEC-round14）：262 行结构签字节安装描述改准——插件在场时 hook 由插件承担、安装器只清旧条目（实测不重建旧部署位）；legacy 自装是单独分发场景的兜底能力。SIGNOFF_CMD 与门禁强度描述未动。
+
 ## [2.36.4] - 2026-08-06
 
 第十三轮（SPEC-round13）：env_preflight docstring 订正（分叉非逐字节共享）；本轮 gsw 仅文档性订正，同款 bug 修复在分叉各家。

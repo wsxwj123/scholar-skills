@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [2.29.12] - 2026-08-06
+
+第十四轮（SPEC-round14）：5 处硬编码 ~/.claude/skills 路径改为 $SKILL_DIR 动态解析（新增技能安装目录解析节，三 runtime 安装位列出）；本机 9 条命令实测全 exit 0，脚本名/参数/退出码语义未动。
+
 ## [2.29.11] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：env_preflight parse_list argv 越界守卫。

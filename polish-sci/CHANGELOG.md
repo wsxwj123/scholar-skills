@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.25.5] - 2026-08-06
+
+第十四轮（SPEC-round14）：SKILL.md 自家破折号清除——第 89 行不再把"——"当标点用（自家硬禁项，言行一致化），规则内容与强度一字未变。
+
 ## [2.25.4] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：env_preflight parse_list argv 越界守卫。
