@@ -237,11 +237,17 @@ def _reconcile_entries(settings: dict, remove: bool = False) -> tuple[bool, bool
     kept_target = False
     migrated = False
     new_pretool = []
-    for entry in pretool:
+    for idx, entry in enumerate(pretool):
         if not isinstance(entry, dict):
             new_pretool.append(entry)
             continue
         hlist = entry.get("hooks", []) or []
+        if not isinstance(hlist, list):
+            # 点名报错，别让它以 AttributeError 溺死在宽 except 里（无定位信息）
+            raise TypeError(
+                "settings.json hooks.PreToolUse 第 %d 条 entry（matcher=%r）的 "
+                "hooks 字段应为 list，实际是 %s——请手动修正该文件后重试"
+                % (idx, entry.get("matcher"), type(hlist).__name__))
         new_hlist = []
         for h in hlist:
             cmd = str(h.get("command", ""))
@@ -297,7 +303,20 @@ def _install(settings_path: Path, remove: bool = False) -> tuple[bool, str]:
     except Exception:
         return False, "生成的 settings.json 非法，已放弃安装（原文件未动）"
 
-    settings_path.write_text(new_text, encoding="utf-8")
+    tmp_path = settings_path.with_name(settings_path.name + ".tmp-gatehook")
+    # 原子写盘：先写同目录临时文件再 os.replace。直接 write_text 中途被 kill 会留下
+    # 截断残文、用户原配置丢失（备份回滚代码在写完之后，进程死了没机会跑）。
+    try:
+        tmp_path.write_text(new_text, encoding="utf-8")
+        if original is not None:
+            shutil.copymode(settings_path, tmp_path)  # 保住用户原文件的权限位
+        os.replace(tmp_path, settings_path)
+    except Exception:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
     # 写后再校验一次,坏了立即从备份回滚
     try:
         json.loads(settings_path.read_text(encoding="utf-8"))

@@ -1,5 +1,12 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.33.3] - 2026-08-06
+
+写保护批次（SPEC-round10-protected）：install_gate_hook settings.json 写盘原子化
++ hooks 非 list 点名报错；structure_signoff_gate 签字凭证写盘原子化；
+context_guard_core 的 _nsfc_left 精确匹配（p1 不再误吞 p10_*，本家直接相关）+
+_gsw_left 判定修正同步。
+
 ## [2.33.2] - 2026-08-05
 
 第十轮共享件修复同步（SPEC-round10）：delegate_review 重复 id 往严处倒 +

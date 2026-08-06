@@ -1,6 +1,6 @@
 ---
 name: polish-sci
-version: 2.25.2
+version: 2.25.3
 description: 纯论文润色全管道。输入一份已写完的稿子(无审稿意见),逐段提升语言表达,绝不改内容/数据/结论。触发词：润色、polish、语言润色、润色论文、polish paper、language polish、proofread manuscript、母语化、润色稿子。路由说明：与revise-sci区分,revise-sci由审稿意见驱动、只改被点名片段;polish-sci无意见、全文逐段润色覆盖每一段。与general-sci-writing区分,gsw从零写新稿,polish-sci只润色现成稿。
 ---
 

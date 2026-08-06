@@ -1,6 +1,6 @@
 {
   "name": "academic-gate",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "学术写作技能的结构签字流程门禁（PreToolUse）——未确认大纲不得写正文。钩子随插件在 CLI 启动时自动加载（Claude Code / Codex 通用），不依赖 AI 自觉安装；写文件类工具一律 deny，经 shell 的写入拦常见形态、原理上不完备，绕行留审计",
   "hooks": "./hooks/hooks.json"
 }

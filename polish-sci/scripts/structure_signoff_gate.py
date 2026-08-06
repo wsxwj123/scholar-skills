@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -388,7 +389,19 @@ def cmd_confirm(root: Path, note: str) -> int:
     fp = build_fingerprint(root)
     if fp is not None:
         payload["outline_fingerprint"] = fp
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 原子写盘：tmp + os.replace。直接 write_text 中断即截断，下次 check 读到半份
+    # JSON 会判"凭证损坏"（与 citation_guard 账本同款病，那家已修）。
+    tmp = path.with_name(path.name + ".tmp%d" % os.getpid())
+    try:
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(str(tmp), str(path))
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
     print(json.dumps({"ok": True, "signoff": str(path),
                       "outline_bound": fp is not None}, ensure_ascii=False))
     return EX_OK

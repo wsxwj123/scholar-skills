@@ -1,5 +1,12 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.2] - 2026-08-06
+
+写保护批次（SPEC-round10-protected）：install_gate_hook settings.json 写盘原子化
++ hooks 非 list 点名报错；structure_signoff_gate 签字凭证写盘原子化；
+context_guard_core 的 _gsw_left 跳过无 status 键条目（老格式 figure 事件不再
+盖掉 done）+ _nsfc_left 精确匹配（p1 不再误吞 p10_*）。
+
 ## [2.36.1] - 2026-08-05
 
 第十一轮：文档失配修正 + 死重清除（SPEC-round11-docs，分支 fix/round11-docs）。

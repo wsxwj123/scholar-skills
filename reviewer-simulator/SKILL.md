@@ -1,6 +1,6 @@
 ---
 name: reviewer-simulator
-version: 2.29.8
+version: 2.29.9
 description: 用于模拟高标准学术同行评审，对医学、生物、药学等领域稿件进行法医式检查、目标期刊契合度评估和证据锚定批评，输出结构化中文审稿报告。当用户提到模拟审稿、帮我审稿、预审、审稿报告、做reviewer、审一下这篇文章、投稿前自查、审稿人会怎么挑刺、这篇能不能中、peer review、simulate reviewer、review manuscript 时优先调用。注意与 reviewer-response-sci（用于回复审稿意见）区分：本技能是模拟审稿人写审稿意见，后者是针对已收到的审稿意见撰写回复。
 ---
 

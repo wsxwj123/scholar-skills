@@ -570,6 +570,10 @@ def _gsw_left(root: Path) -> list:
     for entry in hist:
         if not isinstance(entry, dict):
             continue
+        # 老格式事件（如 figure_analyzed）有 section 无 status：不是状态更新，跳过。
+        # 不跳的话它会把该节已记的 done 盖成空串 → 左集少一节、F10 少拦一次。
+        if "status" not in entry:
+            continue
         sid = None
         for key in ("section", "section_id", "id", "name"):
             v = entry.get(key)
@@ -626,8 +630,13 @@ def _nsfc_left(root: Path) -> list:
     for prefix in NSFC_REVIEWED_SECTIONS:
         low_prefix = prefix.lower()
         for low, name in lowered:
-            if low.startswith(low_prefix) and low.endswith(".md") and nonempty(
-                    root / "sections" / name):
+            stem = low[:-3] if low.endswith(".md") else None
+            # 精确匹配：整名（去 .md）相等或"前缀+下划线"（设计文件名是 p1_正文.md）。
+            # 裸 startswith 会让 "p1" 吞掉 "p10_*"（"P2" 吞 "p20_*" 同理）
+            # → 不存在的 P1 节被凭空判"已写"，F10 差集漏拦。
+            if (stem is not None
+                    and (stem == low_prefix or stem.startswith(low_prefix + "_"))
+                    and nonempty(root / "sections" / name)):
                 out.append(prefix)      # 记规范写法，不记文件里那个大小写
                 break
     return out
