@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.33.8
+version: 2.33.9
 description: Use when drafting, restructuring, or polishing Chinese NSFC proposals (2026 template), especially when strict section-by-section gating, hypothesis-objective-content-problem consistency, literature verification via paper-search MCP, and anti-AI Chinese academic writing constraints are required. 触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -459,6 +459,7 @@ Failure handling playbook:
 - `failed_at=literature_total`: 文献总量硬门未过（`literature_index.metadata.total_count` < `citation_targets.min_total`，默认30）。补充检索录入到 ≥30 篇，再 re-run `gate-check`。近5年≥20、中文≥5、P1段引用≥20为软 warn，见报告 `literature.warnings`，不阻断但建议补足。
 - `failed_at=matrix`: run `matrix-check` and `reorder`, then `gate-check`.
 - `failed_at=review`: fix D/C dimensions from review report, then `gate-check`.
+- `failed_at=literature_index`: 文献索引损坏——`entries` 里混入了非对象元素（字符串/列表/null 等），报告的 `literature_index.error` 会点名是第几条（0 基下标）、什么类型。**按点名的下标人工修好 `data/literature_index.json` 里那些条目**（补成完整对象或整条删掉），索引文件门禁没有动过、也不要指望 `sync-all --auto-fix`（它只修容器类型不清洗元素，不会替你删文献）。修完 re-run `gate-check`。
 
 **Dual-Track Citation Verification:** Provide MCP retrieval cache in `data/mcp_literature_cache.json` and run online validation without `--offline` whenever network is available. Final gate must enforce `--require-mcp`.
 

@@ -281,7 +281,7 @@ def _semantic_sync_checks(root: Path, state: dict[str, Any]) -> dict[str, Any]:
     cm_validation = consistency_mapper.validate(cm)
     cm_error = any((not x["pass"] and x["severity"] == "ERROR") for x in cm_validation.values())
 
-    lit = load_json(root / "data/literature_index.json", {"metadata": {}, "entries": []})
+    lit = citation_validator.load_index(root / "data/literature_index.json")
     p1_entries = [e for e in lit.get("entries", []) if "P1_立项依据" in (e.get("used_in_sections") or [])]
     p1_verified = all(bool(e.get("verified")) for e in p1_entries) if p1_entries else False
 
@@ -363,7 +363,35 @@ def _append_verification_log(path: Path, record: dict[str, Any]) -> None:
     save_json(path, existing)
 
 
-def gate_check(
+def gate_check(root: Path, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    """裁决链的 fail-closed 外壳：索引结构坏了就结构化拒绝，不裸崩成 traceback。
+
+    入参一律原样转给 `_gate_check_inner`（签名与默认值都在那儿，此处不复制一份免得两头漂）。
+
+    链上每个 entries 消费点（sync_all/verify_all/matrix_check/full_review）都经
+    citation_validator.load_index 那一道校验，坏索引在哪一处被读到都抛
+    IndexCorruptError，这里是唯一的接手点 —— 所以 `--index` 指到别处、而
+    sync/full_review 仍读默认路径这种分叉，也照样被兜住。
+    抛点全在任何写盘动作之前，磁盘上的索引与缓存一字不动。
+    """
+    try:
+        return _gate_check_inner(root, *args, **kwargs)
+    except citation_validator.IndexCorruptError as exc:
+        return {
+            "ok": False,
+            "failed_at": "literature_index",
+            "literature_index": {
+                "ok": False,
+                "path": exc.path,
+                "error": str(exc),
+                "bad_entry_indexes": exc.bad_positions,   # 0 基，与 error 文案一致
+            },
+            # §6.3 出口 1：skipped_checks 恒存在（resolve_scope 自身 fail-safe，不会把拒绝路径带崩）
+            "skipped_checks": _resolve_scope(root).get("skipped") or [],
+        }
+
+
+def _gate_check_inner(
     root: Path,
     sections_dir: str = "sections",
     index_path: str = "data/literature_index.json",
@@ -374,18 +402,20 @@ def gate_check(
     offline: bool = False,
     require_mcp: bool = True,
 ) -> dict[str, Any]:
+    idx_file = root / index_path
+    p1_file = root / p1_path
+    ref_file = root / ref_path
+    mcp_file = root / mcp_cache_path
+
+    # 索引先读先校验（离线/联网同走这一道，校验在分叉之前，不是各堵各的）
+    idx = citation_validator.load_index(idx_file)
+
     sync_status = sync_all(root)
     exists_ok = all(sync_status["exists"].values())
     fresh_ok = all(sync_status["fresh"].values()) if sync_status["fresh"] else True
     semantic_ok = _sync_semantic_ok(sync_status["semantic"])
     sync_ok = exists_ok and fresh_ok and semantic_ok
 
-    idx_file = root / index_path
-    p1_file = root / p1_path
-    ref_file = root / ref_path
-    mcp_file = root / mcp_cache_path
-
-    idx = citation_validator._normalize_index(load_json(idx_file, {"metadata": {}, "entries": []}))
     mcp_cache = citation_validator._normalize_mcp_cache(
         load_json(mcp_file, {"metadata": {"schema_version": citation_validator.CACHE_SCHEMA_VERSION}, "entries": []})
     )
@@ -735,7 +765,7 @@ def _apply_structure_word_targets(root: Path, word_targets: dict[str, Any]) -> d
 def build_write_cycle(root: Path, section: str, token_budget: int | None = None) -> dict[str, Any]:
     profile = load_json(root / "proposal_profile.json", DEFAULT_PROFILE)
     cm = consistency_mapper.load_map(root / "data/consistency_map.json")
-    lit = load_json(root / "data/literature_index.json", {"metadata": {}, "entries": []})
+    lit = citation_validator.load_index(root / "data/literature_index.json")
     # §5.1 SPA-JUSTIFY：声明 other 后 P1 节的论证关键词提示也置 null
     spa_justify_off = "SPA-JUSTIFY" in {
         e.get("id") for e in (_resolve_scope(root).get("skipped") or [])

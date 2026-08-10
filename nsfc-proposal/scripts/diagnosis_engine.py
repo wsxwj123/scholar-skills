@@ -268,7 +268,7 @@ def full_review(
 
     citation_matrix = None
     if index_path and p1_path and ref_path:
-        idx = citation_validator.load_json(index_path, {"metadata": {}, "entries": []})
+        idx = citation_validator.load_index(index_path)
         p1_text = p1_path.read_text(encoding="utf-8") if p1_path.exists() else ""
         ref_text = ref_path.read_text(encoding="utf-8") if ref_path.exists() else ""
         citation_matrix = citation_validator.matrix_check(p1_text, idx, ref_text)

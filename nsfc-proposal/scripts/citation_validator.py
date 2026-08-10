@@ -384,6 +384,45 @@ def _normalize_index(raw: Any) -> dict[str, Any]:
     return {"metadata": {}, "entries": []}
 
 
+class IndexCorruptError(ValueError):
+    """文献索引 entries 混入非对象元素（字符串/列表/None 等）。
+
+    这是索引读入口唯一的 fail-closed 出口：调用方据此结构化拒绝，绝不让
+    `e.get(...)` 在下游各消费点裸崩成 traceback。
+    """
+
+    _MAX_LISTED = 10  # 整份文件都是垃圾时别刷屏，只点名前 10 个
+
+    def __init__(self, path: Any, bad_positions: list[int], bad_kinds: list[str]) -> None:
+        self.path = str(path)
+        self.bad_positions = bad_positions      # 0 基下标
+        self.bad_kinds = bad_kinds              # 与 bad_positions 一一对应的类型名
+        shown = [f"entries[{i}] 是 {k}" for i, k in
+                 zip(bad_positions[: self._MAX_LISTED], bad_kinds[: self._MAX_LISTED])]
+        more = "" if len(bad_positions) <= self._MAX_LISTED else f"（仅列前 {self._MAX_LISTED} 个）"
+        super().__init__(
+            f"文献索引损坏：{self.path} 的 entries 有 {len(bad_positions)} 个元素不是对象"
+            f"（条目下标 0 基）：{'、'.join(shown)}{more}。"
+            f"索引文件一字未动，请人工修好这些条目后重跑。"
+        )
+
+
+def load_index(path: Path, default: Any = None) -> dict[str, Any]:
+    """读文献索引的唯一入口：读盘 + 规范化 + entries 元素类型校验（fail-closed）。
+
+    与 `_normalize_index`（宽松归一，容忍任何元素）的分工：凡是要拿 entries 里的
+    元素当对象用的调用方（gate-check 链上的每一处），都必须走本函数，元素不是
+    对象就抛 `IndexCorruptError`——绝不静默丢弃坏条目（丢了等于替用户删文献），
+    也绝不放它进下游让 `.get()` 裸崩。
+    """
+    idx = _normalize_index(load_json(path, default if default is not None else {"metadata": {}, "entries": []}))
+    bad_positions = [i for i, e in enumerate(idx["entries"]) if not isinstance(e, dict)]
+    if bad_positions:
+        raise IndexCorruptError(path, bad_positions,
+                                [type(idx["entries"][i]).__name__ for i in bad_positions])
+    return idx
+
+
 def _normalize_mcp_cache(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {"metadata": {"schema_version": CACHE_SCHEMA_VERSION}, "entries": []}

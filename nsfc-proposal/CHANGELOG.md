@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.33.9] - 2026-08-10
+
+第十八轮（SPEC-round18，第十七轮盲检观察项 O4，小任务轻量档，盲检 M1/M2 变异全红判合格）：畸形文献索引不再裸崩——entries 混入非对象元素时 gate-check 由 AttributeError traceback 改为结构化拒绝（ok=false / failed_at=literature_index / 点名 0 基下标与类型 / rc=2 / 索引文件一字不动）；读索引收敛 citation_validator.load_index 单入口 fail-closed，四个消费点（语义门/gate 链/写作循环/评审矩阵）零散弹补丁；离线与联网同形（校验在分叉前，拒绝时不触网）；合法四态与基线逐字对照仅差时间戳。SKILL.md 排障表补 failed_at=literature_index 处置行。
+
 ## [2.33.8] - 2026-08-10
 
 第十七轮（SPEC-round17 P4-rev，用户两次拍板收敛，盲检判合格）：离线 gate 未核验改为阻断——判定挪到条目级，全部条目都持 TTL 内可信联网核验记录（短路保真）才放行，任何一条没验过/过期/中毒（T8 判别式打回）即 ok=false、failed_at=citation、rc=2；发证与放行分开：聚合 verification_status 照旧永不写 verified（T9-c 一字未动），放行凭旧证时 citation note + 顶层 warnings 明示"本轮未做新核验"；阻断明细写清销账路径。联网路径逐字不变。第十六轮"离线接受 unverified 不阻断"（T9-d）作废，test_gate_offline_unverified 首条断言随规则翻转。04_文献管理.md 离线段同步改准。
