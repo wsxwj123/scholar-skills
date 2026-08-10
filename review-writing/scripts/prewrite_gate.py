@@ -294,7 +294,9 @@ def abbreviation_check(root, warnings):
 
     降级 warning 档（不进 failures）：缩略语一致性是全稿口径（B3 全文统一），
     到 Phase 4 统一清零即可；开写前硬拦会把人堵在门口，而问题多半出在别的节。
-    脚本真缺失时才 ok=None，且 note 写真实原因——不再写"脚本不存在"这种反事实的话。
+    "本项没跑成"一律 ok=None 且 note 写真实原因：脚本缺失、subprocess 异常，
+    以及检查器自身故障（exit 2，依赖断裂等）——都不是稿件问题，不能反着说成
+    "未通过、必须清零"（SPEC-round17 P6b）。
     """
     script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "abbreviation_consistency.py")
@@ -313,6 +315,14 @@ def abbreviation_check(root, warnings):
     detail = (proc.stdout + proc.stderr).strip()
     if proc.returncode == 0:
         return {"name": "abbreviation", "ok": True, "detail": detail}
+    if proc.returncode == 2:
+        # exit 2 = 检查器自身坏了（依赖断裂等，见 abbreviation_consistency.py 头部约定）。
+        # 这是"本项检查未执行"，不是"稿子没过检查"——说成"未通过、必须清零"会让用户
+        # 去翻稿子找根本不存在的缩写问题。同 ok=None 档：可见但不阻断（检查器坏了
+        # 不该比检查本身还严，本项发现真问题时也只是 warning）。
+        note = (f"缩略语一致性本项检查未执行（检查器故障，非稿件问题）：{detail}")
+        warnings.append(note)
+        return {"name": "abbreviation", "ok": None, "note": note}
     warnings.append(
         f"缩略语一致性未通过（不阻断开写，Phase 4 合并前必须清零）：{detail}")
     return {"name": "abbreviation", "ok": False, "detail": detail}

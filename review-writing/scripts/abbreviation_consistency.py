@@ -13,6 +13,8 @@
   - undefined_use：直接用了 ABBR，但全稿无内联定义、且不在白名单（B4 首次定义）。
   - title_abbreviation：Title 出现缩写（titles 不应含缩写）。
 任一问题 → exit 1（与 gsw 一致：默认 fail-closed）；`--report-only` 时仅打印不阻断。
+依赖（style_checker/ref_section）导入失败 → exit 2 并中止，不出判定，`--report-only`
+同样不放行（"检查器自身坏了"与"检查发现问题"分开，见下方 fail-closed 注释）。
 
 被 SKILL.md B3/B4 DoD 引用。
 """
@@ -27,15 +29,28 @@ import sys
 
 # 复用 style_checker 的散文提取（剥离参考文献块 / figure legend / 代码块）。
 # 综述参考文献区充斥作者姓名首字母缩写（"Zhang YW"、"Cao MM"），若不剥离会被
-# 误判为"未定义缩略语"，是真稿最大误报源。fail-soft：import 失败则退回原文。
+# 误判为"未定义缩略语"，是真稿最大误报源。
+# fail-closed：import 失败就不出判定（SPEC-round17 P1，口径同 gsw 第十六轮 T3）。
+# 此前是 fail-soft 退回原文——剥离静默失效，参考文献区重新进扫描，用户看到的是
+# "YW/MM/QX 未定义"这种假报警（实测干净稿被判 5 条 undefined_use + exit 1），
+# 而输出里没有一个字提示检查器在降级跑，无从察觉。
+# 依赖全在本技能 scripts/ 内（style_checker 只 import 标准库 + 同目录 ref_section，
+# 缺 ref_section.py 同样炸整条链），import 失败＝安装坏了，不是"环境缺可选件"，
+# 所以拒判比降级正确。
+_STRIP_IMPORT_ERROR = None
 try:
     _sc_dir = os.path.dirname(os.path.abspath(__file__))
     if _sc_dir not in sys.path:
         sys.path.insert(0, _sc_dir)
     from style_checker import _extract_prose as _strip_nonprose
-except Exception:  # pragma: no cover
+except Exception as _exc:  # pragma: no cover
+    _STRIP_IMPORT_ERROR = _exc
+
     def _strip_nonprose(text: str) -> str:
-        return text
+        # 库级调用者（test_style_ref_block 等直接 import 本模块的）也别想拿到
+        # 静默降级的结果。
+        raise RuntimeError(
+            f"style_checker._extract_prose 不可用，无法剥离非正文: {_STRIP_IMPORT_ERROR}")
 
 # 同步自 general-sci-writing/scripts/abbreviation_consistency.py:UNIVERSAL_ABBREVIATIONS。
 UNIVERSAL_ABBREVIATIONS = {
@@ -179,6 +194,17 @@ def main() -> int:
     parser.add_argument("--report-only", action="store_true",
                         help="仅打印问题，不阻断（默认 fail-closed exit 1）")
     args = parser.parse_args()
+
+    # 剥离非正文这一层拿不到就不许出判定：带着失效的剥离扫，参考文献区的作者
+    # 首字母会全变成"未定义缩略语"。exit 2 与"稿子有问题"的 exit 1 分开，
+    # 一眼能分出是环境坏了还是稿子该改；--report-only 也不放行——报告模式豁免的
+    # 是稿件问题，不是坏掉的检查器（放行等于把假阳当成"已检查"记进 warnings）。
+    if _STRIP_IMPORT_ERROR is not None:
+        print(f"ABBR_CHECK_ERROR: 依赖 style_checker._extract_prose 导入失败"
+              f"（{_STRIP_IMPORT_ERROR}），无法剥离参考文献/图注/代码块，"
+              f"判定不可信，已中止。请检查本技能 scripts/ 目录是否完整"
+              f"（style_checker.py 及其依赖 ref_section.py）。")
+        return 2
 
     drafts_dir = os.path.abspath(args.drafts_dir)
     if not os.path.isdir(drafts_dir):

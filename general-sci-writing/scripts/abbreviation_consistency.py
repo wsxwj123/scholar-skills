@@ -9,6 +9,8 @@
    - undefined_use: 直接用了 ABBR，但 abbreviations.json 缺、且不在 UNIVERSAL_ABBREVIATIONS 白名单
    - title_abbreviation: Title 出现缩写（在 01_*Abstract* 之前的 Title 文件或文件首行 # 标题中）
 4. 任一问题 → exit 1；无问题 → exit 0
+5. 依赖（style_checker/ref_section）导入失败 → exit 2 并中止，不出判定
+   （"检查器自身坏了"与"检查发现问题"的 exit 1 分开，见下方 fail-closed 注释）
 
 UNIVERSAL_ABBREVIATIONS 与 state_manager.py 保持同步副本（如 state_manager 更新需同步本文件）。
 

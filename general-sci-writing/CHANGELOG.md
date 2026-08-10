@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.8] - 2026-08-10
+
+第十七轮技术债清零（SPEC-round17，盲检 M1-M6 变异全红判合格）：rollback 失败改非零退出（restored:false 一律 exit 1，成功路径 JSON 逐字不变）；空容器覆盖回归锁（{} 盖非空 dict 已被缩表防护拦，补永久断言）；prewrite_gate 分清"检查器坏了(exit 2)"与"稿子没过(exit 1)"——检查器故障仍阻断但文案明示修安装别改稿；abbreviation_consistency 文件头补 exit 2 契约行（AST 级零行为变化）。
+
 ## [2.36.7] - 2026-08-10
 
 第十六轮技术债清理（SPEC-round16，盲检 16 变异全红判合格）：缩表防护堵容器→标量整体抹掉（第三层，拦+原盘不动）；全量快照缺件记账+空快照不再谎报 restored:true；缩写检查依赖断裂由静默降级改 fail-closed exit 2 点名；µCT 类非 ASCII 相黏不再拆出裸缩写（词字符=\w 减 CJK，结构性判据）。共享件同步：折叠报告写失败时全量明细回退 stdout（证据不丢）；delegate_review 畸形返回 exit 2（与"审查发现问题"exit 1 分清）；new_refs/new_claims 元素级校验；中毒缓存结构性判别——可信证据=联网轨或 provider 轨，两轨全无才重验（真实账本 272 条回归：271→271、checked_at 零误刷）。

@@ -4186,6 +4186,12 @@ def main():
             snapshot_dir=args.snapshot_dir
         )
         print(json.dumps(result, ensure_ascii=False))
+        # 回滚失败必须在退出码上看得见。此前一切失败形态（snapshot_not_found /
+        # snapshot_empty / snapshot_incomplete / literature_sync 没备份）都 exit 0，
+        # 脚本链和 /rollback 的调用方凭退出码判断"回退成功"，实际一个字节都没盖回。
+        # 非零口径与本文件 update 失败一致（exit 1）；JSON 内容不动。
+        if not result.get("restored"):
+            sys.exit(1)
     elif args.command == "word-count":
         word_count(section=args.section, include_references=args.include_references)
     elif args.command == "stats":

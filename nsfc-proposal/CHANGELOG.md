@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.33.8] - 2026-08-10
+
+第十七轮（SPEC-round17 P4-rev，用户两次拍板收敛，盲检判合格）：离线 gate 未核验改为阻断——判定挪到条目级，全部条目都持 TTL 内可信联网核验记录（短路保真）才放行，任何一条没验过/过期/中毒（T8 判别式打回）即 ok=false、failed_at=citation、rc=2；发证与放行分开：聚合 verification_status 照旧永不写 verified（T9-c 一字未动），放行凭旧证时 citation note + 顶层 warnings 明示"本轮未做新核验"；阻断明细写清销账路径。联网路径逐字不变。第十六轮"离线接受 unverified 不阻断"（T9-d）作废，test_gate_offline_unverified 首条断言随规则翻转。04_文献管理.md 离线段同步改准。
+
 ## [2.33.7] - 2026-08-10
 
 第十六轮技术债清理（SPEC-round16，盲检判合格）：离线发证路径堵死——MCP 缓存命中不再产出 verified:true（缓存是本地 JSON 不算核验证据；编造文献离线曾拿 96 分置信度，实证修掉）；--offline 补 help 且措辞与短路行为逐条对应；04_文献管理.md"允许 --offline 临时通过"矛盾口径改准；gate 链适配：离线模式 citation 维接受 unverified 不阻断（联网仍必须 verified）。共享件同步：折叠报告回退、delegate_review 畸形 exit 2、元素级校验、中毒缓存结构性判别。

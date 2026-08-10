@@ -1,5 +1,9 @@
 # Changelog - Review Writing Skill
 
+## [2.36.10] - 2026-08-10
+
+第十七轮技术债清零（SPEC-round17，盲检 M1-M6 变异全红判合格）：缩写检查依赖断裂由静默降级改 fail-closed——style_checker/ref_section 导入失败即 ABBR_CHECK_ERROR exit 2 点名中止（此前恒等回退致参考文献区作者姓名首字母全量假阳、零提示；--report-only 同样不放行；依赖齐全路径逐字不变）；prewrite_gate 检查器故障（exit 2）改走"本项检查未执行"档（ok=None + 真实原因 warning，可见不阻断），不再反着说"未通过、必须清零"。
+
 ## [2.36.9] - 2026-08-10
 
 第十六轮技术债清理（SPEC-round16，盲检判合格）：µCT 类非 ASCII 相黏不再拆出裸缩写误判死门（十五轮枚举边界类改结构性 \w 减 CJK；"ROS可诱导"检出不倒退）。共享件同步：折叠报告写失败全量明细回退 stdout；delegate_review 畸形返回 exit 2；new_refs/new_claims 元素级校验；中毒缓存结构性判别（联网轨或 provider 轨，真实账本 271→271 回归锁）。

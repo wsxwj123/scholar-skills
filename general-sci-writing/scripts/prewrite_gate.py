@@ -187,17 +187,22 @@ def scan_placeholders(files):
 
 
 def run_subprocess_gate(script_name, extra_args, root):
-    """复用既有 gate 脚本（subprocess），返回 (ok, output)。"""
+    """复用既有 gate 脚本（subprocess），返回 (ok, output, returncode)。
+
+    returncode 原样带出，调用方才分得清"检查发现问题(1)"与"检查器自身坏了(2)"
+    （round16 T3 起 abbreviation_consistency 用 exit 2 表示依赖断裂）。
+    跑不起来（脚本缺失 / subprocess 异常）时 returncode 为 None。
+    """
     script_path = os.path.join(SCRIPT_DIR, script_name)
     if not os.path.exists(script_path):
-        return None, f"{script_name} not found (skip)"
+        return None, f"{script_name} not found (skip)", None
     cmd = [sys.executable, script_path] + extra_args + ["--root", root]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (subprocess.SubprocessError, OSError) as exc:
-        return False, f"{script_name} run error: {exc}"
+        return False, f"{script_name} run error: {exc}", None
     out = (proc.stdout or "").strip() + (("\n" + proc.stderr.strip()) if proc.stderr.strip() else "")
-    return proc.returncode == 0, out
+    return proc.returncode == 0, out, proc.returncode
 
 
 def main():
@@ -265,7 +270,7 @@ def main():
 
     # ---- check 3: 素材就位（figure_analysis，仅信息，硬判定交给 step0b figure_analysis_gate.py） ----
     # 只跑一次探查并记录，绝不阻断——避免与 step0b 的硬门 figure_analysis_gate 双跑同一 gate。
-    fig_ok, fig_out = run_subprocess_gate("figure_analysis_gate.py", ["--section", section], root)
+    fig_ok, fig_out, _ = run_subprocess_gate("figure_analysis_gate.py", ["--section", section], root)
     if fig_ok is None:
         warnings.append(f"figure_analysis_gate.py unavailable: {fig_out}")
         checks.append({"name": "figure_analysis", "ok": None, "note": fig_out})
@@ -285,12 +290,21 @@ def main():
         checks.append({"name": "placeholders", "ok": True})
 
     # ---- check 5: 缩略词一致（subprocess abbreviation_consistency.py，复用） ----
-    abbr_ok, abbr_out = run_subprocess_gate("abbreviation_consistency.py", [], root)
+    abbr_ok, abbr_out, abbr_rc = run_subprocess_gate("abbreviation_consistency.py", [], root)
     if abbr_ok is None:
         warnings.append(f"abbreviation_consistency.py unavailable: {abbr_out}")
         checks.append({"name": "abbreviation", "ok": None, "note": abbr_out})
     elif abbr_ok:
         checks.append({"name": "abbreviation", "ok": True})
+    elif abbr_rc == 2:
+        # exit 2 = 检查器自身坏了（依赖断裂等，round16 T3 起的约定），不是稿子有问题。
+        # 照旧阻断（本项在 gsw 是硬检查，判定拿不到就不许开写），但文案必须分开：
+        # 说成"缩写检查没过"会把人推去改稿，真正该做的是修安装。
+        failures.append(
+            "abbreviation checker error（检查器自身故障，非稿件问题：依赖缺失/安装不全，"
+            f"修好本技能 scripts/ 后重跑，不要改稿）: {abbr_out}")
+        checks.append({"name": "abbreviation", "ok": False,
+                       "reason": "checker_error", "detail": abbr_out})
     else:
         failures.append(f"abbreviation_consistency failed: {abbr_out}")
         checks.append({"name": "abbreviation", "ok": False, "detail": abbr_out})
