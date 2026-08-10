@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.6] - 2026-08-09
+
+第十五轮（SPEC-round15，盲检 20 变异全红判合格）：A1 缩写扫描先剥非正文（参考文献区作者首字母不再误报）；A2 merge 引用区间加上界（hi-lo<500，超限拒绝展开）；A3a 缩表防护堵容器类型绕过（list↔dict 变更+元素变少同拦，结构性判据）；A3b 半截快照 rollback 如实报 restored:false + 点名缺件 + 现盘不动（此前谎报 true 且盖成半新半旧）；A4 缩写后紧跟汉字的裸用扫得出（\b 改 ASCII 环视）；共享件同步：proofread 参考文献剥离收敛 ref_section 单一口径、citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。
+
 ## [2.36.5] - 2026-08-06
 
 第十四轮（SPEC-round14）：262 行结构签字节安装描述改准——插件在场时 hook 由插件承担、安装器只清旧条目（实测不重建旧部署位）；legacy 自装是单独分发场景的兜底能力。SIGNOFF_CMD 与门禁强度描述未动。

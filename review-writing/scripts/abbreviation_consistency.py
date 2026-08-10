@@ -72,8 +72,14 @@ DEFINITION_PATTERN = re.compile(
     r"(" + _ABBR_TOKEN + r")[）)]"
 )
 
-# 匹配裸用缩写。
-BARE_ABBR_PATTERN = re.compile(r"\b(" + _ABBR_TOKEN + r")\b")
+# 匹配裸用缩写。边界用 ASCII 词字符 lookaround 而非 \b：
+# Python 的 \w 含 CJK，"ROS可诱导凋亡"里 S 与 可 之间没有 \b 边界，
+# CJK 相黏的裸用扫不出。lookaround 把 CJK 当非词字符（相黏即边界），
+# 希腊字母留在词字符侧（"ROSα" 保持旧 \b 口径不匹配）；纯英文文本
+# 行为与旧 \b 逐条一致（test_abbrev_bare_cjk.py 对照锁死）。
+BARE_ABBR_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_Α-Ωα-ω])(" + _ABBR_TOKEN + r")(?![A-Za-z0-9_Α-Ωα-ω])"
+)
 
 
 def is_merged_derivative(path: str) -> bool:

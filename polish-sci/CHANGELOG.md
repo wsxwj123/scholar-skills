@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.25.6] - 2026-08-09
+
+第十五轮共享件同步（SPEC-round15，盲检判合格）：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py；此前文献条目被拼写/单位检查空转误报）；另修 test_delegate_review 坏 fixture（tmp→tmp_path，pytest 与直跑双通）。
+
 ## [2.25.5] - 2026-08-06
 
 第十四轮（SPEC-round14）：SKILL.md 自家破折号清除——第 89 行不再把"——"当标点用（自家硬禁项，言行一致化），规则内容与强度一字未变。

@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.33.6] - 2026-08-09
+
+第十五轮共享件同步（SPEC-round15，盲检判合格）：citation_claim_check 垃圾摘要（非 str）按缺失处理不放行 + 大批量警告折叠落报告；delegate_write_core 键类型归一（矩阵主键与账本主键类型不同不再静默拿空）+ 缺条目报出 + lit_section 畸形按契约 exit 2。
+
 ## [2.33.5] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：prewrite_gate GBK 混入不崩；env_preflight parse_list argv 越界守卫。

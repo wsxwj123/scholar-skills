@@ -2884,6 +2884,14 @@ def _lost_items(old, new, path=""):
     ponytail: 递归深度跟着 JSON 结构走，不另设上限（json.load 本身已有嵌套上限）。
     """
     where = path or "整个文件"
+    # 容器类型被整个换掉（list↔dict）时下面两个同型分支都不命中、变更直接漏检：
+    # 3 条的 list 换成 2 键的 dict 就绕过了防护。类型不同也按元素数比——结构性
+    # 判据，不枚举键名也不枚举类型名；元素没变少不算丢（类型变更本身归用户负责）。
+    if (isinstance(old, (list, dict)) and isinstance(new, (list, dict))
+            and type(old) is not type(new)):
+        if len(new) < len(old):
+            return f"{where} 由 {len(old)} 条/项变成 {len(new)} 条/项（连数据结构都变了）"
+        return None
     if isinstance(old, list) and isinstance(new, list):
         if len(new) < len(old):
             return f"{where} 由 {len(old)} 条变成 {len(new)} 条"
@@ -3605,7 +3613,9 @@ def _restore_partial_snapshot(snapshot_dir, manifest_path):
             files = json.load(f).get("files") or []
     except (OSError, ValueError, AttributeError):
         files = []
-    restored_files = []
+    # 先全量核对再动手：半截快照（manifest 列了 N 个、盘里缺件）若边拷边报，
+    # 会把现盘盖成半新半旧的混合态还谎称 restored:true。缺一件就一件都不盖，
+    # 如实报缺件名单，现盘保持原样。
     missing = []
     for filename in files:
         # 快照里的相对路径直接对应项目里的相对路径；不接受绝对路径/越级路径。
@@ -3615,7 +3625,19 @@ def _restore_partial_snapshot(snapshot_dir, manifest_path):
         src = os.path.join(snapshot_dir, filename)
         if not os.path.isfile(src):
             missing.append(filename)
-            continue
+    if missing:
+        return {
+            "restored": False,
+            "reason": "snapshot_incomplete",
+            "partial": True,
+            "snapshot_dir": snapshot_dir,
+            "restored_files_count": 0,
+            "restored_files": [],
+            "missing_in_snapshot": missing,
+        }
+    restored_files = []
+    for filename in files:
+        src = os.path.join(snapshot_dir, filename)
         parent = os.path.dirname(filename)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -3627,7 +3649,7 @@ def _restore_partial_snapshot(snapshot_dir, manifest_path):
         "snapshot_dir": snapshot_dir,
         "restored_files_count": len(restored_files),
         "restored_files": restored_files,
-        "missing_in_snapshot": missing,
+        "missing_in_snapshot": [],
     }
 
 

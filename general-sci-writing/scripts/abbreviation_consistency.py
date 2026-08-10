@@ -24,6 +24,19 @@ import os
 import re
 import sys
 
+# 复用 style_checker 的散文提取（剥离参考文献块 / 图注 / 代码块 / CRediT 行）。
+# 参考文献区充斥作者姓名首字母缩写（"Zhang YW"、"Cao MM"），不剥离会被误判为
+# "未定义缩略语"，是真稿最大误报源（rw 同款文件已先行，本文件跟进同一口径）。
+# fail-soft：import 失败则退回原文。
+try:
+    _sc_dir = os.path.dirname(os.path.abspath(__file__))
+    if _sc_dir not in sys.path:
+        sys.path.insert(0, _sc_dir)
+    from style_checker import _extract_prose as _strip_nonprose
+except Exception:  # pragma: no cover
+    def _strip_nonprose(text: str) -> str:
+        return text
+
 # 同步自 state_manager.py:UNIVERSAL_ABBREVIATIONS（2.20.0），改一处需同步另一处。
 UNIVERSAL_ABBREVIATIONS = {
     "DNA", "RNA", "PCR", "HIV", "WHO", "FDA", "NIH", "USA", "UK", "EU",
@@ -55,8 +68,14 @@ DEFINITION_PATTERN = re.compile(
     r"|((?:[一-鿿][\w\-]*){1,6})[（(](" + _ABBR_TOKEN + r")[）)]"
 )
 
-# 匹配裸用缩写（独立词，全大写/数字，可含 -希腊字母后缀；不产生悬空尾 "-"）
-BARE_ABBR_PATTERN = re.compile(r"\b(" + _ABBR_TOKEN + r")\b")
+# 匹配裸用缩写（独立 token：两侧不得是 ASCII 词符 [A-Za-z0-9_] 或希腊字母）。
+# 此前用 \b：Python 的 \w 含 CJK，"ROS可诱导" 里 S 与 可 都是词符、边界不成立，
+# 缩写后紧跟汉字的裸用永远扫不出。改用 ASCII 词符环视后，纯英文文本行为不变
+# （英文语境 \b 与这组环视等价），CJK 相邻按非词符处理。
+# "PROS可" 这类整 token 按整体匹配，不会从里面抠出伪缩写 ROS。
+BARE_ABBR_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_Α-Ωα-ω])(" + _ABBR_TOKEN + r")(?![A-Za-z0-9_Α-Ωα-ω])"
+)
 
 
 def load_defined(root: str) -> dict:
@@ -127,7 +146,7 @@ def scan_definitions(files: list[str]) -> dict:
     for fp in files:
         try:
             with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+                content = _strip_nonprose(f.read())
         except OSError:
             continue
         for match in DEFINITION_PATTERN.finditer(content):
@@ -145,7 +164,7 @@ def scan_bare_uses(files: list[str], defined: set) -> dict:
     for fp in files:
         try:
             with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+                content = _strip_nonprose(f.read())
         except OSError:
             continue
         # 先剥离定义模式，避免把定义处也算作裸用

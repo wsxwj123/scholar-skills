@@ -151,8 +151,28 @@ def _load_lit(root, config=None):
     return data if isinstance(data, list) else []
 
 
+def _norm_key(v):
+    """引用键归一：两侧都转成可比的字符串形式。
+
+    markdown 里 [@key] 抽出来永远是 str，而账本主键各家类型不同（rw global_id /
+    gsw citation_number 是 int，nsfc id 是 "L-001" 字符串）——不归一则 "105" not in {105}
+    恒真，数字键条条被误判"无法解析"。
+    只认 str 与真 int；None / bool / 其它类型一律返回 None 由调用方丢弃：None 若被
+    str() 成 "None"，正文写 [@None] 就会撞上缺主键的账本条目而蒙混过关（fail-closed 破口）。
+    """
+    if isinstance(v, str):
+        return v
+    if isinstance(v, int) and not isinstance(v, bool):
+        return str(v)
+    return None
+
+
+def _norm_keys(values):
+    return {k for k in (_norm_key(v) for v in values) if k is not None}
+
+
 def resolve_section_refs(root, section, config, lit):
-    """按各家 config 解析"分给本节的文献"，返回 [(ref_id, matrix_row, lit_entry)]。
+    """按各家 config 解析"分给本节的文献"，返回 ([(ref_id, matrix_row, lit_entry)], missing_refs)。
 
     行/条目字段名全经 config 取（index_id_field / lit_section.id_field / section_field /
     related_field），核心不写死某家字段。四种 mode（§2.6/§7 四家切片来源）：
@@ -162,6 +182,10 @@ def resolve_section_refs(root, section, config, lit):
       matrix_related 矩阵行按 row[related_field] 含 section 切（当前无家使用，保留通用）
       index_used_in nsfc：无独立矩阵，literature_index entries[].used_in_sections 含 section 过滤
     矩阵文件缺/畸形 → 当空处理（不炸；承重防线在承重核证侧，不在切片侧）。matrix_row 无则为 {}。
+
+    矩阵行主键与账本主键类型不同（str "105" vs int 105）时按 _norm_key 归一再 join
+    （与 verify-write 主键比较点同源）；归一后仍拿不到条目的 rid 收进 missing_refs
+    由调用方报出来——不许静默塞 {} 让切片文献只剩标题没摘要（round15 B3）。
     """
     cfg = (config or {}).get("lit_section") or {}
     mode = cfg.get("mode", "matrix_rows")
@@ -169,14 +193,27 @@ def resolve_section_refs(root, section, config, lit):
     row_id = cfg.get("id_field", "id")              # 矩阵行的 ref 主键：rw=global_id
     section_field = cfg.get("section_field", "section_id")   # 矩阵行的节字段
     related_field = cfg.get("related_field", "related_sections")
-    lit_by_id = {e.get(id_field): e for e in lit}
+    lit_by_id = {}
+    for e in lit:
+        k = _norm_key(e.get(id_field))
+        if k is not None:
+            lit_by_id[k] = e
+    missing: list = []
+
+    def _lookup(rid):
+        k = _norm_key(rid)
+        e = lit_by_id.get(k) if k is not None else None
+        if e is None:
+            missing.append(rid)
+            return {}
+        return e
 
     if mode == "index_used_in":
         out = []
         for e in lit:
             if section in (e.get("used_in_sections") or []):
                 out.append((e.get(id_field), {}, e))
-        return out
+        return out, missing
 
     # 其余三种 mode 读矩阵文件
     fname = cfg.get("file")
@@ -199,8 +236,8 @@ def resolve_section_refs(root, section, config, lit):
         for r in refs:
             rid = r if isinstance(r, (str, int)) else (r.get(row_id) if isinstance(r, dict) else None)
             if rid is not None:
-                out.append((rid, r if isinstance(r, dict) else {}, lit_by_id.get(rid, {})))
-        return out
+                out.append((rid, r if isinstance(r, dict) else {}, _lookup(rid)))
+        return out, missing
 
     rows = matrix if isinstance(matrix, list) else (matrix.get("rows", []) if isinstance(matrix, dict) else [])
 
@@ -209,16 +246,16 @@ def resolve_section_refs(root, section, config, lit):
         for mr in rows:
             if section in (mr.get(related_field) or []):
                 rid = mr.get(row_id)
-                out.append((rid, mr, lit_by_id.get(rid, {})))
-        return out
+                out.append((rid, mr, _lookup(rid)))
+        return out, missing
 
     # 默认 matrix_rows（sci2doc 单值 section_field / row_id；rw 同形态但 global_id + data/ 矩阵）
     out = []
     for mr in rows:
         if mr.get(section_field) == section:
             rid = mr.get(row_id)
-            out.append((rid, mr, lit_by_id.get(rid, {})))
-    return out
+            out.append((rid, mr, _lookup(rid)))
+    return out, missing
 
 
 # ---------------------------------------------------------------------------
@@ -298,9 +335,14 @@ def cmd_pack_write(args, config):
         if r.get("user_confirmed") and r.get("verdict") in ("support", "weak")
     ]
 
-    pairs = resolve_section_refs(root, section, config, lit)
+    pairs, missing_refs = resolve_section_refs(root, section, config, lit)
     lit_section = _lit_section_for_write(pairs)
     warning = "lit_section empty" if not lit_section else None
+    if missing_refs:
+        msg = "lit_section 有 %d 个 ref 在 literature_index 查不到条目（切片只有矩阵行、无摘要）: %s" % (
+            len(missing_refs), ", ".join(str(r) for r in missing_refs[:10]))
+        warning = "%s; %s" % (warning, msg) if warning else msg
+        sys.stderr.write("PACK_WRITE: WARN %s\n" % msg)
 
     matrix_file = ((config or {}).get("lit_section") or {}).get("file")
     outline_files = _outline_files(config)
@@ -374,7 +416,7 @@ def cmd_pack_prep(args, config):
 
     lit = _load_lit(root, config)
     load_bearing_outline = sec.get("load_bearing_claims") or []
-    pairs = resolve_section_refs(root, section, config, lit)
+    pairs, missing_refs = resolve_section_refs(root, section, config, lit)
 
     lit_section = [
         {"ref_id": rid,
@@ -384,6 +426,11 @@ def cmd_pack_prep(args, config):
         for rid, mr, e in pairs
     ]
     warning = "lit_section empty" if not lit_section else None
+    if missing_refs:
+        msg = "lit_section 有 %d 个 ref 在 literature_index 查不到条目（切片只有矩阵行、无摘要）: %s" % (
+            len(missing_refs), ", ".join(str(r) for r in missing_refs[:10]))
+        warning = "%s; %s" % (warning, msg) if warning else msg
+        sys.stderr.write("PACK_PREP: WARN %s\n" % msg)
 
     pack = {
         "section_id": section,
@@ -429,26 +476,6 @@ def _fail1(msg):
     sys.exit(1)
 
 
-def _norm_key(v):
-    """引用键归一：两侧都转成可比的字符串形式。
-
-    markdown 里 [@key] 抽出来永远是 str，而账本主键各家类型不同（rw global_id /
-    gsw citation_number 是 int，nsfc id 是 "L-001" 字符串）——不归一则 "105" not in {105}
-    恒真，数字键条条被误判"无法解析"。
-    只认 str 与真 int；None / bool / 其它类型一律返回 None 由调用方丢弃：None 若被
-    str() 成 "None"，正文写 [@None] 就会撞上缺主键的账本条目而蒙混过关（fail-closed 破口）。
-    """
-    if isinstance(v, str):
-        return v
-    if isinstance(v, int) and not isinstance(v, bool):
-        return str(v)
-    return None
-
-
-def _norm_keys(values):
-    return {k for k in (_norm_key(v) for v in values) if k is not None}
-
-
 def cmd_verify_write(args, config):
     section = args.section
     root = args.root
@@ -486,6 +513,8 @@ def cmd_verify_write(args, config):
     lit_section = task.get("embed", {}).get("lit_section") or task.get("lit_section") or []
     if not isinstance(lit_section, list):
         die("lit_section 非数组")
+    if any(not isinstance(it, dict) for it in lit_section):
+        die("lit_section 元素必须是 JSON 对象")
 
     lit = _load_lit(root, config)
     id_field = _index_id_field(config)

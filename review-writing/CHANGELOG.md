@@ -1,5 +1,9 @@
 # Changelog - Review Writing Skill
 
+## [2.36.8] - 2026-08-09
+
+第十五轮（SPEC-round15，盲检 20 变异全红判合格）：C5 prewrite_gate 缩写子进程显式 utf-8 解码（跨平台不再走 locale 默认）；C6 裸缩写边界 \b 换 ASCII lookaround，"ROS可诱导"类 CJK 相黏扫得出（英文行为一字不变）；共享件同步：proofread 参考文献剥离收敛 ref_section 单一口径、citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。
+
 ## [2.36.7] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：prewrite_gate/style_checker GBK 混入不崩；abbreviation_consistency 中文全称（ABBR）认得 + GBK 不崩。

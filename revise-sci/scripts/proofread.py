@@ -20,6 +20,11 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 参考文献段标题识别全脚本唯一口径（同 citation_claim_check 硬 import 的规矩：
+# 缺 vendored 副本就当场炸，静默降级只会让纪律哑火）。
+from ref_section import is_reference_heading  # noqa: E402
+
 # ── Common misspellings (a → b) ──────────────────────────────────────────────
 MISSPELLINGS = {
     "teh": "the", "adn": "and", "recieve": "receive",
@@ -229,17 +234,40 @@ PRESENT_TENSE_VERBS_RE = re.compile(
     re.IGNORECASE,
 )
 
-# ── Ref/heading/code skip filters ─────────────────────────────────────────────
-HEADING_RE = re.compile(r"^#+\s+", re.MULTILINE)
+# ── Code-block skip filter ────────────────────────────────────────────────────
 CODE_BLOCK_RE = re.compile(r"```.*?```", re.DOTALL)
-REF_LINE_RE = re.compile(r"^\d+\.\s+\w+", re.MULTILINE)
-CITATION_RE = re.compile(r"\[\d+(?:[,\-\s]*\d+)*\]")
+# 参考文献段的终点：下一个 ATX 标题。文献区之后带标题的正文节（附录/致谢等）
+# 仍属正文要照查，不能像 word-count 那样一刀切到文末。
+# ponytail: 只认 ATX 边界；`**References**` 粗体段标题后若也跟粗体节标题，
+# 会多剥到文末（退化为旧行为），真稿工作流的 atomic md 都是 ATX 标题。
+_ATX_HEADING_RE = re.compile(r"^#{1,6}\s")
+
+
+def _strip_reference_block(text):
+    """剥掉参考文献段（段标题 → 下一个 ATX 标题，不含），其余正文保留。
+
+    段标题识别用 ref_section.is_reference_heading 单一口径——正文句
+    "The method cites references [1,2] for details." 不会被当段起点。
+    参考文献在文末（SCI 常态）时剥到文末，等价 strip_reference_section。
+    """
+    out = []
+    in_refs = False
+    for line in (text or "").splitlines(keepends=True):
+        if in_refs and _ATX_HEADING_RE.match(line):
+            in_refs = False
+        if in_refs:
+            continue
+        if is_reference_heading(line):
+            in_refs = True
+            continue
+        out.append(line)
+    return "".join(out)
 
 
 def _extract_prose(text):
-    """Strip non-prose: code blocks, citations (for word matching)."""
+    """Strip non-prose: code blocks + 参考文献段（拼写/单位/千分位等检查不对文献条目空转）。"""
     text = CODE_BLOCK_RE.sub("", text)
-    return text
+    return _strip_reference_block(text)
 
 
 def check_misspellings(text):

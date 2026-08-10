@@ -114,7 +114,7 @@ def check_trace_markers(root: str, text: str):
             violations.append(f"[数据来源] materials/{rel} 不是 .md 素材档")
             continue
         try:
-            content = open(mat_path, "r", encoding="utf-8").read()
+            content = open(mat_path, "r", encoding="utf-8", errors="replace").read()
         except OSError as e:
             violations.append(f"[数据来源] 无法读取 materials/{rel}：{e}")
             continue
@@ -131,7 +131,7 @@ def gate(root: str, files):
     numeric_files = []
     for fp in files:
         try:
-            text = open(fp, "r", encoding="utf-8").read()
+            text = open(fp, "r", encoding="utf-8", errors="replace").read()
         except OSError as e:
             violations.append(f"{os.path.basename(fp)}: 无法读取（{e}）")
             continue

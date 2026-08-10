@@ -1,5 +1,9 @@
 # Changelog - Reviewer Response SCI Skill
 
+## [2.28.5] - 2026-08-09
+
+第十五轮共享件同步（SPEC-round15，盲检判合格）：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py）；citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告。
+
 ## [2.28.4] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：env_preflight parse_list argv 越界守卫。

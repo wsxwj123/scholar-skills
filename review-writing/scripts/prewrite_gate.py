@@ -305,7 +305,8 @@ def abbreviation_check(root, warnings):
     try:
         proc = subprocess.run(
             [sys.executable or "python3", script, "--drafts-dir", drafts_dir],
-            capture_output=True, text=True, timeout=120)
+            capture_output=True, text=True, timeout=120,
+            encoding="utf-8", errors="replace")
     except (OSError, subprocess.SubprocessError) as exc:
         return {"name": "abbreviation", "ok": None,
                 "note": f"abbreviation_consistency.py 执行失败({exc.__class__.__name__}: {exc}); skip"}

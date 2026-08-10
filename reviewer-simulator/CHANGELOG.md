@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [2.29.13] - 2026-08-09
+
+第十五轮（SPEC-round15，盲检判合格）：C4 SKILL.md:130 空 index 措辞点破——豁免的是写作步骤（报告不写外部文献结论），不是脚本退出码，citation_guard 空 index 仍 exit 2 属正常返回（命令本体未动）；共享件同步：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py）。
+
 ## [2.29.12] - 2026-08-06
 
 第十四轮（SPEC-round14）：5 处硬编码 ~/.claude/skills 路径改为 $SKILL_DIR 动态解析（新增技能安装目录解析节，三 runtime 安装位列出）；本机 9 条命令实测全 exit 0，脚本名/参数/退出码语义未动。

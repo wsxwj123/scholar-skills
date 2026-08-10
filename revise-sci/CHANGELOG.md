@@ -1,5 +1,9 @@
 # Revise-Sci Changelog
 
+## [2.29.5] - 2026-08-09
+
+第十五轮共享件同步（SPEC-round15，盲检判合格）：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py）；citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告。
+
 ## [2.29.4] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：cross_section_consistency GBK 不崩 + 聚类数值归一（45% 与 45.0% 不再误报漂移）；env_preflight argv 守卫。

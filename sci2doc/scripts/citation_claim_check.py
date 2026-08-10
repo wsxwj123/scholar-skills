@@ -59,6 +59,16 @@ def _norm(s) -> str:
     return " ".join(str(s or "").split())
 
 
+def _abstract_text(v) -> str:
+    """retrieved_abstract 只认 str：数字/列表等垃圾值一律按缺失处理。
+
+    round10 #16 用 str() 强转防了 AttributeError，但残留破口：12345 这种垃圾值
+    强转后非空，verdict=support + user_confirmed 时被当"真摘要"放行（round15 B2a）。
+    按缺失走既有口径：缓存有真摘要则 backfill 补上，没有则按"缺摘要"阻断。
+    """
+    return v if isinstance(v, str) else ""
+
+
 def _load_evidence(path: Path) -> list[dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and isinstance(data.get("rows"), list):
@@ -239,7 +249,7 @@ def _backfill_rows(rows: list, cache: dict, now_iso: str) -> dict:
         ref = str(row.get("ref_id") or "").strip()
         if not ref:
             continue
-        if not str(row.get("retrieved_abstract") or "").strip():
+        if not _abstract_text(row.get("retrieved_abstract")).strip():
             cached_ab = abstracts.get(ref)
             if isinstance(cached_ab, dict) and str(cached_ab.get("retrieved_abstract") or "").strip():
                 row["retrieved_abstract"] = cached_ab["retrieved_abstract"]
@@ -270,7 +280,7 @@ def _persist_rows(rows: list, cache: dict, now_iso: str) -> None:
         ref = str(row.get("ref_id") or "").strip()
         if not ref:
             continue
-        ab = str(row.get("retrieved_abstract") or "").strip()
+        ab = _abstract_text(row.get("retrieved_abstract")).strip()
         if ab and ref not in abstracts:
             abstracts[ref] = {"retrieved_abstract": ab,
                               "source": row.get("abstract_source") or "",
@@ -289,7 +299,7 @@ def _row_blockers(row: dict) -> list[str]:
     problems: list[str] = []
     ref = row.get("ref_id") or "?"
     verdict = row.get("verdict")
-    if not str(row.get("retrieved_abstract") or "").strip():
+    if not _abstract_text(row.get("retrieved_abstract")).strip():
         problems.append(f"[{ref}] 承重句但未取到被引文献摘要，无法核证（需人工或重取摘要）")
         return problems  # 没摘要就没法谈 verdict
     if verdict not in VALID_VERDICTS:
@@ -398,7 +408,7 @@ def main() -> int:
         if args.check_quote_substring:
             quote = str(r.get("evidence_quote") or "").strip()
             if quote:
-                ledger_ab = led.get("abstract") or r.get("retrieved_abstract") or ""
+                ledger_ab = led.get("abstract") or _abstract_text(r.get("retrieved_abstract"))
                 if _norm(quote) not in _norm(ledger_ab):
                     blockers.append(f"evidence_quote 非账本 abstract 子串: {ref}")
 
@@ -506,11 +516,23 @@ def main() -> int:
         print("🟠 预印本标注缺失（需在正文引用处补 [Preprint] 标记）：")
         for s in soft_blockers:
             print(f"  - {s}")
-    for w in shown_warnings:
-        print(f"⚠️ {w}")
-    hidden = len(warnings) - len(shown_warnings)
-    if hidden > 0:
-        print(f"⚠️ ……同类警告另有 {hidden} 条未展示（加 --full-warnings 看全部；退出码与判定结论不受截断影响）")
+    if limit is not None and len(warnings) > limit:
+        # round15 B2b：大批量时 stdout 只留汇总计数，完整明细落报告文件——
+        # 折叠的是 stdout 不是证据。小批量（未超限）保持逐条 ⚠️ 原形态。
+        report_path = root_dir / "claim_check_warnings.json"
+        try:
+            report_path.write_text(json.dumps(
+                {"warnings_total": len(warnings), "warnings": warnings,
+                 "discipline_skipped_refs": discipline_skipped_refs},
+                ensure_ascii=False, indent=2), encoding="utf-8")
+            where = f"全量明细已落报告 {report_path}"
+        except OSError:
+            where = "警告报告写入失败"
+        print(f"⚠️ 另有 {len(warnings)} 条同类警告未逐条展示（{where}；"
+              f"加 --full-warnings 恢复逐条呈现；退出码与判定结论不受影响）")
+    else:
+        for w in shown_warnings:
+            print(f"⚠️ {w}")
     print(json.dumps(summary, ensure_ascii=False))
     if blockers:
         return 2

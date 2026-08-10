@@ -1,5 +1,9 @@
 # Changelog - sci2doc Skill
 
+## [2.31.7] - 2026-08-09
+
+第十五轮（SPEC-round15，盲检判合格）：C3 data_trace_gate 两处文件读取补 errors="replace"（GBK 混入不再 UnicodeDecodeError 裸崩，盲检实证两处均为真暴露面）；共享件同步：citation_claim_check 垃圾摘要按缺失处理 + 警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。另修 test_data_trace_gate 直跑空转（补 __main__，8 条真执行）。
+
 ## [2.31.6] - 2026-08-06
 
 第十三轮同款 bug 修复（SPEC-round13）：prewrite_gate GBK 混入不崩；env_preflight parse_list argv 越界守卫。

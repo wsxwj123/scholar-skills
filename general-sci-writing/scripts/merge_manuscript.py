@@ -67,10 +67,15 @@ def expand_citation_numbers(raw):
         if m:
             a = int(m.group(1))
             b = int(m.group(2))
-            if a <= b:
-                out.extend(range(a, b + 1))
-            else:
-                out.extend(range(b, a + 1))
+            lo, hi = (a, b) if a <= b else (b, a)
+            # 区间上限与 state_manager.expand_citation_numbers /
+            # manuscript_index.expand_citation_group 同口径(hi-lo<500)：
+            # 超限拒绝展开并留痕，否则 [1-10000000] 这种能吃掉几个 GB 内存。
+            if hi - lo >= 500:
+                print(f"warning: citation range {a}-{b} exceeds limit "
+                      f"(hi-lo<500), expansion skipped", file=sys.stderr)
+                continue
+            out.extend(range(lo, hi + 1))
             continue
         if item.isdigit():
             out.append(int(item))
