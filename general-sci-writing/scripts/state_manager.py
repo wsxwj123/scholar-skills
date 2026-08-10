@@ -2892,6 +2892,13 @@ def _lost_items(old, new, path=""):
         if len(new) < len(old):
             return f"{where} 由 {len(old)} 条/项变成 {len(new)} 条/项（连数据结构都变了）"
         return None
+    # 容器被整个标量顶掉（3 条文献 → "gone"）：上面那条与下面两条同型分支都要求
+    # new 也是容器，一个都不命中，整张表直接放行。标量按 0 项计，与"元素变少即算丢"
+    # 同一把尺子——所以空容器换成标量不算丢，反向的标量→容器（字段升格）也不算。
+    if isinstance(old, (list, dict)) and not isinstance(new, (list, dict)):
+        if len(old) > 0:
+            return f"{where} 由 {len(old)} 条/项整个变成了单个值 {new!r}"
+        return None
     if isinstance(old, list) and isinstance(new, list):
         if len(new) < len(old):
             return f"{where} 由 {len(old)} 条变成 {len(new)} 条"
@@ -3688,6 +3695,9 @@ def restore_project_snapshot(snapshot_dir):
         return _restore_partial_snapshot(snapshot_dir, manifest_path)
 
     restored_files = []
+    # 快照里没有的 STATE_FILES 成员。此前"存在才拷、缺了静默跳过"，末尾一律
+    # restored:True——用户以为整个项目回退了，实际上没被盖回的那几个还是现在的内容。
+    missing_state_files = []
 
     # Restore state files. (含子目录的也要 mkdir 目标父目录)
     for _, filename in STATE_FILES.items():
@@ -3698,6 +3708,8 @@ def restore_project_snapshot(snapshot_dir):
                 os.makedirs(parent, exist_ok=True)
             shutil.copy2(src, filename)
             restored_files.append(filename)
+        else:
+            missing_state_files.append(filename)
 
     # Restore manuscripts / section_memory / figure_analysis：
     # 全部走 _restore_tree（先拷后换），任一目录恢复失败现稿原样保留、如实上报。
@@ -3716,16 +3728,40 @@ def restore_project_snapshot(snapshot_dir):
                 "snapshot_dir": snapshot_dir,
                 "restored_files_count": len(restored_files),
                 "restored_files": restored_files,
+                "missing_in_snapshot": missing_state_files,
             }
         for root, _, files in os.walk(dst_name):
             for fn in files:
                 restored_files.append(os.path.join(root, fn))
+
+    # 缺件只记账不拒绝，与部分快照的 fail-closed 不冲突：部分快照有 manifest，
+    # 明确列了"这次存了哪几个"，缺一件＝快照损坏，所以那边一件都不盖。全量快照没有
+    # 这份承诺，STATE_FILES 是"可能有的全集"而非"存过什么"——项目从没建过
+    # figures_database.json 时它本来就不该在快照里，按缺件拒绝会让绝大多数正常回滚
+    # 失败。同一条口径：有承诺被违背才拒绝，没承诺就如实记账。
+    # kept_current_on_disk 是其中真正危险的那部分：现盘还在、这次没被盖回，
+    # 用户以为回退了、它其实仍是当前内容。
+    stale_on_disk = [f for f in missing_state_files if os.path.exists(f)]
+    if not restored_files:
+        # 一个文件都没恢复 = 这个快照根本用不了（空目录 / 内容全丢）。此前无条件
+        # restored:True + count 0，回退成了一句空话还报成功。
+        return {
+            "restored": False,
+            "reason": "snapshot_empty",
+            "snapshot_dir": snapshot_dir,
+            "restored_files_count": 0,
+            "restored_files": [],
+            "missing_in_snapshot": missing_state_files,
+            "kept_current_on_disk": stale_on_disk,
+        }
 
     return {
         "restored": True,
         "snapshot_dir": snapshot_dir,
         "restored_files_count": len(restored_files),
         "restored_files": restored_files,
+        "missing_in_snapshot": missing_state_files,
+        "kept_current_on_disk": stale_on_disk,
     }
 
 

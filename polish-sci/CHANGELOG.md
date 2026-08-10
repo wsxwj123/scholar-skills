@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.25.7] - 2026-08-10
+
+第十六轮共享件同步（SPEC-round16，盲检判合格）：delegate_review 畸形返回（顶层非数组）exit 2，与"审查发现问题"的 exit 1 语义分清（base 6 家同步）。
+
 ## [2.25.6] - 2026-08-09
 
 第十五轮共享件同步（SPEC-round15，盲检判合格）：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py；此前文献条目被拼写/单位检查空转误报）；另修 test_delegate_review 坏 fixture（tmp→tmp_path，pytest 与直跑双通）。

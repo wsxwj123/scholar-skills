@@ -27,15 +27,24 @@ import sys
 # 复用 style_checker 的散文提取（剥离参考文献块 / 图注 / 代码块 / CRediT 行）。
 # 参考文献区充斥作者姓名首字母缩写（"Zhang YW"、"Cao MM"），不剥离会被误判为
 # "未定义缩略语"，是真稿最大误报源（rw 同款文件已先行，本文件跟进同一口径）。
-# fail-soft：import 失败则退回原文。
+# fail-closed：import 失败就不出判定（round16 T3）。此前是 fail-soft 退回原文——
+# 剥离静默失效，参考文献区重新进扫描，用户看到的是"YW/MM 未定义"这种假报警，
+# 只会照着去改 abbreviations.json，反而污染自己的数据，而且永远不知道剥离已经没了。
+# 依赖全在本技能 scripts/ 内（style_checker 只 import 标准库 + 同目录 ref_section），
+# import 失败＝安装坏了，不是"环境缺可选件"，所以拒判比降级正确。
+_STRIP_IMPORT_ERROR = None
 try:
     _sc_dir = os.path.dirname(os.path.abspath(__file__))
     if _sc_dir not in sys.path:
         sys.path.insert(0, _sc_dir)
     from style_checker import _extract_prose as _strip_nonprose
-except Exception:  # pragma: no cover
+except Exception as _exc:  # pragma: no cover
+    _STRIP_IMPORT_ERROR = _exc
+
     def _strip_nonprose(text: str) -> str:
-        return text
+        # 库级调用者也别想拿到静默降级的结果。
+        raise RuntimeError(
+            f"style_checker._extract_prose 不可用，无法剥离非正文: {_STRIP_IMPORT_ERROR}")
 
 # 同步自 state_manager.py:UNIVERSAL_ABBREVIATIONS（2.20.0），改一处需同步另一处。
 UNIVERSAL_ABBREVIATIONS = {
@@ -68,13 +77,19 @@ DEFINITION_PATTERN = re.compile(
     r"|((?:[一-鿿][\w\-]*){1,6})[（(](" + _ABBR_TOKEN + r")[）)]"
 )
 
-# 匹配裸用缩写（独立 token：两侧不得是 ASCII 词符 [A-Za-z0-9_] 或希腊字母）。
+# 匹配裸用缩写（独立 token：两侧不得是词字符）。
 # 此前用 \b：Python 的 \w 含 CJK，"ROS可诱导" 里 S 与 可 都是词符、边界不成立，
-# 缩写后紧跟汉字的裸用永远扫不出。改用 ASCII 词符环视后，纯英文文本行为不变
-# （英文语境 \b 与这组环视等价），CJK 相邻按非词符处理。
+# 缩写后紧跟汉字的裸用永远扫不出。这里的词字符 = `\w` 减 CJK 类脚本
+# （`[^\W…]` 即"是 \w 且不在这些区段"）：不用空格分词的 CJK/假名/谚文相黏即边界，
+# 其余 \w 一律留在词字符侧——包括 µ(U+00B5)、希腊字母这类非 ASCII 字母，
+# 所以 "µCT"/"µMRI" 这种合法复合写法不会被拆出裸 "CT"（round16 T4-gsw；
+# 旧版枚举 [A-Za-z0-9_Α-Ωα-ω] 只兜住希腊字母，µ 漏网直接判死门）。
+# 纯英文文本行为与旧 \b 逐条一致（test_a4_cjk_bare_abbr.py 对照锁死）。
 # "PROS可" 这类整 token 按整体匹配，不会从里面抠出伪缩写 ROS。
+_CJK_SCRIPTS = r"぀-ヿ㐀-䶿一-鿿가-힯豈-﫿"
+_WORD_CHAR = r"[^\W" + _CJK_SCRIPTS + r"]"
 BARE_ABBR_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_Α-Ωα-ω])(" + _ABBR_TOKEN + r")(?![A-Za-z0-9_Α-Ωα-ω])"
+    r"(?<!" + _WORD_CHAR + r")(" + _ABBR_TOKEN + r")(?!" + _WORD_CHAR + r")"
 )
 
 
@@ -200,6 +215,16 @@ def main() -> int:
     parser.add_argument("--root", required=True,
                         help="project root，含 abbreviations.json 与 manuscripts/")
     args = parser.parse_args()
+
+    # 剥离非正文这一层拿不到就不许出判定：带着失效的剥离扫，参考文献区的作者
+    # 首字母会全变成"未定义缩略语"。exit 2 与"稿子有问题"的 exit 1 分开，
+    # 一眼能分出是环境坏了还是稿子该改。
+    if _STRIP_IMPORT_ERROR is not None:
+        print(f"ABBR_CHECK_ERROR: 依赖 style_checker._extract_prose 导入失败"
+              f"（{_STRIP_IMPORT_ERROR}），无法剥离参考文献/图注/代码块，"
+              f"判定不可信，已中止。请检查本技能 scripts/ 目录是否完整"
+              f"（style_checker.py、ref_section.py）。")
+        return 2
 
     root = os.path.abspath(args.root)
     if not os.path.isdir(root):

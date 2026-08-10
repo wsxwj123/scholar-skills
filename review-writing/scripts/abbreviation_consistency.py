@@ -72,13 +72,18 @@ DEFINITION_PATTERN = re.compile(
     r"(" + _ABBR_TOKEN + r")[）)]"
 )
 
-# 匹配裸用缩写。边界用 ASCII 词字符 lookaround 而非 \b：
+# 匹配裸用缩写。边界用自定义词字符 lookaround 而非 \b：
 # Python 的 \w 含 CJK，"ROS可诱导凋亡"里 S 与 可 之间没有 \b 边界，
-# CJK 相黏的裸用扫不出。lookaround 把 CJK 当非词字符（相黏即边界），
-# 希腊字母留在词字符侧（"ROSα" 保持旧 \b 口径不匹配）；纯英文文本
-# 行为与旧 \b 逐条一致（test_abbrev_bare_cjk.py 对照锁死）。
+# CJK 相黏的裸用扫不出。这里的词字符 = `\w` 减 CJK 类脚本（`[^\W…]` 即
+# "是 \w 且不在这些区段"）：不用空格分词的 CJK/假名/谚文相黏即边界，
+# 其余 \w 一律留在词字符侧——包括 µ(U+00B5)、希腊字母这类非 ASCII 字母，
+# 所以 "µCT"/"µL" 这种合法复合写法不会被拆出裸 "CT"（round16 T4-rw；
+# 旧版枚举 [A-Za-z0-9_Α-Ωα-ω] 只兜住希腊字母，µ 漏网直接判死门）。
+# 纯英文文本行为与旧 \b 逐条一致（test_abbrev_bare_cjk.py 对照锁死）。
+_CJK_SCRIPTS = r"぀-ヿ㐀-䶿一-鿿가-힯豈-﫿"
+_WORD_CHAR = r"[^\W" + _CJK_SCRIPTS + r"]"
 BARE_ABBR_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_Α-Ωα-ω])(" + _ABBR_TOKEN + r")(?![A-Za-z0-9_Α-Ωα-ω])"
+    r"(?<!" + _WORD_CHAR + r")(" + _ABBR_TOKEN + r")(?!" + _WORD_CHAR + r")"
 )
 
 

@@ -525,9 +525,19 @@ def main() -> int:
                 {"warnings_total": len(warnings), "warnings": warnings,
                  "discipline_skipped_refs": discipline_skipped_refs},
                 ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError as exc:
+            # round16 T1：报告写不成就把明细全量打回 stdout。折叠的前提是"明细还有地方可查"，
+            # 这个前提一旦不成立（路径被同名目录占住/只读盘/权限不足），原先只剩一行计数——
+            # 明细 stdout 和文件两头都没有，等于证据消失。fail-closed 方向：宁可刷屏也不丢证据。
+            print(f"⚠️ 警告报告写入失败（{report_path}：{exc}）——完整明细回退逐条打印如下：")
+            for w in warnings:
+                print(f"⚠️ {w}")
+            if discipline_skipped_refs:
+                print(f"⚠️ 机械纪律未执行的全部 ref（{len(discipline_skipped_refs)} 个）："
+                      f"{'、'.join(discipline_skipped_refs)}")
+            where = "报告写入失败，全量明细已回退逐条打印于上方"
+        else:
             where = f"全量明细已落报告 {report_path}"
-        except OSError:
-            where = "警告报告写入失败"
         print(f"⚠️ 另有 {len(warnings)} 条同类警告未逐条展示（{where}；"
               f"加 --full-warnings 恢复逐条呈现；退出码与判定结论不受影响）")
     else:

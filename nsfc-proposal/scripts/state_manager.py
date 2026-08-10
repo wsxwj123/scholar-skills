@@ -397,7 +397,12 @@ def gate_check(
         },
     )
 
-    citation_ok = idx.get("metadata", {}).get("verification_status") == "verified"
+    # 离线跑一次联网核验都没做，状态只可能是 unverified / failed（citation_validator
+    # 的 offline 分支）。"没验"不等于"失败"——口径同 gsw citation_guard：unverified
+    # 不阻断、退出码不变。所以 offline 时接受 unverified；联网判据一字不变，仍必须
+    # verified（联网态出现 unverified 是异常形态，照拦）。
+    citation_status = idx.get("metadata", {}).get("verification_status")
+    citation_ok = citation_status == "verified" or (offline and citation_status == "unverified")
     matrix = citation_validator.matrix_check(p1_text, idx, ref_text)
     matrix_ok = bool(matrix.get("ok"))
 

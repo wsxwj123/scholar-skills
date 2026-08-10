@@ -504,10 +504,20 @@ def cmd_verify_write(args, config):
     new_refs = ret.get("new_refs") or []
     new_claims = ret.get("new_claims") or []
 
+    # round16 T6：元素级也要验。只验"是数组"时，元素是字符串的返回包会在下面
+    # V5 的 `nr.get("key")` / V7 的 `nc.get("ref_key")` 处裸抛 AttributeError → exit 1，
+    # 违反 round15 B3 立的"畸形输入 exit 2"契约（lit_section 那轮补了，这两个漏了）。
+    # 口径与 lit_section 完全一致。
+    # 注：new_abbrev / placeholders 只出现在任务包的 fields 声明里，verify-write
+    # 从不读取、更不逐元素 .get()，故无同款缺口——已逐字段核查过。
     if not isinstance(new_refs, list):
         die("new_refs 非数组")
+    if any(not isinstance(it, dict) for it in new_refs):
+        die("new_refs 元素必须是 JSON 对象")
     if not isinstance(new_claims, list):
         die("new_claims 非数组")
+    if any(not isinstance(it, dict) for it in new_claims):
+        die("new_claims 元素必须是 JSON 对象")
 
     task_section_id = task.get("section_id") or task.get("embed", {}).get("section_id")
     lit_section = task.get("embed", {}).get("lit_section") or task.get("lit_section") or []

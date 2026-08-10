@@ -1,5 +1,9 @@
 # Changelog - sci2doc Skill
 
+## [2.31.8] - 2026-08-10
+
+第十六轮共享件同步（SPEC-round16，盲检判合格）：折叠报告写失败全量明细回退 stdout；delegate_review 畸形返回 exit 2；new_refs/new_claims 元素级校验；中毒缓存结构性判别（联网轨或 provider 轨）。
+
 ## [2.31.7] - 2026-08-09
 
 第十五轮（SPEC-round15，盲检判合格）：C3 data_trace_gate 两处文件读取补 errors="replace"（GBK 混入不再 UnicodeDecodeError 裸崩，盲检实证两处均为真暴露面）；共享件同步：citation_claim_check 垃圾摘要按缺失处理 + 警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。另修 test_data_trace_gate 直跑空转（补 __main__，8 条真执行）。

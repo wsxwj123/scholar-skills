@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [2.29.14] - 2026-08-10
+
+第十六轮共享件同步（SPEC-round16，盲检判合格）：delegate_review（base 同步）畸形返回 exit 2；中毒缓存结构性判别（联网轨或 provider 轨，真实账本 271→271 回归锁）。
+
 ## [2.29.13] - 2026-08-09
 
 第十五轮（SPEC-round15，盲检判合格）：C4 SKILL.md:130 空 index 措辞点破——豁免的是写作步骤（报告不写外部文献结论），不是脚本退出码，citation_guard 空 index 仍 exit 2 属正常返回（命令本体未动）；共享件同步：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py）。

@@ -1,5 +1,9 @@
 # Changelog - Review Writing Skill
 
+## [2.36.9] - 2026-08-10
+
+第十六轮技术债清理（SPEC-round16，盲检判合格）：µCT 类非 ASCII 相黏不再拆出裸缩写误判死门（十五轮枚举边界类改结构性 \w 减 CJK；"ROS可诱导"检出不倒退）。共享件同步：折叠报告写失败全量明细回退 stdout；delegate_review 畸形返回 exit 2；new_refs/new_claims 元素级校验；中毒缓存结构性判别（联网轨或 provider 轨，真实账本 271→271 回归锁）。
+
 ## [2.36.8] - 2026-08-09
 
 第十五轮（SPEC-round15，盲检 20 变异全红判合格）：C5 prewrite_gate 缩写子进程显式 utf-8 解码（跨平台不再走 locale 默认）；C6 裸缩写边界 \b 换 ASCII lookaround，"ROS可诱导"类 CJK 相黏扫得出（英文行为一字不变）；共享件同步：proofread 参考文献剥离收敛 ref_section 单一口径、citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。

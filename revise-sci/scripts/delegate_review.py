@@ -230,8 +230,14 @@ def cmd_verify(args: argparse.Namespace) -> int:
 
     returned = _load_json(args.return_path)
     if not isinstance(returned, list):
-        sys.stderr.write("[delegate_review] 子代理返回必须是 JSON 数组\n")
-        return 1
+        # round16 T2：退出码两类语义分清——
+        #   exit 2 = 结构性畸形（文件不存在 / 坏 JSON / 顶层不是数组 / --section 非法），
+        #            "这份返回根本没法裁决"，与 _load_json 同口径；
+        #   exit 1 = 裁决跑完了、审查发现问题（fail / 缺裁决 / 无证据）。
+        # 原先这里 return 1，把"没法裁决"混进"审查未通过"，调用方分不出
+        # 该重跑子代理还是该改稿。
+        sys.stderr.write("[delegate_review] 子代理返回必须是 JSON 数组（结构性畸形，无法裁决）\n")
+        return 2
 
     by_id: dict[str, dict] = {}
     problems: list[str] = []

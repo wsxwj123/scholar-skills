@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.33.7] - 2026-08-10
+
+第十六轮技术债清理（SPEC-round16，盲检判合格）：离线发证路径堵死——MCP 缓存命中不再产出 verified:true（缓存是本地 JSON 不算核验证据；编造文献离线曾拿 96 分置信度，实证修掉）；--offline 补 help 且措辞与短路行为逐条对应；04_文献管理.md"允许 --offline 临时通过"矛盾口径改准；gate 链适配：离线模式 citation 维接受 unverified 不阻断（联网仍必须 verified）。共享件同步：折叠报告回退、delegate_review 畸形 exit 2、元素级校验、中毒缓存结构性判别。
+
 ## [2.33.6] - 2026-08-09
 
 第十五轮共享件同步（SPEC-round15，盲检判合格）：citation_claim_check 垃圾摘要（非 str）按缺失处理不放行 + 大批量警告折叠落报告；delegate_write_core 键类型归一（矩阵主键与账本主键类型不同不再静默拿空）+ 缺条目报出 + lit_section 畸形按契约 exit 2。

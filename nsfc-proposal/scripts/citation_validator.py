@@ -334,7 +334,13 @@ def validate_entry(
         context_check=context_check,
     )
 
-    verified = len(failure_reasons) == 0
+    # 🔴 离线绝不发"已核实"证书，口径与共享 core 一致（citation_guard_core.validate_core
+    # 尾部同款判据 `verified = online and …`）。离线时 doi_valid/pmid_match 是"没查所以
+    # 算它对"（http_ok 恒 True），core 又不往 failure_reasons 加码（那是冻结码表），
+    # 只靠本地的 len(failure_reasons)==0 重算，一条纯编造文献只要 MCP 缓存里有同 DOI
+    # 记录（缓存是本地 JSON）就能拿 verified + 96 分并写回索引——离线发证的产地。
+    # 不发证的理由从 details.sources.online_check 读得出来，退出码语义不变。
+    verified = online_check and len(failure_reasons) == 0
 
     details = {
         "provider_family": provider_family,
@@ -453,7 +459,16 @@ def verify_all(
 
     all_ok = all(e.get("verified") for e in out) if out else False
     any_ok = any(e.get("verified") for e in out)
-    status = "verified" if all_ok else ("partial" if any_ok else "failed")
+    if not out:
+        status = "failed"          # 空索引：维持原语义（没有可采信的东西）
+    elif online_check:
+        status = "verified" if all_ok else ("partial" if any_ok else "failed")
+    else:
+        # 离线这一轮一次联网核验都没做 → 状态只能是 unverified，绝不许出现
+        # verified/partial 字样（口径同 gsw citation_guard.py 的 offline 分支）。
+        # 但"没验"不等于"失败"：条目自己带失败原因才算 failed，退出码语义因此不变。
+        blocked = any((e.get("verification_details") or {}).get("failure_reasons") for e in out)
+        status = "failed" if blocked else "unverified"
 
     failure_counter: Counter[str] = Counter()
     confidence_values = []
@@ -713,6 +728,14 @@ def _append_verification_log(path: Path, record: dict[str, Any]) -> None:
     save_json(path, existing)
 
 
+_OFFLINE_HELP = (
+    "跳过联网核验，本轮不发证：本轮实际核验的条目一律 verified=false、"
+    "verification_status=unverified、ok=false（无硬失败时退出码仍为 0）；"
+    "TTL 内已有可信核验记录的条目短路保持原状、不被刷掉。"
+    "只用于测试或网络故障应急，不是交付口径，销账前必须不带它重跑。"
+)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -720,7 +743,7 @@ def main() -> int:
     p_verify_all = sub.add_parser("verify-all")
     p_verify_all.add_argument("--index", default="data/literature_index.json")
     p_verify_all.add_argument("--p1", default="sections/P1_立项依据.md")
-    p_verify_all.add_argument("--offline", action="store_true")
+    p_verify_all.add_argument("--offline", action="store_true", help=_OFFLINE_HELP)
     p_verify_all.add_argument("--mcp-cache", default="data/mcp_literature_cache.json")
     p_verify_all.add_argument("--mcp-ttl-days", type=int, default=30)
     p_verify_all.add_argument("--require-mcp", action="store_true")
@@ -731,7 +754,7 @@ def main() -> int:
     p_verify_entry.add_argument("--index", default="data/literature_index.json")
     p_verify_entry.add_argument("--p1", default="sections/P1_立项依据.md")
     p_verify_entry.add_argument("--ref-number", type=int, required=True)
-    p_verify_entry.add_argument("--offline", action="store_true")
+    p_verify_entry.add_argument("--offline", action="store_true", help=_OFFLINE_HELP)
     p_verify_entry.add_argument("--mcp-cache", default="data/mcp_literature_cache.json")
     p_verify_entry.add_argument("--mcp-ttl-days", type=int, default=30)
     p_verify_entry.add_argument("--require-mcp", action="store_true")
@@ -798,7 +821,9 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "ok": verification_status != "failed",
+                    # 离线 ok 恒 false：ok = 整体可采信，这一轮没做联网核验就不算采信
+                    # （全仓口径，四家适配器同款）。退出码与 ok 解耦：unverified 不阻断。
+                    "ok": verification_status != "failed" and not args.offline,
                     "verification_status": verification_status,
                     "manual_review_count": len(queue),
                     "avg_confidence": run_stats.get("avg_confidence"),

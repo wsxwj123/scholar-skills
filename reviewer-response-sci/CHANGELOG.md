@@ -1,5 +1,9 @@
 # Changelog - Reviewer Response SCI Skill
 
+## [2.28.6] - 2026-08-10
+
+第十六轮共享件同步（SPEC-round16，盲检判合格）：折叠报告写失败全量明细回退 stdout；delegate_review（rr fork 同构跟进）畸形返回 exit 2；中毒缓存结构性判别（联网轨或 provider 轨）。
+
 ## [2.28.5] - 2026-08-09
 
 第十五轮共享件同步（SPEC-round15，盲检判合格）：proofread 参考文献段剥离收敛 ref_section 单一口径（新增 vendored ref_section.py）；citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告。

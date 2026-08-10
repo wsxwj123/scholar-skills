@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.7] - 2026-08-10
+
+第十六轮技术债清理（SPEC-round16，盲检 16 变异全红判合格）：缩表防护堵容器→标量整体抹掉（第三层，拦+原盘不动）；全量快照缺件记账+空快照不再谎报 restored:true；缩写检查依赖断裂由静默降级改 fail-closed exit 2 点名；µCT 类非 ASCII 相黏不再拆出裸缩写（词字符=\w 减 CJK，结构性判据）。共享件同步：折叠报告写失败时全量明细回退 stdout（证据不丢）；delegate_review 畸形返回 exit 2（与"审查发现问题"exit 1 分清）；new_refs/new_claims 元素级校验；中毒缓存结构性判别——可信证据=联网轨或 provider 轨，两轨全无才重验（真实账本 272 条回归：271→271、checked_at 零误刷）。
+
 ## [2.36.6] - 2026-08-09
 
 第十五轮（SPEC-round15，盲检 20 变异全红判合格）：A1 缩写扫描先剥非正文（参考文献区作者首字母不再误报）；A2 merge 引用区间加上界（hi-lo<500，超限拒绝展开）；A3a 缩表防护堵容器类型绕过（list↔dict 变更+元素变少同拦，结构性判据）；A3b 半截快照 rollback 如实报 restored:false + 点名缺件 + 现盘不动（此前谎报 true 且盖成半新半旧）；A4 缩写后紧跟汉字的裸用扫得出（\b 改 ASCII 环视）；共享件同步：proofread 参考文献剥离收敛 ref_section 单一口径、citation_claim_check 垃圾摘要按缺失处理 + 大批量警告折叠落报告、delegate_write_core 键类型归一 + 缺条目报出 + 畸形 exit 2。
