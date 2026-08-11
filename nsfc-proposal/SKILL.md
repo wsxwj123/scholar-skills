@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.34.0
+version: 2.35.0
 description: Use when drafting, restructuring, or polishing Chinese NSFC proposals (2026 template), especially when strict section-by-section gating, hypothesis-objective-content-problem consistency, literature verification via paper-search MCP, and anti-AI Chinese academic writing constraints are required. 触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -34,16 +34,25 @@ Hard rules:
 - If the user already explicitly states `Write Mode` or `Polish Mode` in the opening message, do not ask again; proceed directly with the specified mode.
 - After user confirms mode, record it in project state/profile and continue with that mode workflow only.
 
-## 开场监工卡（每次启动必打印，Mandatory）
+## 开场监工卡（每次启动必打印，Mandatory；国自然 / 其他基金通用）
 确认 Mode 后、开始出章节结构前，必须原样向用户打印下面这张卡（这是给非专家看的"AI 会在哪骗你"清单，每次启动都打，别省）：
 
-> **【开场监工卡 · 国自然标书】看住这几条，AI 最会在这翻车：**
+> **【开场监工卡 · 国自然标书 / 其他基金】看住这几条，AI 最会在这翻车：**
 > 1. **立意 / 创新 / 可行性是中标命门，也正是 AI 最会灌水的地方**，脚本只数字数条目、管不住"有没有真东西"。这三块的每一句你都要自己读，觉得空就打回，别信"看起来很专业"。
 > 2. **诊断引擎报的字数、条目数、通过项，只代表"格式齐了"，不代表"写得好"**。绿灯 ≠ 能中，别把跑分当质量。
 > 3. **引用别全信**：我给出的每篇文献，你随手挑几篇让我把 PMID / DOI 报给你，你自己去 PubMed / 期刊官网核一遍（防我编造、防引到已撤稿的文章）。
 > 4. **每写完一章我都会停下等你确认**再往下写；我要是没停就自己连写好几章，你直接喊停，那就是跳步。
 > 5. **"研究假说 → 研究目标 → 研究内容 → 关键科学问题"这条链必须对齐**，我会用表格把它们逐条摆给你看，你负责检查有没有对不上、有没有断链。
 > 6. **科学问题、章节结构没经你点头，我不会开写正文**，这一条有硬门禁兜底（见"结构签字落锁"），不是靠我自觉。
+> 7. **默认按国自然 2026 模板走**。你要写的是省基金、校基金、企业课题或别的其他基金 / 自定义模板，**现在就说**——我会先读你的模板走结构提取，把章节结构提出来给你逐条核对，之后的章节、顺序、字数上限都按你的模板走。不说的话，我会按国自然的结构和「科学问题属性四选一」要求你。
+
+## 基金归属确认（Mandatory，仅全新项目问一次）
+打完上面那张卡后，先做基金归属判定。两个条件**同时**成立才问，缺一不问：项目根**不存在** `project_state.json`，且项目根**不存在** `structure_profile.json`（文件在但内容坏了也算"有"，交由结构真源三态处理去报，不许退化成重新问一遍）。满足则问一次，二选一：
+- **A. 国自然 2026（默认）** → **不建任何文件**。契约不变：「无 `structure_profile.json` = 国自然默认，行为一个字不变」。
+- **B. 其他基金 / 自定义模板** → 请用户给模板文件路径，走下方 Phase 0「模板结构提取」的五步链，最后由 `structure_profile.py confirm` 落盘 `funding_scheme: "other"`。
+
+不问的三种情况：任一判据文件已存在（老项目续写，按已有真源走）；用户在开场消息里已明说基金类型（如「我写省自然」「国自然面上」——口径同上方 Mode 已明说就不再问）；同一会话内已经问过。
+⚠️ 已知天花板（如实登记）：答 A 故意不落任何文件，所以只承诺**同一会话内**问过不再问；用户答完 A 就中断、没走到 `state_manager init` 的，下次新会话两个判据文件仍都不存在，会再问一次——这是接受的代价，不为它新造"AI 自己写结构真源"的落点。
 
 ## Core Terminology
 SQ is the upstream root; H/O/RC/KSQ form the 1:1 consistency backbone derived from it.
@@ -196,7 +205,7 @@ Follow phased gates in order:
      落盘唯一真源 `data/outline.json`（含 `confirmed`/`content_hash`，`load_bearing_claims` 由承重段的 `conclusion` **派生**，草稿里手写它会被直接拒绝）。
      **落盘之后**再派**独立子代理**做「大纲级论点核证」（`pack-prep`，见下方那条）：`pack-prep` 读的正是 `data/outline.json`，所以必须先 confirm，否则它报 `outline has no section: P1`。核证有出入 → 改草稿 → **重跑 confirm**（confirm 允许覆盖，旧版自动存成 `data/outline.json.prev`）→ 用户最终确认。🔴 顺序不能颠倒，这与 BRIEF A.5「P1 大纲**完成后**必须派独立子代理…有出入就重写大纲…最后由用户确认」一致。
      用户直接手改 `data/outline.json` 也是正当操作：改完拿它自己重跑 `confirm --from data/outline.json`，修改会原样保留；**别改用 `--from tmp/outline_draft.json`**，那是 AI 的旧草稿，会覆盖掉手改。
-     ⚠️ **AI 不得替用户跑这条 confirm**，也不得自己往 `data/outline.json` 里写 `confirmed`/`content_hash`。大纲改动后必须重新经用户确认并重跑 confirm，否则 `prewrite_gate` 与 `pack-write`/`pack-prep` 一律拦下（`OUTLINE_GATE: outline_stale`）。**只有 P1 有这一步**，P2–P7 的计划仍由 `consistency_map` 四维表承担。
+     ⚠️ **AI 不得替用户跑这条 confirm**，也不得自己往 `data/outline.json` 里写 `confirmed`/`content_hash`。大纲改动后必须重新经用户确认并重跑 confirm，否则 `prewrite_gate` 与 `pack-write`/`pack-prep` 一律拦下（`OUTLINE_GATE: outline_stale`）。**国自然项目只有 P1 有这一步**，P2–P7 的计划仍由 `consistency_map` 四维表承担；**非国自然项目**（四维表已关）的 P2 另有前置计划环节，见 Phase 2。
      **这道闸口的强度，如实说**：它拦得住**无意的忘记**——忘出大纲、忘让用户过目、改完忘重新确认，都会被拦下。**故意的绕过它拦不住**：`content_hash` 的算法就写在被约束方读得到的文件里、没有秘密；比伪造更省事的是直接敲一条 `confirm --note "用户说可以"`，而 `--note` 只校验非空、命令行又是 AI 自己写的。所以「AI 不得替用户 confirm」是**纪律约束，没有任何机制在执行它**。🔴 不许在任何文档里把它写成"强制""AI 关不掉""AI 无法绕过"。且这类绕法走的是完全正常的命令与文件，**日志上看不出异样、留痕很淡**。
    - **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写前先跑 `python3 scripts/prewrite_gate.py --section P1 --root .`，exit≠0 禁止开写（硬检查上一节完成/`consistency_map` 就位/占位符清零/**P1 大纲已确认且未被改动（`outline_fresh`；存量项目 `sections/P1_*.md` 已非空时自动跳过，不要求补大纲）**；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记，此校验仅跨 Phase 边界生效，同 Phase 子节 N/A）。P1 为首节，上一节检查自动放行。
    - 每节先跑 `python scripts/state_manager.py --root . write-cycle --section P1`（逐节预算/上下文注入的预写门控，完整参数见 references/08）；不得跳过直接硬写。
@@ -207,9 +216,11 @@ Follow phased gates in order:
      3. **组撰写任务包**：`python scripts/delegate_write.py pack-write --section P1 --root .` → `.write_task_P1.json`（本节 H/O/RC/KSQ + 承重方向 + 已核证 `certified_claims` + `used_in_sections 含 P1` 切给本节的文献全条 + 缩写表 + 风格禁项**嵌入**；全篇大纲/全库文献只给 `refs` 路径）。承重句未完成人工核证 → 脚本 exit 2 拒绝出包。
      4. **派撰写子代理**：`references/section_writer_prompt.md`（角色 prompt + 数据/指令隔离声明）+ 任务包路径交给全新一次性子代理盲写。它只写 `.write_return_P1.json`，**P1 正文引用只写 `[@key]`（绝不写裸数字 `[5]`）**，承重句只准挂内嵌 `certified_claims` 里的 `ref_key`，禁写任何账本。
      5. **机械校验返回**：`python scripts/delegate_write.py verify-write --section P1 --root .`（无裸数字引用 / `[@key]` 可解析 / `new_refs` 带 DOI 或 PMID / `section_id` 一致），exit≠0 打回子代理重写、不落盘。
-     6. **new_refs 先核验再并表**（账本零污染）：对返回 `new_refs` **先** `citation_validator.py verify-entry`/`citation_guard --require-mcp` 核真伪，**通过的才** `python scripts/citation_renumber.py merge-refs --root . --return .write_return_P1.json` 去重并表（DOI→PMID→归一标题三档，灰区标疑似交人工），新条目挂 `used_in_sections=["P1_立项依据"]`，记 `new:slug→真id` 映射。核验失败的直接丢弃、打回子代理改写该处引用。
+     6. **new_refs 先核验再并表**（账本零污染）：对返回 `new_refs` **先** `citation_validator.py verify-entry`/`citation_guard --require-mcp` 核真伪，**通过的才** `python scripts/citation_renumber.py merge-refs --root . --return .write_return_P1.json` 去重并表（DOI→PMID→归一标题三档，灰区标疑似交人工），新条目挂 `used_in_sections=["P1"]`（裸节标识；2026-08-11 前的旧值 `"P1_立项依据"` 只读兼容、不再写出），记 `new:slug→真id` 映射。核验失败的直接丢弃、打回子代理改写该处引用。
      7. **落盘 P1 + 认键翻号**：主会话（已签字）把返回 `markdown` 落盘 `sections/P1_立项依据.md`；正文 `[@key]` 是长期真源，`[N]` 是合并派生——merge 前跑 `python scripts/citation_renumber.py renumber --root . --check`（exit≠0 若未并表 `new:` 键 / id 冲突 / 未知键）通过后再 `--in-place` 把 `[@key]` 统一翻成连续 `[N]`（**按 P1 正文首现序**分配，对齐 04 §4.4 矩阵「REF 顺序=P1 首次引用顺序」），随后 `citation_validator.py matrix-check` 校验三向一致。
      > **nsfc 适配说明（读前必看）**：`delegate_write.py`（薄封装 import 共享 `delegate_write_core.py`）的 pack/verify 走本家 CONFIG 读原生 `data/` 布局：文献库 `data/literature_index.json`（dict 形态已由 `index_shape=data_dict` 声明），节级大纲读 `data/outline.json`（Step 1.1.5 由 `outline_manager.py confirm` 落盘）。**主会话不再需要临时投影，也不许手写 `data/outline.json`**——那份文件只能由 confirm 产生。**认键翻号 `citation_renumber.py`（本家 local）与 prewrite 并表核验同样直接读 `data/` 布局。**
+>
+> **老项目排障（round21 T2）**：`pack-write` 切片为 0 而账本明明有 P1 文献 → 多半是存量条目还挂着旧节标识 `"P1_立项依据"`（**切片链只认新值 `"P1"`**）。跑一次 `python scripts/citation_validator.py normalize-sections --index data/literature_index.json`（可先加 `--dry-run` 预览、幂等）归一后即恢复；检查链（`matrix-check`/`find-orphans`/`stats`/`gate-check` 的 P1 计数）新旧两值都认，不受影响。`check-gates` 发现旧值条目会给 WARN 并附这条命令。
 
    - Input: confirmed project profile (title, discipline, H/O/RC/KSQ mapping counts).
    - Output: `sections/P1_立项依据.md` + `data/literature_index.json` (all P1 citations verified) + updated `context_memory.md`.
@@ -239,6 +250,8 @@ Follow phased gates in order:
 
 4. Phase 2: write P2 研究内容（contains all sub-content: H/O/RC/KSQ, methods, innovations, annual plan）.
    - **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写前先跑 `python3 scripts/prewrite_gate.py --section P2 --root .`，exit≠0 禁止开写（硬检查 P1 完成、`consistency_map` 就位、`data/experimental_design.json` entries 非空、占位符清零；P2←P1 跨 Phase，缺 `.review_pass/P1.json` 盲检标记即硬拦 exit 1，须先跑 `delegate_review verify --section P1` 落盘；P2 正是产出 M 的阶段，M 尚空只降级 warning）。
+   - **🔴 非国自然项目 P2 前置计划环节（round21 T3，Mandatory；国自然项目跳过本条、行为与此前完全一致）**：结构真源声明 `funding_scheme: "other"` 后四维表校验已关，P2 开写前改由段落级计划补位——AI 先出草稿 `tmp/outline_draft.json`（每段 `gist`+`conclusion`+`rc_id` 写明对应哪个研究内容；不要求承重段与文献，段落自己声明 `is_load_bearing: true` 时才必须给 `refs`），摆给用户逐条过目，用户点头后由**用户**授意运行 `python3 scripts/outline_manager.py confirm --from tmp/outline_draft.json --root . --note "<用户确认原话>"`——与 P1 共用唯一真源 `data/outline.json`（同一份文件，不新建第二份）。未确认 / 被改过 / 真源里还没有 P2 这一节，`prewrite_gate` 与 `pack-write`/`pack-prep` 一律拦（reason 依次 `outline_not_confirmed` / `outline_stale` / `outline_section_not_covered`——最后这个的处置是给 P2 补一段再重跑 confirm；`outline_missing`=还没建过；`outline_checker_unavailable`=检查器坏了，先修好再出包）。
+   - ⚠️ **如实登记（round21）**：非国自然项目在 P2 处当前**只有**这道计划闸口；同一位置的 `new_refs` 并表核验与 `experimental_design` 素材检查在这类项目里**不触发**（节标识形态分叉的既有缺陷，已登记待单独开轮）。别以为 P2 已有完整守卫。另：结构真源读口坏掉时会退回国自然最严口径，此时 P2 被拦的理由会变成 `consistency_map` 缺失而不是计划缺失。
    - 每节先跑 `python scripts/state_manager.py --root . write-cycle --section P2`（逐节预算/上下文注入的预写门控，完整参数见 references/08）；不得跳过直接硬写。
    - **🟢 P2–P7 走白名单：主会话就地写、不派备料**：规则4 下这些节 `used_in_sections` 过滤后本节零编号引文（P2 明令无文献编号），派备料只得空草案——故 P2–P7 由主会话直接写正文、不派备料子代理；仅当某 P 节确经 `used_in_sections` 分到编号引文时才按 P1 那条流水线派（罕见）。撰写编排的引文/承重机制只对 P1 生效。
    - **撰写 M（研究方案与技术路线）前必须 `Read data/experimental_design.json` 作为事实依据**，禁止脑补；每个 M 的 alternative_plan（V-12 字段）直接来自该 JSON 对应 RC 的 `alternative_plan`。
@@ -407,7 +420,7 @@ The following fields are silently required by scripts. Missing them causes hard 
 
 **`data/literature_index.json`：文献索引条目必填字段：**
 
-凡 `"P1_立项依据"` 在 `used_in_sections` 中的条目，若 `key_finding` 字段为空或缺失，`_context_check` 直接返回 `False`，触发 `context_mismatch` 软失败并降低 `confidence_score`。
+凡 `used_in_sections` 含 `"P1"`（或旧值 `"P1_立项依据"`，只读兼容）的条目，若 `key_finding` 字段为空或缺失，`_context_check` 直接返回 `False`，触发 `context_mismatch` 软失败并降低 `confidence_score`。
 
 最小合规条目：
 ```json
@@ -416,7 +429,7 @@ The following fields are silently required by scripts. Missing them causes hard 
   "title": "Example Paper Title",
   "doi": "10.1234/example",
   "pmid": "12345678",
-  "used_in_sections": ["P1_立项依据"],
+  "used_in_sections": ["P1"],
   "key_finding": "该研究发现X蛋白通过Y通路调控Z过程（主要数据点）",
   "is_recent_5yr": true,
   "is_cn_journal": false

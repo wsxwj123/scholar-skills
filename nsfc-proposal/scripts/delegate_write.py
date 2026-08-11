@@ -13,9 +13,35 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import delegate_write_core as _dwc  # noqa: E402
 from delegate_write_core import (  # noqa: E402
     BARE_NUM_RE, KEY_RE, SECTION_RE, _claim_set_hash, main,
 )
+
+# round21 T2：nsfc 账本语义——used_in_sections 不是数组时一律当「没有分配」（INTERFACE 2.4）。
+# 共享核心的切片过滤 `section in (e.get("used_in_sections") or [])` 不做类型检查：
+# 值是数字会 TypeError 裸崩、值是字符串 "P1_立项依据" 会被 "P1" 子串假阳命中。
+# 核心是四家逐字节一致的共享件（L4 md5 守卫），本轮不动它；在本家读入口把坏形态
+# 字段从条目**浅拷贝**里剥掉（语义等价「没分配」），绝不写回账本。
+_core_load_lit = _dwc._load_lit
+
+
+def _load_lit_sanitized(root, config=None):
+    out = []
+    for e in _core_load_lit(root, config):
+        if (isinstance(e, dict) and "used_in_sections" in e
+                and not isinstance(e.get("used_in_sections"), list)):
+            e = {k: v for k, v in e.items() if k != "used_in_sections"}
+        out.append(e)
+    return out
+
+
+_dwc._load_lit = _load_lit_sanitized
+
+try:  # round21 T3：作用域判定唯一真源；老自包含拷贝里可能缺失 -> 按 P1-only 退化
+    import structure_profile as _structure_profile
+except ImportError:
+    _structure_profile = None
 
 __all__ = ["BARE_NUM_RE", "KEY_RE", "SECTION_RE", "CONFIG", "main"]
 
@@ -66,15 +92,21 @@ def _gate_args(argv):
     return ns.section, ns.root
 
 
-def _in_gate_scope(section):
-    """P1 及其子节都归大纲管。
-
-    section_regex 允许 `P1.1`（`^P\\d+(\\.\\d+)*$`），只认恰等于 "P1" 就会漏
-    `--section P1.1` —— 与 outline_files 那条 fallthrough 是同一类「作用域判小了」
-    的洞。当前流程不用子节号，先把口子按住。P2 起一律不介入（D1：大纲只做 P1）。
-    """
-    return isinstance(section, str) and (
-        section == GATE_SECTION or section.startswith(GATE_SECTION + "."))
+def _managed_section(section, root):
+    """(节号, 是否受大纲闸口管)。round21 T3：判据唯一住 structure_profile.is_managed
+    （P1 恒受管；P2 仅四维表被关掉的非国自然项目受管），不许再手写字符串比较——
+    round19 的绕过洞正是「两份手写判据迟早对不上」。
+    structure_profile 整个 import 不到时按空 scope 语义退化：P1 家族仍受管、P2 不受管。"""
+    if _structure_profile is not None:
+        try:
+            return _structure_profile.is_managed(section, root)
+        except Exception:
+            pass
+    if isinstance(section, str) and (
+            section == GATE_SECTION or section.startswith(GATE_SECTION + ".")
+            or section.startswith(GATE_SECTION + "_")):
+        return GATE_SECTION, True
+    return None, False
 
 
 def _gate_die(reason, detail=""):
@@ -83,11 +115,12 @@ def _gate_die(reason, detail=""):
 
 
 def outline_gate(argv):
-    """P1 大纲闸口：没经用户确认 / 被改过 / 核证过期，一律不许出任务包。
+    """大纲闸口：没经用户确认 / 被改过 / 缺当前节 / 核证过期，一律不许出任务包。
 
-    只在 pack-write / pack-prep 且 --section P1 时介入；verify-write 与其余节
-    行为与改造前逐字节相同。大纲文件不存在时也不介入 —— 那句
-    `outline has no section: P1` 由共享核心报，比闸口的话更可操作。
+    只在 pack-write / pack-prep 且 --section 受管时介入（P1 恒受管；round21 T3 起
+    P2 在四维表被关掉的非国自然项目受管）；verify-write 与其余节行为不变。
+    P1 缺大纲文件时不抢话 —— `outline has no section: P1` 由共享核心报（round19
+    §0 不变量 1）；P2 缺文件则直接报 outline_missing（非国自然项目正是本轮要拦的）。
 
     🔴 fail-closed：outline_manager 不可用（缺文件/import 炸/返回值形态不对）时
     **拦住**，不许 try/except 放行 —— 检查器坏了却照常出包就是新的假绿点。
@@ -95,17 +128,18 @@ def outline_gate(argv):
     if not argv or argv[0] not in GATE_SUBCOMMANDS:
         return
     section, root = _gate_args(argv)
-    if not _in_gate_scope(section):
-        return
     if not root:
         return
-    outline_file = os.path.join(root, "data", "outline.json")
-    if not os.path.exists(outline_file):
+    num, managed = _managed_section(section, root)
+    if not managed:
         return
+    outline_file = os.path.join(root, "data", "outline.json")
 
+    # 🔴 检查器可用性判定放在「缺文件」短路之前：检查器坏了必须拦（fail-closed），
+    # 不许因为大纲文件恰好不存在就放行（round21 M6②）。
     try:
         import outline_manager
-        result = outline_manager.check(root)
+        result = outline_manager.check(root, num)
         ok, reason = result
         if not isinstance(ok, bool):
             raise TypeError("check() 第一个返回值不是布尔: %r" % (ok,))
@@ -114,6 +148,15 @@ def outline_gate(argv):
                   "outline_manager.py 缺失或不可用，无法确认大纲已经用户点头；"
                   "先修好它再出包")
     if not ok:
+        if reason == "outline_missing" and num == GATE_SECTION:
+            # P1 缺大纲文件维持 round19 §0 不变量 1：让共享核心报
+            # "outline has no section: P1"（那句更可操作），闸口不抢话。
+            return
+        if reason == "outline_section_not_covered":
+            _gate_die(reason,
+                      "大纲里没有 %s 这一节：给这一节补一段大纲、经用户确认后重跑 "
+                      "outline_manager.py confirm --from tmp/outline_draft.json "
+                      "--root %s --note \"<用户原话>\"" % (num, root))
         _gate_die(reason, "跑 outline_manager.py check --root %s 看详情" % root)
 
     if argv[0] != "pack-write":
@@ -128,9 +171,15 @@ def outline_gate(argv):
     except Exception:
         return
 
+    # 本节没有承重论点（P2 常态：不带编号引文）→ 没有可过期的核证指纹，闸不触发。
+    # 别拿 P1 的指纹去卡 P2 的包——那会把"换一节出包"误诊成"论点变了"。
+    claims = _load_bearing_claims(outline_file, num)
+    if not claims:
+        return
+
     # 形态错与指纹错分开报：把「键名写错」诊断成「论点变了」，会把人指向重跑核证、
     # 重取摘要那条昂贵又无效的路，而实际只要改一个键名。
-    expected = _claim_set_hash(_load_bearing_claims(outline_file))
+    expected = _claim_set_hash(claims)
     if isinstance(evidence, dict) and not isinstance(evidence.get("rows"), list):
         _gate_die("claim_evidence_bad_shape",
                   "claim_evidence.json 形态不对：顶层需为对象，承载证据行的数组键"
@@ -146,12 +195,12 @@ def outline_gate(argv):
                   '先改成 {"outline_claim_set_hash": ..., "rows": [...]}。')
 
 
-def _load_bearing_claims(outline_file):
-    """取 P1 的派生承重论点。走到这里 check() 已经过了，文件必然是好的。"""
+def _load_bearing_claims(outline_file, num):
+    """取当前节（归一后节号）的派生承重论点。走到这里 check() 已经过了，文件必然是好的。"""
     with open(outline_file, "r", encoding="utf-8") as f:
         doc = json.load(f)
     for sec in doc.get("sections") or []:
-        if isinstance(sec, dict) and sec.get("section_id") == GATE_SECTION:
+        if isinstance(sec, dict) and sec.get("section_id") == num:
             return sec.get("load_bearing_claims") or []
     return []
 

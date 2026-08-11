@@ -1,5 +1,9 @@
 # Changelog - Review Writing Skill
 
+## [2.36.11] - 2026-08-11
+
+第二十一轮 T6：重烘出厂 `templates/reference.docx`——图注（Image Caption）/表注（Table Caption）样式补上 10pt 独立层（模板停在 2026-07-14，烘焙脚本 07-16 加的 `CAPTION_SIZES` 从未烘进分发物；旧 `test_reference_docx_styles.py`「现烘现测」测的是生成器不是出厂货，属假绿，已重写为「绝对值锁+不过期锁」直接断模板本体）。zip 仅 `word/styles.xml` 变化，样式差异集⊆{Abstract, ImageCaption, TableCaption}；Body Text 12pt / Heading 1 16pt / Normal eastAsia Times New Roman 零回归。`export_docx.py` 零代码改动。
+
 ## [2.36.10] - 2026-08-10
 
 第十七轮技术债清零（SPEC-round17，盲检 M1-M6 变异全红判合格）：缩写检查依赖断裂由静默降级改 fail-closed——style_checker/ref_section 导入失败即 ABBR_CHECK_ERROR exit 2 点名中止（此前恒等回退致参考文献区作者姓名首字母全量假阳、零提示；--report-only 同样不放行；依赖齐全路径逐字不变）；prewrite_gate 检查器故障（exit 2）改走"本项检查未执行"档（ok=None + 真实原因 warning，可见不阻断），不再反着说"未通过、必须清零"。

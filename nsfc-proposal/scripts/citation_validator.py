@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import tempfile
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -23,6 +25,29 @@ _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in _sys.path:
     _sys.path.insert(0, _SCRIPTS_DIR)
 import citation_guard_core as core
+
+# round21 T2：used_in_sections 里「立项依据」这一节的取值统一成裸节标识 "P1"。
+P1_SECTION = "P1"
+# 2026-08-11 之前登记的旧值，只读兼容（检查链认两值；pack-write 切片链只认新值）。
+# 🔴 退役条件（两条同时满足才删本常量与 _in_p1 的两值分支，缺一不删）：
+# ① 用户名下所有在途 nsfc 项目跑过一次 normalize-sections（用户确认）；
+# ② check-gates 的旧值 WARN 连续两轮验收为 0。
+# 提前退役会让没迁移的账本静默丢统计。
+P1_SECTION_LEGACY = "P1_立项依据"
+P1_SECTION_KEYS = (P1_SECTION, P1_SECTION_LEGACY)
+
+
+def _in_p1(entry: dict[str, Any]) -> bool:
+    """条目是否分给 P1（检查链口径：新旧两值都算）。
+
+    🔴 必须先验类型：字段写成数字时 `"P1" in 123` 抛 TypeError（实测）；写成
+    字符串 "P1_立项依据" 时 `"P1" in ...` 会子串命中假阳。非 list 一律当「没有分配」。
+    """
+    secs = entry.get("used_in_sections")
+    if not isinstance(secs, list):
+        return False
+    return any(k in secs for k in P1_SECTION_KEYS)
+
 
 DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$", re.IGNORECASE)
 PMID_RE = re.compile(r"^\d{4,10}$")
@@ -59,6 +84,24 @@ def load_json(path: Path, default: Any) -> Any:
 def save_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _atomic_save_index(path: Path, data: dict[str, Any]) -> None:
+    """原子写（同目录 tmp + fsync + os.replace）；任何失败都不留 .tmp、原文件一字节不动。"""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent) or ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def extract_citation_numbers(text: str) -> list[int]:
@@ -155,7 +198,7 @@ def _resolve_mcp_record(entry: dict[str, Any], mcp_index: dict[str, dict[str, An
 
 
 def _context_check(entry: dict[str, Any], p1_text: str | None) -> bool | None:
-    if "P1_立项依据" not in (entry.get("used_in_sections") or []):
+    if not _in_p1(entry):
         return None
     if p1_text is None:
         return None
@@ -389,8 +432,12 @@ class IndexCorruptError(ValueError):
 
     这是索引读入口唯一的 fail-closed 出口：调用方据此结构化拒绝，绝不让
     `e.get(...)` 在下游各消费点裸崩成 traceback。
+    round21 起是三态家族的基类：本类=结构坏（corruption="entries"），
+    IndexSyntaxError=语法坏（"syntax"），IndexUnreadableError=读不出（"unreadable"）。
+    调用方一个 `except IndexCorruptError` 兜住三态。
     """
 
+    corruption = "entries"
     _MAX_LISTED = 10  # 整份文件都是垃圾时别刷屏，只点名前 10 个
 
     def __init__(self, path: Any, bad_positions: list[int], bad_kinds: list[str]) -> None:
@@ -407,15 +454,79 @@ class IndexCorruptError(ValueError):
         )
 
 
+class IndexSyntaxError(IndexCorruptError):
+    """索引文件本身不是合法 JSON（语法层，含 0 字节/纯空白）。round21 T5 新增。"""
+
+    corruption = "syntax"
+
+    def __init__(self, path: Any, exc: json.JSONDecodeError) -> None:
+        self.path = str(path)
+        self.lineno, self.colno, self.pos = exc.lineno, exc.colno, exc.pos
+        self.bad_positions: list[int] = []
+        self.bad_kinds: list[str] = []
+        ValueError.__init__(
+            self,
+            f"文献索引损坏：{self.path} 不是合法 JSON —— "
+            f"第 {exc.lineno} 行第 {exc.colno} 列：{exc.msg}。"
+            f"索引文件一字未动，请人工修好后重跑。")
+
+
+class IndexUnreadableError(IndexCorruptError):
+    """索引文件读不出来：路径是目录、读权限不足等。round21 T5 新增。
+
+    文案里刻意不写 Python 异常类名（IsADirectoryError 等不许甩给用户）。
+    """
+
+    corruption = "unreadable"
+
+    def __init__(self, path: Any, exc: OSError) -> None:
+        self.path = str(path)
+        self.bad_positions: list[int] = []
+        self.bad_kinds: list[str] = []
+        ValueError.__init__(
+            self,
+            f"文献索引损坏：{self.path} 读不出来（路径是目录或没有读权限）。"
+            f"索引文件一字未动，请修好路径/权限后重跑。")
+
+
+def _index_reject_report(exc: IndexCorruptError) -> dict[str, Any]:
+    """三态统一的结构化拒绝报告（四个子命令逐字一致，键集合固定）。"""
+    return {
+        "ok": False,
+        "failed_at": "literature_index",
+        "literature_index": {
+            "ok": False,
+            "path": exc.path,
+            "error": str(exc),
+            "corruption": exc.corruption,
+            # 与 error 文案同口径：只点名前 10 个（_MAX_LISTED），整份垃圾文件不刷屏
+            "bad_entry_indexes": list(exc.bad_positions)[:IndexCorruptError._MAX_LISTED],
+            "line": getattr(exc, "lineno", None),
+            "column": getattr(exc, "colno", None),
+            "position": getattr(exc, "pos", None),
+        },
+    }
+
+
 def load_index(path: Path, default: Any = None) -> dict[str, Any]:
-    """读文献索引的唯一入口：读盘 + 规范化 + entries 元素类型校验（fail-closed）。
+    """读文献索引的唯一入口。内部顺序写死四步（round21 T5，一步不许调换/省略）：
+    ① 读盘 load_json（文件不存在 → default，宽松语义保留）
+    ② 语法层：JSONDecodeError → IndexSyntaxError；OSError → IndexUnreadableError
+    ③ 宽松归一 _normalize_index（顶层数组/字符串、entries 缺失/非数组 → 不拒，行为不变）
+    ④ entries 结构层：非 dict 元素 → IndexCorruptError（第十八轮既有）
 
     与 `_normalize_index`（宽松归一，容忍任何元素）的分工：凡是要拿 entries 里的
     元素当对象用的调用方（gate-check 链上的每一处），都必须走本函数，元素不是
     对象就抛 `IndexCorruptError`——绝不静默丢弃坏条目（丢了等于替用户删文献），
     也绝不放它进下游让 `.get()` 裸崩。
     """
-    idx = _normalize_index(load_json(path, default if default is not None else {"metadata": {}, "entries": []}))
+    try:
+        raw = load_json(path, default if default is not None else {"metadata": {}, "entries": []})
+    except json.JSONDecodeError as exc:
+        raise IndexSyntaxError(path, exc) from None
+    except OSError as exc:
+        raise IndexUnreadableError(path, exc) from None
+    idx = _normalize_index(raw)
     bad_positions = [i for i, e in enumerate(idx["entries"]) if not isinstance(e, dict)]
     if bad_positions:
         raise IndexCorruptError(path, bad_positions,
@@ -619,7 +730,30 @@ def run_integrity_gates(
             num = _entry_ref_number(e)
             unassigned.append(num if num is not None else f"idx:{i}")
 
+    # round21 T2 存量提示：含旧值且不含新值的条目，切片链派不进 P1 —— 点条数、给归一命令。
+    # 只 WARN 不改退出码；已同时含新值的条目切片能命中，不催归一。
+    legacy_p1_count = sum(
+        1 for e in entries
+        if isinstance(e.get("used_in_sections"), list)
+        and P1_SECTION_LEGACY in e["used_in_sections"]
+        and P1_SECTION not in e["used_in_sections"])
+
     exit_code = 2 if incomplete else 0
+
+    registry: dict[str, Any] = {
+        "unassigned": unassigned,
+        "unassigned_count": len(unassigned),
+        "note": "used_in_sections 为检索登记必填；缺者归未分配、须回填，切片不含它们",
+        "strength": "warn",
+    }
+    if legacy_p1_count:
+        registry["legacy_p1_count"] = legacy_p1_count
+        registry["legacy_p1_warn"] = (
+            'WARN: %d 条文献仍用旧节标识 "P1_立项依据" 登记（新值 "P1"，切片链只认新值、'
+            "这些条目不会被派进 P1 撰写）。跑 "
+            "python3 scripts/citation_validator.py normalize-sections "
+            "--index data/literature_index.json 一次性归一（可先加 --dry-run 预览）"
+            % legacy_p1_count)
 
     return {
         "ok": exit_code == 0,
@@ -632,12 +766,7 @@ def run_integrity_gates(
         },
         "j5_self_citation": {**self_cite, "strength": "warn"},
         "j7_recency": {**recency, "strength": "warn"},
-        "used_in_sections_registry": {
-            "unassigned": unassigned,
-            "unassigned_count": len(unassigned),
-            "note": "used_in_sections 为检索登记必填；缺者归未分配、须回填，切片不含它们",
-            "strength": "warn",
-        },
+        "used_in_sections_registry": registry,
     }
 
 
@@ -659,7 +788,7 @@ def matrix_check(p1_text: str, index: dict[str, Any], ref_text: str) -> dict[str
     idx_refs = {
         int(e.get("ref_number"))
         for e in index.get("entries", [])
-        if e.get("ref_number") is not None and "P1_立项依据" in (e.get("used_in_sections") or [])
+        if e.get("ref_number") is not None and _in_p1(e)
     }
 
     ref_refs_all = extract_citation_numbers(ref_text)
@@ -698,7 +827,7 @@ def find_orphans(p1_text: str, index: dict[str, Any]) -> dict[str, list[int]]:
     idx_refs = {
         int(e.get("ref_number"))
         for e in index.get("entries", [])
-        if e.get("ref_number") is not None and "P1_立项依据" in (e.get("used_in_sections") or [])
+        if e.get("ref_number") is not None and _in_p1(e)
     }
     return {
         "orphan_citations": sorted(p1_refs - idx_refs),
@@ -732,6 +861,8 @@ def stats(index: dict[str, Any]) -> dict[str, Any]:
     meta = index.get("metadata", {})
     return {
         "total": len(entries),
+        # round21 T2：分给 P1 的条目数（检查链口径：新值 "P1" + 旧值只读兼容）
+        "P1_entries": sum(1 for e in entries if _in_p1(e)),
         "recent_5yr": sum(1 for e in entries if e.get("is_recent_5yr")),
         "cn_journal": sum(1 for e in entries if e.get("is_cn_journal")),
         "verified": sum(1 for e in entries if e.get("verified")),
@@ -814,6 +945,12 @@ def main() -> int:
     p_stats = sub.add_parser("stats")
     p_stats.add_argument("--index", default="data/literature_index.json")
 
+    p_norm = sub.add_parser(
+        "normalize-sections",
+        help='把账本 used_in_sections 里的旧值 "P1_立项依据" 归一成 "P1"（存量项目迁移，幂等）')
+    p_norm.add_argument("--index", required=True, help="literature_index.json 路径")
+    p_norm.add_argument("--dry-run", action="store_true", help="只报会改几条，一字节不写盘")
+
     p_gates = sub.add_parser("check-gates")
     p_gates.add_argument("--index", default="data/literature_index.json")
     p_gates.add_argument("--profile", default="proposal_profile.json",
@@ -823,20 +960,39 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # round21 T5：唯一的顶层捕获——三态索引损坏在一个地方接，四个子命令自动一致。
+    try:
+        return _dispatch(args)
+    except IndexCorruptError as exc:
+        print(json.dumps(_index_reject_report(exc), ensure_ascii=False))
+        _sys.stderr.write("CITATION_VALIDATOR: FAIL literature_index\n")
+        return 2
+
+
+def _dispatch(args) -> int:
     mcp_index: dict[str, dict[str, Any]] = {}
     mcp_schema_version = CACHE_SCHEMA_VERSION
     if args.cmd in {"verify-all", "verify-entry"}:
         mcp_cache_path = Path(getattr(args, "mcp_cache", "data/mcp_literature_cache.json"))
-        mcp_cache_raw = load_json(mcp_cache_path, {"metadata": {"schema_version": CACHE_SCHEMA_VERSION}, "entries": []})
-        mcp_cache = _normalize_mcp_cache(mcp_cache_raw)
-        save_json(mcp_cache_path, mcp_cache)
-        mcp_index = _build_mcp_index(mcp_cache)
-        mcp_schema_version = str((mcp_cache.get("metadata") or {}).get("schema_version") or CACHE_SCHEMA_VERSION)
+        try:
+            mcp_cache_raw = load_json(mcp_cache_path, {"metadata": {"schema_version": CACHE_SCHEMA_VERSION}, "entries": []})
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+            # 缓存文件坏了/读不出来 ≠ 索引坏了：既定语义（SKILL.md:226）是当空处理、
+            # 回落全量核验，不硬拦；也绝不 save_json 回写——那会把用户的坏缓存覆盖成
+            # 空缓存（= 替用户删数据）。只在 stderr 留一行 WARN（不是 FAIL）。
+            _sys.stderr.write(
+                "CITATION_VALIDATOR: WARN mcp_cache 损坏或读不出来，按空缓存处理、"
+                "回落全量核验（缓存文件一字未动）: %s\n" % mcp_cache_path)
+            mcp_cache_raw = None
+        if mcp_cache_raw is not None:
+            mcp_cache = _normalize_mcp_cache(mcp_cache_raw)
+            save_json(mcp_cache_path, mcp_cache)
+            mcp_index = _build_mcp_index(mcp_cache)
+            mcp_schema_version = str((mcp_cache.get("metadata") or {}).get("schema_version") or CACHE_SCHEMA_VERSION)
 
     if args.cmd == "verify-all":
         index_path = Path(args.index)
-        raw = load_json(index_path, {"metadata": {}, "entries": []})
-        idx = _normalize_index(raw)
+        idx = load_index(index_path)
         p1_text = Path(args.p1).read_text(encoding="utf-8") if Path(args.p1).exists() else None
 
         idx, run_stats, queue = verify_all(
@@ -904,16 +1060,14 @@ def main() -> int:
         return 0
 
     if args.cmd == "matrix-check":
-        raw = load_json(Path(args.index), {"metadata": {}, "entries": []})
-        idx = _normalize_index(raw)
+        idx = load_index(Path(args.index))
         p1_text = Path(args.p1).read_text(encoding="utf-8") if Path(args.p1).exists() else ""
         ref_text = Path(args.ref).read_text(encoding="utf-8") if Path(args.ref).exists() else ""
         print(json.dumps(matrix_check(p1_text, idx, ref_text), ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "find-orphans":
-        raw = load_json(Path(args.index), {"metadata": {}, "entries": []})
-        idx = _normalize_index(raw)
+        idx = load_index(Path(args.index))
         p1_text = Path(args.p1).read_text(encoding="utf-8") if Path(args.p1).exists() else ""
         print(json.dumps(find_orphans(p1_text, idx), ensure_ascii=False, indent=2))
         return 0
@@ -929,9 +1083,51 @@ def main() -> int:
         return 0
 
     if args.cmd == "stats":
-        raw = load_json(Path(args.index), {"metadata": {}, "entries": []})
-        idx = _normalize_index(raw)
+        idx = load_index(Path(args.index))
         print(json.dumps(stats(idx), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "normalize-sections":
+        index_path = Path(args.index)
+        if not index_path.exists():
+            _sys.stderr.write("CITATION_VALIDATOR: index not found: %s\n" % index_path)
+            return 2                     # 不存在不迁移、更不许顺手建文件
+        idx = load_index(index_path)     # 三态损坏 → 顶层捕获，rc=2 结构化拒绝
+        converted = already_new = unchanged = 0
+        for e in idx["entries"]:
+            secs = e.get("used_in_sections")
+            if not isinstance(secs, list):
+                # 坏类型（数字/字符串/对象/null）与缺字段同款：一字不动、计入 unchanged。
+                # 绝不自作主张改成数组——那是替用户改数据。
+                unchanged += 1
+                continue
+            if P1_SECTION_LEGACY in secs:
+                has_new = P1_SECTION in secs
+                merged: list[Any] = []
+                for s in secs:
+                    if s == P1_SECTION_LEGACY:
+                        if not has_new and P1_SECTION not in merged:
+                            merged.append(P1_SECTION)   # 原位替换，顺序保持
+                        continue                        # 已有新值 → 删旧值不追加
+                    merged.append(s)                    # 其余取值（含非字符串）原样保留
+                e["used_in_sections"] = merged
+                converted += 1
+            elif P1_SECTION in secs:
+                already_new += 1
+            else:
+                unchanged += 1
+        if converted and not args.dry_run:
+            try:
+                _atomic_save_index(index_path, idx)
+            except OSError:
+                _sys.stderr.write(
+                    "CITATION_VALIDATOR: 写入失败（原文件未被改动、无 .tmp 残留）: %s\n"
+                    % index_path)
+                return 2
+        print(json.dumps({"ok": True, "index": str(index_path),
+                          "converted": converted, "already_new": already_new,
+                          "unchanged": unchanged, "dry_run": bool(args.dry_run)},
+                         ensure_ascii=False))
         return 0
 
     if args.cmd == "check-gates":

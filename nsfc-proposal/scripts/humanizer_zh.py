@@ -8,10 +8,14 @@ import json
 import re
 from pathlib import Path
 
-# 🔧 要加/删一条套话就改这个 set。同一份口径目前散在五处、互为分叉副本：
-#    rw / gsw 各一份 style_checker.py + polish-sci / revise-sci 各一份 common.py
-#    + nsfc 这一份（round19 新增）。
-#    抽成 _shared/ 共享件是结构性改动，合并见 PROJECT.md 待办。
+# 🔧 要加/删一条套话就改这个 set。同一份口径的分叉副本实测清单（2026-08-11）：
+#    英文表：gsw style_checker.FORBIDDEN_EXACT(25) == rw style_checker.FORBIDDEN_EXACT(25)
+#           == polish-sci common.AI_CLICHE_TERMS_EN(25，tuple 形态)；
+#           revise-sci common.AI_CLICHE_TERMS_EN 已分叉为 27（多 furthermore/moreover）；
+#           + nsfc 本文件 AI_CLICHE_TERMS_EN（round21 T4 自 gsw 平移，25 条，见下方）。
+#    中文表：polish-sci(18) == revise-sci(18)；nsfc 本表 11 条（有意少 7 条——
+#           至关重要/近年来/综上所述/值得注意的是等多数已由本文件 BANNED/VAGUE 覆盖）。
+#    抽成 _shared/ 共享件是结构性改动（先统一载体形态+裁决 revise 那两条），见 PROJECT.md 待办。
 #    用户可见的说明：general-sci-writing/references/anti-ai-protocol.md
 #    与 review-writing/references/writing_guidelines.md §4「Chinese Mode」。
 # 本表 11 条与本文件既有的 BANNED / OVERUSE / VAGUE 各条逐条核对过，零重叠。
@@ -247,6 +251,35 @@ def check_chinese_typos(text: str) -> list[dict]:
     return out
 
 
+# round21 T4：英文 AI 套话表——与 gsw/rw style_checker.FORBIDDEN_EXACT 逐条一致
+# （2026-08-11 平移，25 条）。跨家一致性由 testkit L4 断言；本家测试只锁字面量。
+# 严重度取 WARNING 不取 ERROR（有意）：这些词在合法英文学术写作里高频出现，误报率
+# 远不是≈0（本文件的 ERROR 分档标准），且 nsfc 英文只出现在 ≤300 词摘要里——一条
+# 误报就硬卡整份交付，代价不对称。gsw 侧它也是计分项不是硬拦，平移就连严重度一起平移。
+AI_CLICHE_TERMS_EN = frozenset({
+    "delve into", "comprehensive landscape", "pivotal role", "realm",
+    "tapestry", "underscore", "testament", "it is well known",
+    "it is worth noting", "it should be noted", "importantly",
+    "interestingly", "remarkably", "notably", "in recent years",
+    "a growing body of evidence", "has garnered significant attention",
+    "plays a crucial role", "a plethora of", "myriad of",
+    "in the context of", "shed light on", "pave the way",
+    "of paramount importance", "a key player",
+})
+
+
+def check_english_cliche(text: str) -> list[dict]:
+    """英文 AI 套话（WARNING，不硬拦）。匹配方式与 gsw 现役逐字同款：全文小写化后做
+    **子串**包含判断——realms 命中 realm、underscored 命中 underscore 是有意平移的
+    已知误报面，不许在 nsfc 单方面收紧（收紧就成了改口径）。按短语去重，一条短语
+    出现多次只报一条。"""
+    low = text.lower()
+    return [{"severity": "WARNING", "code": "english_ai_cliche",
+             "text": phrase,
+             "suggestion": f"英文 AI 套话：'{phrase}' —— 删掉或改成具体陈述"}
+            for phrase in sorted(AI_CLICHE_TERMS_EN) if phrase in low]
+
+
 def check_english_spelling(text: str) -> list[dict]:
     """F2：英文高置信拼写错误（ERROR，硬阻断）。固定错拼表，铁错拼从不合法，误报率≈0。"""
     out = []
@@ -368,6 +401,7 @@ def scan_text(text: str, allow_lists: bool = False) -> dict:
     # 字符级：D1 中文句内半角=ERROR、F2 英文拼写=ERROR（硬拦）；D2 上下标裸写、F1 中文错别字=WARN
     issues.extend(check_halfwidth_in_cn(text))
     issues.extend(check_english_spelling(text))
+    issues.extend(check_english_cliche(text))
     issues.extend(check_subsup(text))
     issues.extend(check_chinese_typos(text))
 

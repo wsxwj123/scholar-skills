@@ -65,6 +65,10 @@ def load_map(path: Path) -> dict[str, Any]:
     if not path.exists():
         return copy.deepcopy(DEFAULT_MAP)
     data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        # round21：顶层不是对象（list/标量）→ 当空骨架，不裸崩成 AttributeError；
+        # validate 会按链路缺失照常报错，fail 方向不变（宽进严出）。
+        data = {}
     for k, v in DEFAULT_MAP.items():
         data.setdefault(k, copy.deepcopy(v))
     return data

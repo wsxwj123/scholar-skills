@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""outline_manager.py —— nsfc-proposal「P1 立项依据」段落级大纲的确认与校验。
+"""outline_manager.py —— nsfc-proposal 段落级大纲的确认与校验。
+round19 只管 P1（立项依据）；round21 T3 起 P2（研究内容）在四维表被关掉的
+非国自然项目里也受管（受管判定住 structure_profile.is_managed，本文件不自判）。
 
 两个子命令 + 一个可 import 的纯函数入口：
 
@@ -10,8 +12,10 @@
   check --root <项目根>
       只读校验「已确认且未被改动」。退出码 0（过）/ 1（不过）/ 2（参数错）。
 
-  check(root) -> (ok, reason)
+  check(root, section=None) -> (ok, reason)
       同一份判定逻辑，供 prewrite_gate.py 与 delegate_write.py 的闸口 import。
+      不传 section 维持 round19 旧语义（整份大纲合格即过）；闸口传归一后的
+      节号（"P1"/"P2"）才多判「当前节在不在大纲里」（outline_section_not_covered）。
 
 设计约束（INTERFACE-round19 §0 不变量）：
   - 只读写 --root 子树；不联网、不读 HOME、不读环境变量。
@@ -30,8 +34,16 @@ import os
 import shutil
 import sys
 
-# 本轮唯一受管的节标识。注意它是字面量 "P1"，不是 sections/ 的文件名前缀 P1_立项依据。
-MANAGED_SECTION = "P1"
+# 受管节号集合的唯一定义在 structure_profile.MANAGED_SECTIONS（round21 T3）。
+# 兜底常量只为「structure_profile 整个 import 不到」时本检查器仍能独立工作——
+# N3 的要点正是这两个读口互不拖垮（scope 模块炸了，大纲检查器照常算）。
+try:
+    from structure_profile import MANAGED_SECTIONS as _MS
+    from structure_profile import is_managed as _is_managed_in_project
+    MANAGED_SECTIONS = tuple(_MS)
+except Exception:
+    MANAGED_SECTIONS = ("P1", "P2")
+    _is_managed_in_project = None
 
 OUTLINE_REL = os.path.join("data", "outline.json")
 
@@ -79,11 +91,33 @@ def derive_claims(section) -> list:
 # check：只读判定（三个调用点共用）
 # ---------------------------------------------------------------------------
 
-def inspect(root: str):
+def _project_managed_ids(root):
+    """本项目里真正受管的节号：P1 恒在；P2 仅四维表被关掉的项目（非国自然）。
+    scope 读口不可用时按空 scope 语义收敛 → 只有 P1（国自然零影响）。"""
+    if _is_managed_in_project is None:
+        return ["P1"]
+    out = []
+    for sid in MANAGED_SECTIONS:
+        try:
+            _num, managed = _is_managed_in_project(sid, root)
+        except Exception:
+            managed = sid == "P1"
+        if managed:
+            out.append(sid)
+    return out
+
+
+def inspect(root: str, section=None):
     """(ok, reason, 落盘的 content_hash, 重算值)。任何异常都收成 outline_malformed。
 
-    判定顺序固定（INTERFACE §1.2）：missing → malformed → not_confirmed → stale
-    → section_missing，先命中先报。
+    判定顺序固定：missing → malformed → not_confirmed → stale → section_missing
+    → section_not_covered，先命中先报。
+
+    section=None（CLI check 与旧调用）维持 round19 语义：只判「整份大纲合格」，
+    含任一受管节（静态集合 P1/P2）即可。传了 section（两个闸口，传归一后的节号）
+    才多判覆盖度：
+      - outline_section_missing：大纲里没有任何**本项目受管**的节（这份文件根本不是大纲）
+      - outline_section_not_covered：有受管节，但没有当前要写的这一节（补一段再 confirm）
     """
     path = outline_path(root)
     if not os.path.exists(path):
@@ -111,17 +145,20 @@ def inspect(root: str):
         return False, "outline_stale", stored, recomputed
 
     sections = doc.get("sections")
-    if not isinstance(sections, list) or not any(
-            isinstance(s, dict) and s.get("section_id") == MANAGED_SECTION
-            for s in sections):
+    present = {s.get("section_id") for s in sections
+               if isinstance(s, dict)} if isinstance(sections, list) else set()
+    managed_ids = _project_managed_ids(root) if section is not None else list(MANAGED_SECTIONS)
+    if not isinstance(sections, list) or not (present & set(managed_ids)):
         return False, "outline_section_missing", stored, recomputed
+    if section is not None and section not in present:
+        return False, "outline_section_not_covered", stored, recomputed
     return True, None, stored, recomputed
 
 
-def check(root: str):
-    """(ok, reason)。纯读、不落盘、不抛异常。"""
+def check(root: str, section=None):
+    """(ok, reason)。纯读、不落盘、不抛异常。section 语义见 inspect。"""
     try:
-        ok, reason, _stored, _recomputed = inspect(root)
+        ok, reason, _stored, _recomputed = inspect(root, section)
     except Exception:
         return False, "outline_malformed"
     return ok, reason
@@ -136,7 +173,7 @@ def _bad(code: str, detail: str = "") -> DraftError:
 
 
 def _check_structure(draft):
-    """错误契约 1-6 的结构与作用域部分。返回受管的那个 section。"""
+    """错误契约 1-6 的结构与作用域部分。返回受管的 sections 列表（顺序保持）。"""
     if not isinstance(draft, dict):
         raise _bad("OUTLINE_DRAFT_INVALID", "顶层必须是对象")
     sections = draft.get("sections")
@@ -147,38 +184,71 @@ def _check_structure(draft):
             raise _bad("OUTLINE_DRAFT_INVALID", "第 %d 个 section 不是对象" % i)
         if not isinstance(sec.get("section_id"), str):
             raise _bad("OUTLINE_DRAFT_INVALID", "第 %d 个 section 缺 section_id 或不是字符串" % i)
-    # 先点名不受支持的节标识，再报重复：[P1, P2] 该说 P2，[P1, P1] 才说 duplicate
+    # 先点名不受支持的节标识，再报重复；同一节号出现两次才算 duplicate（round21 起 P1/P2 都合法）
+    seen = []
     for sec in sections:
         sid = sec["section_id"]
-        if sid != MANAGED_SECTION:
+        if sid not in MANAGED_SECTIONS:
             raise _bad("OUTLINE_SECTION_NOT_SUPPORTED",
-                       "本轮只受管 %s，草稿里出现了 %r" % (MANAGED_SECTION, sid))
-    if len(sections) > 1:
-        raise _bad("OUTLINE_SECTION_NOT_SUPPORTED",
-                   "duplicate: %s 出现了 %d 次，只允许一个条目" % (MANAGED_SECTION, len(sections)))
-    return sections[0]
+                       "受管节号只有 %s，草稿里出现了 %r" % ("/".join(MANAGED_SECTIONS), sid))
+        if sid in seen:
+            raise _bad("OUTLINE_SECTION_NOT_SUPPORTED",
+                       "duplicate: %s 出现了 2 次，同一节只允许一个条目" % sid)
+        seen.append(sid)
+    return sections
 
 
-def _check_anti_forge(draft, section):
+def _check_anti_forge(draft, sections):
     """错误契约 7-8：AI 不得自签、不得手写派生字段。"""
     for field in SIGNATURE_FIELDS:
         if field in draft:
             raise _bad("OUTLINE_SELF_SIGN_FORBIDDEN",
                        "草稿顶层不得出现签名字段 %r（只能由 confirm 生成）" % field)
-        if field in section:
-            raise _bad("OUTLINE_SELF_SIGN_FORBIDDEN",
-                       "草稿 sections[] 元素内不得出现签名字段 %r（只能由 confirm 生成）" % field)
-    if DERIVED_FIELD in section:
-        raise _bad("OUTLINE_DERIVED_FIELD_FORBIDDEN",
-                   "%s 由承重段的 conclusion 派生，不得手写" % DERIVED_FIELD)
+    for section in sections:
+        for field in SIGNATURE_FIELDS:
+            if field in section:
+                raise _bad("OUTLINE_SELF_SIGN_FORBIDDEN",
+                           "草稿 sections[] 元素内不得出现签名字段 %r（只能由 confirm 生成）" % field)
+        if DERIVED_FIELD in section:
+            raise _bad("OUTLINE_DERIVED_FIELD_FORBIDDEN",
+                       "%s 由承重段的 conclusion 派生，不得手写" % DERIVED_FIELD)
 
 
 def _nonblank_str(value) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
+def _check_p2_granularity(paragraphs):
+    """P2（研究内容）的段落契约，与 P1 有意不同（round21 T3）：
+    不要求承重段与 refs（nsfc 规则 4：P2 不带编号引文），但每段必须带非空 rc_id
+    （对应哪个研究内容——这是它作为计划的意义）；段落若自己声明 is_load_bearing:
+    true，refs 仍必填（不留「声明了承重却没证据」的口子）。"""
+    if not isinstance(paragraphs, list) or not paragraphs:
+        raise _bad("OUTLINE_DRAFT_INVALID", "P2 的 paragraphs 必须是非空数组")
+    for i, para in enumerate(paragraphs, 1):
+        if not isinstance(para, dict):
+            raise _bad("OUTLINE_DRAFT_INVALID", "P2 第 %d 段不是对象" % i)
+        for field in ("gist", "conclusion"):
+            if not _nonblank_str(para.get(field)):
+                raise _bad("OUTLINE_PARAGRAPHS_REQUIRED",
+                           "P2 第 %d 段的 %s 缺失或为空（每段都要写清讲什么、得出什么结论）" % (i, field))
+        if not _nonblank_str(para.get("rc_id")):
+            raise _bad("OUTLINE_RC_ID_REQUIRED",
+                       "P2 第 %d 段缺 rc_id 或为空——每段必须写明对应哪个研究内容（RC）" % i)
+    for i, para in enumerate(paragraphs, 1):
+        if para.get("is_load_bearing") is True:
+            refs = para.get("refs")
+            if not isinstance(refs, list) or not refs or not all(isinstance(r, str) for r in refs):
+                raise _bad("OUTLINE_REFS_REQUIRED",
+                           "P2 第 %d 段声明了承重，refs 必须是非空的字符串数组（文献 id）" % i)
+
+
 def _check_granularity(section):
-    """错误契约 9-12：粒度从严（D4）。段落序号一律 1 基，报错里写明第几段。"""
+    """错误契约 9-12：粒度从严（D4）。段落序号一律 1 基，报错里写明第几段。
+    P2 走独立契约 _check_p2_granularity；P1 契约与 round19 一字不变。"""
+    if section.get("section_id") == "P2":
+        _check_p2_granularity(section.get("paragraphs"))
+        return
     paragraphs = section.get("paragraphs")
     if not isinstance(paragraphs, list) or not paragraphs:
         raise _bad("OUTLINE_PARAGRAPHS_REQUIRED", "paragraphs 必须是非空数组")
@@ -224,16 +294,19 @@ def build_outline(draft, note: str, from_truth_source: bool = False):
     """草稿 → 落盘文档。任一校验不过抛 DraftError（此时调用方一个字节都不许写）。"""
     if from_truth_source and isinstance(draft, dict):
         draft = _strip_generated(draft)
-    section = _check_structure(draft)
-    _check_anti_forge(draft, section)
-    _check_granularity(section)
+    in_sections = _check_structure(draft)
+    _check_anti_forge(draft, in_sections)
+    for section in in_sections:
+        _check_granularity(section)
     if not _nonblank_str(note):
         raise _bad("OUTLINE_NOTE_REQUIRED", "--note 必须给用户确认的原话摘录，AI 不得代用户确认")
 
-    out_section = dict(section)
-    out_section.setdefault("title", "")
-    out_section[DERIVED_FIELD] = derive_claims(section)
-    sections = [out_section]
+    sections = []
+    for section in in_sections:
+        out_section = dict(section)
+        out_section.setdefault("title", "")
+        out_section[DERIVED_FIELD] = derive_claims(section)
+        sections.append(out_section)
     return {
         "confirmed": True,
         "confirmed_at": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -316,9 +389,11 @@ def cmd_confirm(args) -> int:
     print(json.dumps({
         "ok": True,
         "outline": os.path.abspath(path),
-        "sections": [MANAGED_SECTION],
+        "sections": [s["section_id"] for s in doc["sections"]],
         "content_hash": doc["content_hash"],
-        "claim_set_hash": claim_set_hash(doc["sections"][0][DERIVED_FIELD]),
+        # 全部节的派生承重论点按节顺序拼接；单节 [P1] 时与 round19 逐字节相同
+        "claim_set_hash": claim_set_hash(
+            [c for s in doc["sections"] for c in s[DERIVED_FIELD]]),
     }, ensure_ascii=False))
     return EX_OK
 
@@ -354,7 +429,10 @@ def _remedy(reason: str) -> str:
                          "（会保留你的修改，旧版自动存成 data/outline.json.prev）。"
                          "⚠️ 若改用 --from tmp/outline_draft.json，那份是 AI 的草稿，"
                          "会覆盖掉你在真源上的手改",
-        "outline_section_missing": "大纲里没有 P1 这一节：确认草稿的 section_id 是 P1",
+        "outline_section_missing": "大纲里没有任何受管的节：确认草稿的 section_id"
+                                   "（P1；非国自然项目的研究内容为 P2）",
+        "outline_section_not_covered": "大纲里没有当前要写的这一节：给这一节补一段大纲、"
+                                       "经用户确认后重跑 outline_manager.py confirm",
     }.get(reason, "跑 outline_manager.py check --root <项目根> 看详情")
 
 

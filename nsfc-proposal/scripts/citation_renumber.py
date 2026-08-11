@@ -8,7 +8,9 @@
 #
 # 两个子命令：
 #   merge-refs  去重并表 new_refs（DOI→PMID→归一标题三档）→ 落 data/literature_index.json，
-#               新条目 used_in_sections=["P1_立项依据"]；记 new:slug→真id 映射到 .newref_map.json
+#               新条目 used_in_sections=["P1"]（round21 T2：写入端统一裸节标识，与
+#               pack-write 切片过滤同一口径；旧值 "P1_立项依据" 不再写出）；
+#               记 new:slug→真id 映射到 .newref_map.json
 #   renumber    P1 正文 [@key]→连续 [N]，按首现序；同步把命中条目的 ref_number 设为该序号
 #
 # 退出码：0=OK；2=用法错/校验不过/文件畸形（renumber/merge-refs 无 1 态）。
@@ -26,7 +28,9 @@ KEY_RE = re.compile(r"\[@([A-Za-z0-9:_\-]+)\]")          # 合法引用键
 ANY_AT_RE = re.compile(r"\[@([^\]]*)\]")                 # 任意 [@...]（含畸形），查畸形键
 KEY_CHARS_RE = re.compile(r"^[A-Za-z0-9:_\-]+$")
 
-P1_SECTION = "P1_立项依据"
+# round21 T2：写入端只写新值 "P1"（裸节标识）。写入端不需要知道旧值；
+# 旧值 "P1_立项依据" 的只读兼容与存量归一都在 citation_validator.py（全仓唯一定义处）。
+P1_SECTION = "P1"
 
 
 def die(msg, code=2):

@@ -72,10 +72,44 @@ def _load_profile(root):
 
 
 def _resolve_scope(root):
-    """唯一裁定函数的调用垫片（INTERFACE §6.1）。模块缺失 -> 空 scope。"""
+    """唯一裁定函数的调用垫片（INTERFACE §6.1）。模块缺失 -> 空 scope。
+    round21 T3：改调 safe_resolve_scope（坏形态全部收敛成空 scope = 国自然最严口径，
+    零 traceback），垫片只保留「模块 import 不到」这一层。"""
     if _structure_profile is None or root is None:
         return {"active": [], "skipped": []}
-    return _structure_profile.resolve_scope(root)
+    fn = getattr(_structure_profile, "safe_resolve_scope", None)
+    if fn is None:
+        return {"active": [], "skipped": []}
+    try:
+        return fn(root)
+    except Exception:
+        return {"active": [], "skipped": []}
+
+
+def _v_rules_off(root):
+    """四维表校验（HRCK-V-RULES）关没关——判据唯一定义在
+    structure_profile.v_rules_disabled（round21 N1：一条判据一处定义）。"""
+    if _structure_profile is None or root is None:
+        return False
+    try:
+        return bool(_structure_profile.v_rules_disabled(root))
+    except Exception:
+        return False
+
+
+def _managed_section(section, root):
+    """(节号, 是否受大纲闸口管)。判据唯一住 structure_profile.is_managed；
+    模块整个不可用时按空 scope 语义退化：P1 家族（P1/P1.x/P1_前缀）仍受管
+    （round19 现状），P2 不受管。"""
+    if _structure_profile is not None:
+        try:
+            return _structure_profile.is_managed(section, root)
+        except Exception:
+            pass
+    if isinstance(section, str) and (
+            section == "P1" or section.startswith("P1.") or section.startswith("P1_")):
+        return "P1", True
+    return None, False
 
 
 def _profile_chapters(prof):
@@ -256,15 +290,16 @@ def p1_legacy_written(root):
                for p in glob.glob(os.path.join(glob.escape(root), "sections", "P1_*.md")))
 
 
-def outline_fresh_state(root):
-    """(ok, reason)：P1 大纲是否已确认且未被改动。
+def outline_fresh_state(root, section_num):
+    """(ok, reason)：本节大纲是否已确认、未被改动、且覆盖当前节（round21 分节感知）。
 
-    🔴 fail-closed：outline_manager 缺失 / import 炸 / 返回值形态不对，一律判不通过，
-    不许 try/except 放行 —— 检查器坏了却放行就是新的假绿点。
+    🔴 fail-closed：outline_manager 缺失 / import 炸 / 返回值形态不对（含旧签名
+    check(root) 收不下第二个参数），一律判不通过，不许 try/except 放行 ——
+    检查器坏了却放行就是新的假绿点。
     """
     try:
         import outline_manager
-        ok, reason = outline_manager.check(root)
+        ok, reason = outline_manager.check(root, section_num)
         if not isinstance(ok, bool):
             raise TypeError("check() 第一个返回值不是布尔: %r" % (ok,))
     except Exception:
@@ -309,7 +344,8 @@ def main():
     prof = _load_profile(root)
     # §6.3 出口 6：本进程自己调一次唯一裁定函数（纯函数，结论与其他出口必然相同）
     skipped_checks = list(_resolve_scope(root).get("skipped") or [])
-    v_rules_off = "HRCK-V-RULES" in {e.get("id") for e in skipped_checks}
+    # round21 N1：一条判据一处定义——与 skipped_checks 同源（都出自 safe_resolve_scope）
+    v_rules_off = _v_rules_off(root)
     order = effective_section_order(prof)
 
     known_section = section in order
@@ -344,17 +380,20 @@ def main():
         failures.append("data/consistency_map.json missing or empty (H/O/RC/KSQ not registered)")
         checks.append({"name": "consistency_map", "ok": False})
 
-    # ---- check: P1 大纲已确认且未被改动（round19，仅 P1；不读 v_rules_off） ----
-    if section == "P1":
-        if p1_legacy_written(root):
+    # ---- check: 段落级大纲已确认且未被改动（round19 P1；round21 T3 起非国自然的 P2 也受管）----
+    # 作用域判定唯一住 structure_profile.is_managed：P1 恒受管（三种形态 P1/P1.x/P1_前缀），
+    # P2 仅四维表被关掉（funding_scheme=other 生效）的项目受管——国自然 P2 行为零变化。
+    outline_num, outline_managed = _managed_section(section, root)
+    if outline_managed:
+        if outline_num == "P1" and p1_legacy_written(root):
             checks.append({"name": "outline_fresh", "ok": None, "note": "legacy section, skip"})
         else:
-            outline_ok, outline_reason = outline_fresh_state(root)
+            outline_ok, outline_reason = outline_fresh_state(root, outline_num)
             if outline_ok:
                 checks.append({"name": "outline_fresh", "ok": True})
             else:
                 failures.append(
-                    f"P1 大纲未就绪（{outline_reason}）：先出段落级大纲给用户过目，"
+                    f"{outline_num} 大纲未就绪（{outline_reason}）：先出段落级大纲给用户过目，"
                     f"用户点头后跑 outline_manager.py confirm --from tmp/outline_draft.json "
                     f"--root <项目根> --note \"<用户原话>\"")
                 checks.append({"name": "outline_fresh", "ok": False, "reason": outline_reason})

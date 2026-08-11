@@ -262,6 +262,75 @@ def resolve_scope(root):
 
 
 # =========================================================================
+# round21 T3：大纲闸口的唯一作用域裁定（prewrite_gate / delegate_write /
+# outline_manager 三处都 import 这里，谁都不许再手写字符串比较）
+# =========================================================================
+
+# 段落级大纲受管的节号全集。P1 恒受管（round19 现状）；P2 只在四维表被关掉的
+# 项目（非国自然）里受管，见 is_managed。
+MANAGED_SECTIONS = ("P1", "P2")
+
+# 认三种形态（round21 实测）：
+#   P2           裸节标识（内置写作顺序、delegate_write --section）
+#   P2_研究内容   结构真源 chapters[].filename 主干（有 chapters 的项目）
+#   P2.3         点分子节——流程不产，但 section_regex 允许手敲，必须堵（round19 同款洞）
+# P20 / P2X / P2abc 不会被误判成 P2：第一段数字之后要么结束、要么是 . 或 _ 分隔符。
+_SECTION_NUM_RE = re.compile(r"^(P\d+)(?:[._].*)?$")
+
+
+def section_number_of(section):
+    """把节标识归一成节号（"P1"/"P2"/...）；形态不认返回 None。只管形态，不管受不受管。"""
+    if not isinstance(section, str):
+        return None
+    m = _SECTION_NUM_RE.match(section)
+    return m.group(1) if m else None
+
+
+def safe_resolve_scope(root):
+    """resolve_scope 的硬化壳：任何坏形态都收敛成空 scope（= 国自然最严口径），
+    绝不抛、绝不 traceback。skipped 逐元素清洗：不是对象、或没有非空字符串 id 的
+    元素直接丢弃（缺 id 的元素不匹配任何检查，留着只会污染报告），好元素照常生效。
+    """
+    empty = {"active": [], "skipped": []}
+    try:
+        scope = resolve_scope(root)
+    except Exception:
+        sys.stderr.write("PREWRITE_GATE: WARN structure_profile unavailable, "
+                         "all NSFC checks enforced\n")
+        return dict(empty)
+    if not isinstance(scope, dict):
+        sys.stderr.write("PREWRITE_GATE: WARN structure_profile unavailable, "
+                         "all NSFC checks enforced\n")
+        return dict(empty)
+    skipped = scope.get("skipped")
+    if not isinstance(skipped, list):
+        skipped = []
+    clean = [e for e in skipped
+             if isinstance(e, dict) and isinstance(e.get("id"), str) and e.get("id")]
+    active = scope.get("active")
+    return {"active": list(active) if isinstance(active, list) else [],
+            "skipped": clean}
+
+
+def v_rules_disabled(root):
+    """四维表校验（HRCK-V-RULES）关没关。全仓唯一定义处（round21 N1）。"""
+    skipped = safe_resolve_scope(root).get("skipped") or []
+    return "HRCK-V-RULES" in {e.get("id") for e in skipped}
+
+
+def is_managed(section, root):
+    """(节号, 是否受大纲闸口管)。P1 全体受管（round19 现状不变）；
+    P2 只在四维表被关掉（= 非国自然口径生效）时受管；其余节号一律不受管。
+    读口坏掉时 safe_resolve_scope 收敛成空 scope → P2 判不受管（国自然零影响）。"""
+    num = section_number_of(section)
+    if num == "P1":
+        return num, True
+    if num == "P2":
+        return num, v_rules_disabled(root)
+    return num, False
+
+
+# =========================================================================
 # §2.1 extract-text
 # =========================================================================
 

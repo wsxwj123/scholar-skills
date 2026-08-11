@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.9] - 2026-08-11
+
+第二十一轮 T6：重烘出厂 `templates/reference.docx`——图注（Image Caption）/表注（Table Caption）样式补上 10pt 独立层（模板停在 2026-07-14，烘焙脚本 07-16 加的 `CAPTION_SIZES` 从未烘进分发物；旧 `test_reference_docx_styles.py`「现烘现测」测的是生成器不是出厂货，属假绿，已重写为「绝对值锁+不过期锁」直接断模板本体）。zip 仅 `word/styles.xml` 变化，样式差异集⊆{Abstract, ImageCaption, TableCaption}；Body Text 12pt / Heading 1 16pt / Normal eastAsia Times New Roman 零回归。合并/导出脚本零代码改动（pandoc 本就把图注落 ImageCaption、表注落 TableCaption）。
+
 ## [2.36.8] - 2026-08-10
 
 第十七轮技术债清零（SPEC-round17，盲检 M1-M6 变异全红判合格）：rollback 失败改非零退出（restored:false 一律 exit 1，成功路径 JSON 逐字不变）；空容器覆盖回归锁（{} 盖非空 dict 已被缩表防护拦，补永久断言）；prewrite_gate 分清"检查器坏了(exit 2)"与"稿子没过(exit 1)"——检查器故障仍阻断但文案明示修安装别改稿；abbreviation_consistency 文件头补 exit 2 契约行（AST 级零行为变化）。

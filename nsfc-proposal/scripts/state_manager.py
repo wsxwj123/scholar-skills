@@ -282,7 +282,8 @@ def _semantic_sync_checks(root: Path, state: dict[str, Any]) -> dict[str, Any]:
     cm_error = any((not x["pass"] and x["severity"] == "ERROR") for x in cm_validation.values())
 
     lit = citation_validator.load_index(root / "data/literature_index.json")
-    p1_entries = [e for e in lit.get("entries", []) if "P1_立项依据" in (e.get("used_in_sections") or [])]
+    # round21 T2：P1 条目计数走检查链口径（新值 "P1" + 旧值只读兼容），判定只在 citation_validator 一处
+    p1_entries = [e for e in lit.get("entries", []) if citation_validator._in_p1(e)]
     p1_verified = all(bool(e.get("verified")) for e in p1_entries) if p1_entries else False
 
     context_text = (root / "context_memory.md").read_text(encoding="utf-8") if (root / "context_memory.md").exists() else ""
