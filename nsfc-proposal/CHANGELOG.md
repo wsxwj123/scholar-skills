@@ -1,5 +1,13 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.34.0] - 2026-08-11
+
+第十九轮（用户实测报告「开新项目、尤其省自然这类非国自然标书时不会自动写立项依据大纲」；小任务轻量档，三轮盲检判合格）：**补上 P1 立项依据的段落级大纲环节**——这是 nsfc 从来没有过的一环（rw 有 Phase 1.7 出大纲＋签字、gsw 有 storyline，nsfc 的结构签字签的是四维表＝"做什么研究"，不是"立项依据怎么讲"；非国自然项目 HRCK-V-RULES 被关掉后连四维表都没有，从检索直接跳到子代理闷头写整节）。
+
+新增 `scripts/outline_manager.py`（`confirm` / `check`）与真源 `data/outline.json`：AI 出草稿落 `tmp/outline_draft.json`（任何脚本都不读它）→ 用户逐条改 → 用户点头后 `confirm` 才落盘真源；段落级要点从严（每段 `gist`/`conclusion` 必填、≥1 承重段且承重段必须挂文献）；承重论点核证复用既有 `pack-prep` → 独立子代理 → `citation_claim_check` 链，不新造第二套。两道开写前闸口（`delegate_write` 的 `pack-write`/`pack-prep` + `prewrite_gate` 的 `outline_fresh`）：未确认 / 被改过 / 核证过期 / 检查器不可用一律 fail-closed；`data/outline.json` 是唯一大纲候选（多一个候选就多一条绕过路径）；存量老项目按节豁免（无真源 + 有实质正文 + `glob.escape`），占位稿不算写过。`confirm --from` 可指真源自身（realpath 判定，剥签名后同一套校验），覆盖前留 `.prev`——用户手改的大纲不会被旧草稿无声覆盖。去AI顺带对齐两条：11 条中文套话进 `BANNED_PATTERNS`（ERROR）、破折号形态逐字节照抄 gsw `EM_DASH_RE`（数字区间仍豁免）。
+
+🔴 **闸口强度如实登记**：拦得住"无意的忘记"，**拦不住"故意的绕过"**——`content_hash` 算法写在被约束方读得到的文件里、没有秘密，`--note` 只校验非空而命令行是 AI 自己敲的。"AI 不得替用户 confirm"是纪律约束，没有任何机制在执行它，且这类绕法走的是正常命令、留痕很淡。任何文档都不许写成"强制""AI 关不掉"。
+
 ## [2.33.9] - 2026-08-10
 
 第十八轮（SPEC-round18，第十七轮盲检观察项 O4，小任务轻量档，盲检 M1/M2 变异全红判合格）：畸形文献索引不再裸崩——entries 混入非对象元素时 gate-check 由 AttributeError traceback 改为结构化拒绝（ok=false / failed_at=literature_index / 点名 0 基下标与类型 / rc=2 / 索引文件一字不动）；读索引收敛 citation_validator.load_index 单入口 fail-closed，四个消费点（语义门/gate 链/写作循环/评审矩阵）零散弹补丁；离线与联网同形（校验在分叉前，拒绝时不触网）；合法四态与基线逐字对照仅差时间戳。SKILL.md 排障表补 failed_at=literature_index 处置行。

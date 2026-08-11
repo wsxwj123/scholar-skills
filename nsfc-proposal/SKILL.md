@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.33.9
+version: 2.34.0
 description: Use when drafting, restructuring, or polishing Chinese NSFC proposals (2026 template), especially when strict section-by-section gating, hypothesis-objective-content-problem consistency, literature verification via paper-search MCP, and anti-AI Chinese academic writing constraints are required. 触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -191,7 +191,14 @@ Follow phased gates in order:
    - `<section>`/`--root` 仅对门控下游 prewrite 的 Phase（P1/P2/P3/P7）给出；P4/P5/P6 不 gate 下游，verify 只带 `--return`，省略 `--section`/`--root`。
 
 3. Phase 1: write P1 with full citation pipeline and verification.
-   - **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写前先跑 `python3 scripts/prewrite_gate.py --section P1 --root .`，exit≠0 禁止开写（硬检查上一节完成/`consistency_map` 就位/占位符清零；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记，此校验仅跨 Phase 边界生效，同 Phase 子节 N/A）。P1 为首节，上一节检查自动放行。
+   - **🔴 Step 1.1.5 先出大纲、经用户点头才能动笔（Mandatory，P1 专属）**：文献检索之后、撰写之前，AI 先出**段落级**大纲草稿 `tmp/outline_draft.json`（一段一条，每段必须写清 `gist`「这段讲什么」+ `conclusion`「要得出什么结论」；决定成败的关键论断标 `is_load_bearing: true` 并在 `refs` 里挂上打算用的文献 id，纯背景段不挂）。摆给用户逐条改 → 用户认可后由**用户**授意运行：
+     `python3 scripts/outline_manager.py confirm --from tmp/outline_draft.json --root . --note "<用户确认的原话摘录>"`
+     落盘唯一真源 `data/outline.json`（含 `confirmed`/`content_hash`，`load_bearing_claims` 由承重段的 `conclusion` **派生**，草稿里手写它会被直接拒绝）。
+     **落盘之后**再派**独立子代理**做「大纲级论点核证」（`pack-prep`，见下方那条）：`pack-prep` 读的正是 `data/outline.json`，所以必须先 confirm，否则它报 `outline has no section: P1`。核证有出入 → 改草稿 → **重跑 confirm**（confirm 允许覆盖，旧版自动存成 `data/outline.json.prev`）→ 用户最终确认。🔴 顺序不能颠倒，这与 BRIEF A.5「P1 大纲**完成后**必须派独立子代理…有出入就重写大纲…最后由用户确认」一致。
+     用户直接手改 `data/outline.json` 也是正当操作：改完拿它自己重跑 `confirm --from data/outline.json`，修改会原样保留；**别改用 `--from tmp/outline_draft.json`**，那是 AI 的旧草稿，会覆盖掉手改。
+     ⚠️ **AI 不得替用户跑这条 confirm**，也不得自己往 `data/outline.json` 里写 `confirmed`/`content_hash`。大纲改动后必须重新经用户确认并重跑 confirm，否则 `prewrite_gate` 与 `pack-write`/`pack-prep` 一律拦下（`OUTLINE_GATE: outline_stale`）。**只有 P1 有这一步**，P2–P7 的计划仍由 `consistency_map` 四维表承担。
+     **这道闸口的强度，如实说**：它拦得住**无意的忘记**——忘出大纲、忘让用户过目、改完忘重新确认，都会被拦下。**故意的绕过它拦不住**：`content_hash` 的算法就写在被约束方读得到的文件里、没有秘密；比伪造更省事的是直接敲一条 `confirm --note "用户说可以"`，而 `--note` 只校验非空、命令行又是 AI 自己写的。所以「AI 不得替用户 confirm」是**纪律约束，没有任何机制在执行它**。🔴 不许在任何文档里把它写成"强制""AI 关不掉""AI 无法绕过"。且这类绕法走的是完全正常的命令与文件，**日志上看不出异样、留痕很淡**。
+   - **🔴 开写前置闸门 (Mandatory，脚本硬拦截)**：开写前先跑 `python3 scripts/prewrite_gate.py --section P1 --root .`，exit≠0 禁止开写（硬检查上一节完成/`consistency_map` 就位/占位符清零/**P1 大纲已确认且未被改动（`outline_fresh`；存量项目 `sections/P1_*.md` 已非空时自动跳过，不要求补大纲）**；上一节盲检结果（`.review_pass/<上一节>.json`）缺失即 prewrite_gate 硬拦 exit 1，禁止开写；必须先跑 delegate_review verify --section <上一节> 落盘通过标记，此校验仅跨 Phase 边界生效，同 Phase 子节 N/A）。P1 为首节，上一节检查自动放行。
    - 每节先跑 `python scripts/state_manager.py --root . write-cycle --section P1`（逐节预算/上下文注入的预写门控，完整参数见 references/08）；不得跳过直接硬写。
 
    - **🟢 P1 正文由撰写子代理盲写（主会话调度，堵上下文爆 + 焊死编号权）**：prewrite_gate 通过后，P1 正文**不再由主会话直接手写**，改走下面这条流水线（前后所有门禁一个字不改，照跑；结构签字 hook 逻辑不动——子代理只产返回文件，主会话在签字后才落盘 `sections/*.md`）：
@@ -202,7 +209,7 @@ Follow phased gates in order:
      5. **机械校验返回**：`python scripts/delegate_write.py verify-write --section P1 --root .`（无裸数字引用 / `[@key]` 可解析 / `new_refs` 带 DOI 或 PMID / `section_id` 一致），exit≠0 打回子代理重写、不落盘。
      6. **new_refs 先核验再并表**（账本零污染）：对返回 `new_refs` **先** `citation_validator.py verify-entry`/`citation_guard --require-mcp` 核真伪，**通过的才** `python scripts/citation_renumber.py merge-refs --root . --return .write_return_P1.json` 去重并表（DOI→PMID→归一标题三档，灰区标疑似交人工），新条目挂 `used_in_sections=["P1_立项依据"]`，记 `new:slug→真id` 映射。核验失败的直接丢弃、打回子代理改写该处引用。
      7. **落盘 P1 + 认键翻号**：主会话（已签字）把返回 `markdown` 落盘 `sections/P1_立项依据.md`；正文 `[@key]` 是长期真源，`[N]` 是合并派生——merge 前跑 `python scripts/citation_renumber.py renumber --root . --check`（exit≠0 若未并表 `new:` 键 / id 冲突 / 未知键）通过后再 `--in-place` 把 `[@key]` 统一翻成连续 `[N]`（**按 P1 正文首现序**分配，对齐 04 §4.4 矩阵「REF 顺序=P1 首次引用顺序」），随后 `citation_validator.py matrix-check` 校验三向一致。
-     > **nsfc 适配说明（读前必看）**：`delegate_write.py`（薄封装 import 共享 `delegate_write_core.py`）的 pack/verify 假设项目根有 `literature_index.json`（list）+ `project_state.json` 含 `sections[].section_id` 大纲。nsfc 账本是 `data/literature_index.json`（dict）+ 无 `sections` 大纲，故运行 pack-write/verify-write 前主会话须先把二者投影到共享核心期望的形态（只读投影，不改共享核心）。**认键翻号 `citation_renumber.py`（本家 local）与 prewrite 并表核验直接读 nsfc 原生 `data/` 布局，无需投影。**
+     > **nsfc 适配说明（读前必看）**：`delegate_write.py`（薄封装 import 共享 `delegate_write_core.py`）的 pack/verify 走本家 CONFIG 读原生 `data/` 布局：文献库 `data/literature_index.json`（dict 形态已由 `index_shape=data_dict` 声明），节级大纲读 `data/outline.json`（Step 1.1.5 由 `outline_manager.py confirm` 落盘）。**主会话不再需要临时投影，也不许手写 `data/outline.json`**——那份文件只能由 confirm 产生。**认键翻号 `citation_renumber.py`（本家 local）与 prewrite 并表核验同样直接读 `data/` 布局。**
 
    - Input: confirmed project profile (title, discipline, H/O/RC/KSQ mapping counts).
    - Output: `sections/P1_立项依据.md` + `data/literature_index.json` (all P1 citations verified) + updated `context_memory.md`.
@@ -213,7 +220,9 @@ Follow phased gates in order:
    **🔴 承重论点引文核证（Mandatory，接进本节文献确认节点）：** `literature_index`（引文，`key_finding` 是 AI 自填、不可作证）与 `consistency_map`（SQ↔H↔O↔KSQ 论证链，本身不挂引文）互不连接。P1 落盘前必须把二者打通，用**检索到的真 abstract** 判「立项依据的关键论点是否真被它挂的引文支撑」：
    1. **挑承重论点句**：从 P1 里圈出决定成败的关键论断（关键因果 / 机制 / 研究缺口 / 「前人未解决 X」这类），标 `is_load_bearing=true`；纯背景陈述标 false（只批量呈现、不逐条阻断）。
    2. **取真摘要判支撑**。对每条承重论点↔其引用，走 Tooling Rules 的检索路径（PubMed CLI / paper-search MCP，取摘要那半由工作流subagent执行）拿该文献**检索到的真实 abstract**（**不是** `literature_index.key_finding`），判 `verdict∈support/weak/contradict/unknown` 并从摘要摘一句 `evidence_quote`。**只对缓存里没有的 (文献,论点) 组合做这一步反向验证**。已被前一批核证过的同篇 abstract、以及完全同 `ref_id`+同论点句且已人工确认的 verdict，脚本会自动回填，无需再取摘要、无需再逐条确认。故这一步只做新 (文献,论点) 对。
-   3. **写 `claim_evidence.json`（项目根，与 CITATION_CHECK_CMD 的 `--root .` 同目录）**。list，每条 `{section:"P1_立项依据", claim_sentence, is_load_bearing, ref_id, retrieved_abstract, verdict, evidence_quote, user_confirmed}`。已在 `ref_evidence_cache.json` 命中的文献可留 `retrieved_abstract` 为空，脚本按 `ref_id` 回填该文献的真 abstract；同篇不同论点仍会独立判定，缓存只补文献全局事实，不替新论点伪造 verdict。
+   3. **写 `claim_evidence.json`（项目根，与 CITATION_CHECK_CMD 的 `--root .` 同目录）**。顶层是对象，形如
+      `{"outline_claim_set_hash": "<原样抄自 .prep_task_P1.json 的同名字段>", "rows": [{"section": "P1", "claim_sentence": ..., "is_load_bearing": true, "ref_id": ..., "retrieved_abstract": ..., "verdict": ..., "evidence_quote": ..., "user_confirmed": true}]}`。
+      🔴 两处易错、错了 `pack-write` 直接 exit 2：顶层承载数组的键**只能叫 `rows`**（写 `claims` 会让共享的 `citation_claim_check.py` 硬报 `bad_evidence`）；行里的 `section` 值**必须是 `"P1"`** 这个节标识，**不是** `sections/` 的文件名前缀。`outline_claim_set_hash` 忘抄或抄错 → `OUTLINE_GATE: claim_evidence_stale`（大纲论点变了却没重跑核证，重跑 pack-prep 拿新指纹）。已在 `ref_evidence_cache.json` 命中的文献可留 `retrieved_abstract` 为空，脚本按 `ref_id` 回填该文献的真 abstract；同篇不同论点仍会独立判定，缓存只补文献全局事实，不替新论点伪造 verdict。
    4. **跑核证**。`CITATION_CHECK_CMD`（Phase 0 env_preflight 已打印绝对路径，即 `python "<本技能>/scripts/citation_claim_check.py" --root .`）。脚本自动读写 `ref_evidence_cache.json`（默认在项目根，与 `--root` 同目录），落盘已验 abstract 与已确认承重 verdict 供下一批复用，AI 不必手动记录这些字段。承重句凡 `contradict/unknown`、缺 `retrieved_abstract`、或 `user_confirmed≠true` → **fail-closed（exit 2）硬拦，禁止照此下笔**；缓存缺失或损坏一律当空处理、回落全量核验，门禁强度不变。
    5. **只有新承重 (文献,论点) 对需逐条 AskUserQuestion 确认**。对缓存未命中的承重论点句把「论点 + 引文 + verdict + 摘要证据句」摆给用户，逐条 `AskUserQuestion` 请其确认后置 `user_confirmed=true` 再重跑；同 `ref_id`+同论点句已在前一批确认过的，脚本自动回填 `user_confirmed=true`，不再重复问。被判 `contradict` 的必须先改引文或改论点（不得靠确认放行），改完重跑至 exit 0。背景句在核证矩阵表里批量呈现供用户扫一眼即可，不逐条阻断。
 

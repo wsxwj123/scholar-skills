@@ -119,7 +119,35 @@ Step 1.1: 文献检索 Round 1
   ├─ 检查引文指标门控（总数≥30为硬门，gate-check 已生效、不足则 exit≠0 阻断交付；近5年≥20、中文≥5、P1段引用≥20为软 warn）
   └─ 硬门不满足 → 补充检索 → 重新验证
 
+Step 1.1.5: 出大纲 → 用户改 → confirm 落盘 → 独立子代理核证 → 用户最终确认
+            （P1 专属，未走完不许动笔）
+  ├─ AI 出段落级大纲草稿 tmp/outline_draft.json
+  │   ├─ 一段一条：gist（这段讲什么）+ conclusion（要得出什么结论），两个都必填
+  │   ├─ 决定成败的关键论断标 is_load_bearing: true，并在 refs 挂上打算用的文献 id
+  │   └─ 纯背景段不挂文献；至少要有 1 个承重段
+  ├─ 摆给用户逐条改（AI 不得代用户拍板）
+  ├─ 用户授意后运行 confirm 落盘：
+  │     python3 scripts/outline_manager.py confirm --from tmp/outline_draft.json \
+  │       --root . --note "<用户确认的原话摘录>"
+  │   → 落盘真源 data/outline.json（confirmed + content_hash + 派生 load_bearing_claims）
+  ├─ 大纲级论点核证：delegate_write.py pack-prep --section P1 --root .
+  │   🔴 必须排在 confirm 之后：pack-prep 读的正是 data/outline.json，
+  │      confirm 之前跑它只会得到 `outline has no section: P1` rc=2
+  │   ├─ 摘要按 04_文献管理 的检索路径取（PubMed CLI / paper-search MCP，
+  │   │   禁 tavily / websearch / OpenAlex），核验后进 data/literature_index.json
+  │   ├─ 把 .prep_task_P1.json + references/prep_subagent_prompt.md 交给独立子代理，
+  │   │   它只据账本里的真 abstract 逐条判 verdict、摘 evidence_quote（本身禁联网、禁写账本）
+  │   └─ 判 contradict/unknown → 改草稿换文献 → 重跑 confirm（允许覆盖，
+  │       旧版自动存成 data/outline.json.prev）→ 回到本步重核
+  └─ 用户最终确认（逐条 AskUserQuestion）
+      ⚠️ AI 不得替用户跑 confirm；大纲改了要重新确认并重跑 confirm，
+         否则 prewrite_gate 与 pack-write/pack-prep 一律拦下（outline_stale）
+      ⚠️ 用户直接手改 data/outline.json 后，拿它自己重跑
+         confirm --from data/outline.json（手改会原样保留）；
+         别改用 --from tmp/outline_draft.json，那份 AI 草稿会覆盖掉手改
+
 Step 1.2: 撰写立项依据
+  ├─ prewrite_gate --section P1（含 outline_fresh：大纲已确认且未被改动）
   ├─ write-cycle 加载上下文
   ├─ 按叙事线撰写（段落式，禁止列点）：
   │   ├─ 宏观背景（领域重要性）

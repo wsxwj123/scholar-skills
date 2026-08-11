@@ -8,6 +8,21 @@ import json
 import re
 from pathlib import Path
 
+# 🔧 要加/删一条套话就改这个 set。同一份口径目前散在五处、互为分叉副本：
+#    rw / gsw 各一份 style_checker.py + polish-sci / revise-sci 各一份 common.py
+#    + nsfc 这一份（round19 新增）。
+#    抽成 _shared/ 共享件是结构性改动，合并见 PROJECT.md 待办。
+#    用户可见的说明：general-sci-writing/references/anti-ai-protocol.md
+#    与 review-writing/references/writing_guidelines.md §4「Chinese Mode」。
+# 本表 11 条与本文件既有的 BANNED / OVERUSE / VAGUE 各条逐条核对过，零重叠。
+AI_CLICHE_TERMS_ZH = {
+    "众所周知", "显而易见", "不言而喻", "毋庸置疑", "总的来说", "值得一提的是",
+    "不仅如此", "在此背景下", "发挥关键作用", "发挥着重要作用", "扮演着重要角色",
+}
+# re.escape：以后有人往表里加带正则元字符的词（`(` `|` `.` 等）也不会让整条
+# alternation 静默失效或改变语义。排序只为让正则可复现，与匹配结果无关。
+_AI_CLICHE_RE = "|".join(re.escape(t) for t in sorted(AI_CLICHE_TERMS_ZH))
+
 BANNED_PATTERNS = [
     # 禁用句式（AI模板句）
     (r"不是[^。]{1,30}?而是", "pattern_not_but", "改为直接陈述句，避免对比模板"),
@@ -33,6 +48,9 @@ BANNED_PATTERNS = [
     (r"难道不是[^？]{0,30}？", "rhetorical_question", "改为陈述句"),
     # 禁用修辞：设问
     (r"那么，[^？]{1,30}？", "leading_question", "直接阐述，删除设问"),
+    # AI 套话（round19 新增，词表见下方 AI_CLICHE_TERMS_ZH）。
+    # 命中即拦（BANNED_PATTERNS 一律 severity=ERROR），与 gsw/rw 的 style_checker 同口径。
+    (_AI_CLICHE_RE, "ai_cliche", "删除套话，直接给事实或数据；要下判断就写清依据"),
 ]
 
 # 逃生口：机制类过渡词是中标本子常态，一刀切全禁反而制造"被洗过"的均匀质感。
@@ -61,13 +79,26 @@ BULLET_PATTERNS = [
 
 # ── 新增三项检查 ──────────────────────────────────────────────────────────
 
-# B1：装饰性破折号（——用于停顿/补充/强调，而非化学名称连字符）
-# 匹配中文"——"前后有文字内容（即不是列表/标题边界），排除行首破折号（标题装饰）。
-# 检测策略：——前面有中文字符，视为装饰性停顿
+# B1：装饰性破折号（硬禁一个都不许有；数字区间与无空格复合词豁免）
+# 🔴 正则逐字节照抄 general-sci-writing/scripts/style_checker.py::EM_DASH_RE，禁止自创：
+# 旧写法只认中文双破折号 ——，单个 — 与空格包夹的 ␣–␣ 全部漏网（round19 实测）。
+# 覆盖三种实际会出现的形态，各算**一个**破折号：
+#   —    单个 em dash（英文常见）
+#   ——   中文双破折号（GB/T 15834 里它是一个标点，`—+` 保证不按两个记）
+#   ␣–␣  空格包夹的 en dash（英式排版的停顿破折号）
+# en dash 只在两侧有空格、且不是数字区间时才算：复合词与数字区间里的 en dash 根本
+# 不是破折号（Michaelis–Menten、structure–activity、1990–2005、5–50 mM），连坐就是
+# 误伤，化学/生物稿会凭空判死。判据是左右紧邻都得是数字才算区间；一侧数字一侧文字
+# （`in 2020 – a landmark year – the field shifted`）是同位插入语，仍按装饰性计。
+# ponytail: 单位写在两侧的 `5 mM – 50 mM` 仍会被当成装饰性（Python 定宽 lookbehind
+#   看不到"左窗口里有数字"）。真稿撞上再改成"先抹区间再计数"的两步式。此天花板与
+#   gsw/rw 完全相同，别在 nsfc 单独打补丁。
 DASH_PATTERN = (
-    r"[一-鿿\w][^。！？\n]{0,40}——[^。！？\n]{1,}",
+    r"(?<!\d)—+(?!\d)"
+    r"|(?<!\d\s)(?<=\s)–+(?=\s)"
+    r"|(?<=\s)–+(?=\s(?!\d))",
     "decorative_dash",
-    "删除——，改写为完整句子或分号连接",
+    "删除破折号，改写为完整句子或分号连接（数字区间请用连字符或「至」）",
 )
 
 # B2：scare quotes（引号包裹非术语短语暗示新概念/反讽）

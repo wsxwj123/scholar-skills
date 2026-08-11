@@ -94,6 +94,12 @@
           "id": "N63",
           "name": "承重论点引文核证",
           "check": "立项依据的承重论点（决定成败的关键因果/机制/研究缺口论断，非背景陈述）已在项目根 claim_evidence.json 建成「观点↔引文」矩阵，每条承重句用该引文检索到的真实 abstract（非 AI 自填的 key_finding）判 verdict∈support/weak/contradict/unknown 并摘 evidence_quote；跑 CITATION_CHECK_CMD（scripts/citation_claim_check.py --root .）须 exit 0。任一承重句被判 contradict/unknown、缺 retrieved_abstract、或 user_confirmed≠true = fail，引 claim_evidence.json 对应行与阻断原因为证。"
+        },
+        {
+          "id": "N68",
+          "name": "大纲已确认且未被改动",
+          "check": "P1 段落级大纲已经用户点头并由 outline_manager.py confirm 落成 data/outline.json，且落盘后未被改动（content_hash 与 sections 重算值相符）。脚本 exit≠0 = fail，引脚本输出的 reason（outline_missing / outline_not_confirmed / outline_stale / outline_malformed / outline_section_missing）为证。存量项目（sections/P1_*.md 已非空）不适用本项，prewrite_gate 会自动跳过。",
+          "script": "python3 scripts/outline_manager.py check --root ."
         }
       ]
     },

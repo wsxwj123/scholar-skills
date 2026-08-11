@@ -27,15 +27,23 @@
 4. **`user_confirmed` 一律置 `false`**：是否成立由主会话 + 用户 AskUserQuestion 拍板，不是你的事。
 5. **提议 `claim_kind`**：每条承重论点提议其种类 `∈ {mechanism, efficacy, background, emerging}`
    （机制声明 / 疗效声明 / 承重背景 / 新兴方向），主会话确认承重句时会顺带确认它。拿不准填 `background`。
+6. **论点句可以来自大纲，不必来自已落盘正文**：P1 走「先出大纲、核证完再动笔」的顺序，
+   所以 `section_target.load_bearing_claims` 常常是 `data/outline.json` 里承重段的 `conclusion`，
+   此时 `sections/P1_*.md` 还不存在——这是正常的，别因为「找不到正文」就罢工或去编正文。
+   逐条按任务包给的论点句判即可。
 
 ## 返回文件 `.claim_evidence_draft_<PX>.json`
 
+🔴 行里的 `section` 值必须是节标识 `"P1"`，**不是** `sections/` 的文件名前缀 `P1_立项依据`——
+主会话会把这些行原样并进 `claim_evidence.json` 的 `rows[]`，值写错会让 `pack-write` exit 2
+报「本节有承重论点但缺 claim_evidence」。
+
 ```json
 {
-  "section": "P1_立项依据",
+  "section": "P1",
   "claims": [
     {
-      "section": "P1_立项依据",
+      "section": "P1",
       "claim_sentence": "本节的一句承重论点原文",
       "is_load_bearing": true,
       "claim_kind": "mechanism",
@@ -50,7 +58,9 @@
 ```
 
 - `verdict ∈ support/weak/contradict/unknown`。判 `contradict/unknown` 也要如实写，别硬凑 support。
-- **空草案合法**：本节确无承重配对时返回 `{"section":"P1_立项依据","claims":[]}`，这不是错误。
+- **空草案合法**：本节确无承重配对时返回 `{"section":"P1","claims":[]}`，这不是错误。
+  （P1 走大纲流程时 `load_bearing_claims` 恒非空——confirm 硬要求至少 1 个承重段——
+  所以 P1 上出现空草案，通常说明你漏判了，先回头核对任务包。）
 
 主会话拿到草案后跑 `citation_claim_check.py`（含 `--check-quote-substring` 防伪）+ 逐条 AskUserQuestion
 确认（含 claim_kind），确认行由**主会话**并入 `claim_evidence.json`。撰写子代理只读并入后账本切出的

@@ -207,6 +207,71 @@ def check_new_refs_merged(root, prev_section, prev_fp):
     return failures
 
 
+# 去掉标题行后的正文字符数下限。低于它就不算"这一节写过了"。
+# 依据：sync-all --auto-fix 写的占位稿正文是「待补充。」4 个字；而一节真立项依据是
+# 数千字。中间那点差距不存在真实稿件。
+# ⚠️ 这是启发式，天花板照实说：正文比阈值稍长的真·短稿会被当成新项目、要求补大纲。
+# 方向是安全的（多要一次大纲，不是少拦一次），撞上了再调。
+LEGACY_MIN_BODY_CHARS = 8
+
+
+def _has_substantive_body(path):
+    """有实质正文？去掉 markdown 标题行与空白后按字符数判。"""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return False
+    body = "".join(ln.strip() for ln in lines if not ln.lstrip().startswith("#"))
+    return len(body.strip()) >= LEGACY_MIN_BODY_CHARS
+
+
+def _outline_json_present(root):
+    """项目里有没有 data/outline.json。
+
+    判"在不在"而不是"读不读得出来"：坏 JSON 也算有 —— 文件坏了正该报
+    outline_malformed 让人去修，而不是悄悄退化成"这是个老项目、不用管大纲"。
+    """
+    return os.path.exists(os.path.join(root, "data", "outline.json"))
+
+
+def p1_legacy_written(root):
+    """§4.2 存量豁免（按节，不是按项目）：这一节是"改造前就写过"的老稿。
+
+    三条判据，缺一不可：
+    1. **项目里没有 data/outline.json**。有大纲＝这个项目走过大纲流程，就该按正常
+       判定走（坏 JSON 也算有：文件坏了正该报 outline_malformed 让人去修，不该悄悄
+       退化成"这是老项目、不用管大纲"）。少了这条会出两个毛病：① 项目第一次写完 P1
+       就永远算"存量"，此后返工改稿大纲检查全失效；② delegate_write 那道闸口没有
+       存量豁免，同一状态下它报 outline_stale，两道闸口对同一项目给出相反结论。
+    2. sections/P1_*.md 存在。判据故意收窄到 P1 这一个节 —— 放宽成「任一非空 .md」
+       会让"先写了别的节的新项目"整体哑火，等于本轮改造白做。
+    3. 里面有**实质正文**，不只是占位。sync-all --auto-fix 会写出
+       `# P1_立项依据\n\n待补充。\n`，而那条命令正是 SKILL.md 推荐给用户的修复动作
+       —— 跑一次就把全新项目伪装成存量项目、本轮拦截当场失效。
+    """
+    if _outline_json_present(root):
+        return False
+    return any(_has_substantive_body(p)
+               for p in glob.glob(os.path.join(glob.escape(root), "sections", "P1_*.md")))
+
+
+def outline_fresh_state(root):
+    """(ok, reason)：P1 大纲是否已确认且未被改动。
+
+    🔴 fail-closed：outline_manager 缺失 / import 炸 / 返回值形态不对，一律判不通过，
+    不许 try/except 放行 —— 检查器坏了却放行就是新的假绿点。
+    """
+    try:
+        import outline_manager
+        ok, reason = outline_manager.check(root)
+        if not isinstance(ok, bool):
+            raise TypeError("check() 第一个返回值不是布尔: %r" % (ok,))
+    except Exception:
+        return False, "outline_checker_unavailable"
+    return ok, reason
+
+
 def scan_placeholders(files):
     hits = []
     for fp in files:
@@ -278,6 +343,21 @@ def main():
     else:
         failures.append("data/consistency_map.json missing or empty (H/O/RC/KSQ not registered)")
         checks.append({"name": "consistency_map", "ok": False})
+
+    # ---- check: P1 大纲已确认且未被改动（round19，仅 P1；不读 v_rules_off） ----
+    if section == "P1":
+        if p1_legacy_written(root):
+            checks.append({"name": "outline_fresh", "ok": None, "note": "legacy section, skip"})
+        else:
+            outline_ok, outline_reason = outline_fresh_state(root)
+            if outline_ok:
+                checks.append({"name": "outline_fresh", "ok": True})
+            else:
+                failures.append(
+                    f"P1 大纲未就绪（{outline_reason}）：先出段落级大纲给用户过目，"
+                    f"用户点头后跑 outline_manager.py confirm --from tmp/outline_draft.json "
+                    f"--root <项目根> --note \"<用户原话>\"")
+                checks.append({"name": "outline_fresh", "ok": False, "reason": outline_reason})
 
     # ---- check 3: 素材就位（适配 section） ----
     # P2 / P3_1 需要 experimental_design.json
