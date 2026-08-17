@@ -34,8 +34,47 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _input_sha256_or_sentinel(path_str: str) -> str:
+    """签名阶段绝不 traceback：缺失/不可读输入用稳定 sentinel，
+    结构化报错交给 preflight。"""
+    if not path_str:
+        return "absent:v1"
+    path = Path(path_str)
+    try:
+        if not path.is_file():
+            return "missing:v1" if not path.exists() else "unreadable:v1"
+        return _sha256_file(path)
+    except OSError:
+        return "unreadable:v1"
+
+
+# resume v2 合同覆盖面：build/strict gate/render/unit schema 任一字节变化都使
+# 旧 checkpoint 失效（内容摘要，不是 size/mtime）。
+_CONTRACT_FILES = (
+    "scripts/build_full_package.py",
+    "scripts/strict_gate.py",
+    "scripts/render_from_atomic_json.py",
+    "references/atomic-unit-schema.json",
+)
+
+
+def _pipeline_contract_sha256() -> str:
+    skill_root = Path(__file__).resolve().parent.parent
+    digest = hashlib.sha256()
+    for rel in _CONTRACT_FILES:
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        try:
+            digest.update((skill_root / rel).read_bytes())
+        except OSError:
+            digest.update(b"missing:v1")
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def _signature(args: argparse.Namespace) -> str:
     payload = {
+        "signature_version": 2,
         "comments": str(Path(args.comments).resolve()),
         "manuscript": str(Path(args.manuscript).resolve()),
         "si": str(Path(args.si).resolve()) if args.si else "",
@@ -46,6 +85,13 @@ def _signature(args: argparse.Namespace) -> str:
         "allow_placeholder": bool(args.allow_placeholder),
         "fail_on_conflict": bool(args.fail_on_conflict),
         "fail_on_gap": bool(args.fail_on_gap),
+        # round22：路径相同不等于内容相同——三输入字节 SHA-256 进签名
+        "input_sha256": {
+            "comments": _input_sha256_or_sentinel(args.comments),
+            "manuscript": _input_sha256_or_sentinel(args.manuscript),
+            "si": _input_sha256_or_sentinel(args.si) if args.si else "absent:v1",
+        },
+        "pipeline_contract_sha256": _pipeline_contract_sha256(),
     }
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
@@ -172,9 +218,21 @@ def main() -> int:
 
     tx_dir = project_root / "logs" / "transactions"
     ckpt_path = project_root / "logs" / "checkpoints" / "pipeline_checkpoint.json"
-    sig = _signature(args)
 
     with _pipeline_lock(project_root):
+        # round22：signature 与输入 raw 摘要都在 pipeline lock 内计算；
+        # build 拿到期望摘要后在读取字节时二次核对（关闭 hash→read TOCTOU）。
+        sig = _signature(args)
+        expected_raw = {}
+        for label, value in (("comments", args.comments), ("manuscript", args.manuscript), ("si", args.si)):
+            if not value:
+                continue
+            digest = _input_sha256_or_sentinel(value)
+            if ":" not in digest:  # sentinel（missing/unreadable）交 preflight 报，不进期望表
+                expected_raw[label] = digest
+        if expected_raw:
+            build_cmd.extend(["--expected-raw-sha256-json", json.dumps(expected_raw, ensure_ascii=False)])
+
         checkpoint = _load_checkpoint(ckpt_path)
         completed = set()
         if args.resume and checkpoint.get("signature") == sig:

@@ -382,7 +382,8 @@ def main():
 
     # ---- check: 段落级大纲已确认且未被改动（round19 P1；round21 T3 起非国自然的 P2 也受管）----
     # 作用域判定唯一住 structure_profile.is_managed：P1 恒受管（三种形态 P1/P1.x/P1_前缀），
-    # P2 仅四维表被关掉（funding_scheme=other 生效）的项目受管——国自然 P2 行为零变化。
+    # P2 仅「合法已确认 funding_scheme=other」的项目受管（round22 T3：不再由 HRCK-V-RULES
+    # 的 skipped 来源反推，用户 DoD 关项不改项目类型）——国自然 P2 行为零变化。
     outline_num, outline_managed = _managed_section(section, root)
     if outline_managed:
         if outline_num == "P1" and p1_legacy_written(root):

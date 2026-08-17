@@ -1,6 +1,6 @@
 ---
 name: revise-sci
-version: 2.29.6
+version: 2.30.0
 description: 退稿/返修全管道，同时出逐条回复信+修改后正文docx+Patch修订。触发词：改稿、修改稿子、修订正文、退稿改进、返修、revise manuscript、major revision、minor revision、revise and resubmit、point-by-point response、revised manuscript。路由说明：与reviewer-response-sci区分，本技能同时改主稿+出回复包，后者只出回复不改稿；与gsw区分，gsw写新稿，本技能专处理已有稿子的审稿意见驱动修改。
 ---
 
@@ -207,6 +207,17 @@ python scripts/run_pipeline.py --comments <comments_path> --manuscript <manuscri
 ```
 
 `--expected-comments-mode` is strongly recommended after the user confirms the branch chosen by `intake_router.py`. `preflight.py` will block execution if the confirmed mode and the detected mode do not match.
+
+### round22 一键 pipeline 状态机（可恢复人工/独立闸口，机器强制）
+
+`run_pipeline.py` 自带 `project_state.json.pipeline_gate`（schema_version=1 + epoch）状态机，把上面「意见清单核对·必停」「通读定策略」「三层核查」「DoD 停」从纪律变成机器强制。退出码写死：`0=complete`、`1=执行/检查失败`、`2=坏参数/非法转换/坏回执`、`3=预期人工/独立动作暂停`（停点打印 `PIPELINE_PAUSED phase=<phase>`）。
+
+- **首跑**：原子化完成后生成 `audit/comment_inventory.json`（reviewer+comment_id+原意见规范空白文本，含 `comments_source_sha256` 与自摘要 `inventory_sha256`）即停 `awaiting_comment_confirmation`，**不调用 revise_units**。用户核对清单后 `--resume --confirm-comment-inventory <inventory_sha256>` 确认（摘要绑定内容，路径相同不等于内容相同）。
+- **策略门**：确认后每个 unit 必须先填四选一 `revision_strategy`（canonical 闭集 `comply/partial/push_back/needs_data`，别名 `驳回/reject/pushback` 归一到 push_back），缺失/非法停 `awaiting_revision_strategies`，不改稿。
+- **三层独立核查**：final consistency 后固定顺序跑 numeric→xref→Methods 锚（综述 `nature-review/lancet-review` 的 Methods 记 na+理由），生成 `audit/detection_task.json`（绑定 epoch/delivery/audit manifest，`task_manifest_sha256` 自摘要）停 `awaiting_audit_detection`。独立检测子代理写 `audit/detection_{numeric,xref,methods}.json`（round22 envelope，须回传 task hash）；普通 `--resume` 自动校验（缺轨/坏 schema/hash 不符/空证据 rc=2）。有真 finding 才生成 reverse 任务（pipeline 按 canonical item 生成稳定 finding ID `<track>-<sha256前12位>`），返回写 `.review_return_{numeric,xref,methods}-verify.json`（envelope），极性 pass=confirmed / fail|na=refuted / problems=未核 rc=2；受理后原子写 `.pipeline_receipts/audit_reverse.json`。有 confirmed 时用户在 `audit/adjudication.json` 逐条 `fix|accept_with_rationale`，`--resume --confirm-audit-adjudication <audit_manifest_sha256>` 受理：fix 要求交付物已实际变化并开新 epoch 从 detection 重跑；accept 要求理由非空且 manifest 未漂移。
+- **DoD 解环**：进入 DoD 前 pipeline 自跑 `strict_gate.py --preclose`（只输出 `STRICT_PRECLOSE: PASS`，绝不冒充 final）；DoD JSON 里的 strict_gate 命令也全部带 `--preclose`。独立 DoD 返回写 `.review_return_revision-dod.json`（envelope），普通 `--resume` 走本地 `delegate_review.py verify --expect-task-manifest` 验证并原子写 `.pipeline_receipts/revision_dod.json`，随后停 `awaiting_dod_user_confirmation` 展示逐项裁决。**唯一收口出口**是 `--resume --confirm-dod-closure <dod_manifest_sha256>`：写 `.pipeline_receipts/dod_closure.json` 后才运行最终 bare `strict_gate.py`（成功唯一字面量 `STRICT_GATE: PASS`），pipeline 才 rc=0。
+- **失效规则**：审稿信/inventory/策略等上游内容变化一律 epoch+1，旧确认与全部下游 receipt 逻辑失效并回到对应早期停点；`--resume-from` 同样提升 epoch。bare gate 自行核 skill signature 与 closure 链（缺 `pipeline_gate` 默认 rc=2；pre-round22 旧项目仅 `--legacy-direct` + 精确 allowlist signature 可降级运行）。
+- **旧项目迁移**：无 `pipeline_gate` 的旧项目普通 `--resume` 非破坏性 rc=3 提示 `--resume --migrate-round22`；迁移只接受 allowlist 内旧 signature 且输入指纹未变，保留全部产物、不推断任何历史确认，落回 inventory 确认点。
 
 ## [意见清单核对·必停]（拆意见后、改写前的强制关卡）
 

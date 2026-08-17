@@ -1,6 +1,6 @@
 ---
 name: polish-sci
-version: 2.25.7
+version: 2.26.0
 description: 纯论文润色全管道。输入一份已写完的稿子(无审稿意见),逐段提升语言表达,绝不改内容/数据/结论。触发词：润色、polish、语言润色、润色论文、polish paper、language polish、proofread manuscript、母语化、润色稿子。路由说明：与revise-sci区分,revise-sci由审稿意见驱动、只改被点名片段;polish-sci无意见、全文逐段润色覆盖每一段。与general-sci-writing区分,gsw从零写新稿,polish-sci只润色现成稿。
 ---
 
@@ -106,6 +106,8 @@ not_for(以下情况不要用本技能):
 
 ## DoD 自检清单(润色收口)
 机器可读真源,`references/dod_checklist.json` 的 `polish-dod` gate。strict_gate 运行前,必须委托独立subagent盲检。
+
+**DoD pack 里的 strict_gate 命令带 `--unit-checks-only`(round22 解自引用)**:该模式只跑逐 unit 机械检查、完全不读 `.review_return_polish-dod.json`,成功输出 `STRICT_UNIT_CHECKS: PASS`——它只是盲检期的机械预检,**绝不等价最终交付**。最终交付仍必须跑无 flag 的 bare strict_gate(会强制核独立 PL-G11),唯一成功字面量仍是 `STRICT_GATE: PASS`。
 
 📖 **主 agent 不得自评 DoD**;PL-G1~PL-G14 判据、委托四步细则、【P4·降级告警】(派不出独立subagent时绝不自评自过) → **第 5 步盲检前先 Read [references/dod-protocol.md](references/dod-protocol.md)**。
 

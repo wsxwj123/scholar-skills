@@ -179,6 +179,14 @@ def cmd_pack(args: argparse.Namespace) -> int:
     )
     lines.append("")
     return_path = str(Path(args.workdir) / f".review_return_{args.gate}.json")
+    if getattr(args, "task_manifest", None):
+        lines.append("## round22 任务绑定（必须原样回传）")
+        lines.append(
+            "返回不再是裸数组，而是 envelope 对象："
+            '{"schema_version": 1, "task_manifest_sha256": "%s", "review": [上面的数组]}。'
+            "task_manifest_sha256 必须逐字回传，verify 读 verdict 前先核它。" % args.task_manifest
+        )
+        lines.append("")
     lines.append(f"## 返回写到这个文件(约定路径,主 agent 据此跑 verify)")
     lines.append(return_path)
     print("\n".join(lines))
@@ -229,6 +237,17 @@ def cmd_verify(args: argparse.Namespace) -> int:
     soft_ids = {it["id"] for it in items if it.get("severity") == "soft"}
 
     returned = _load_json(args.return_path)
+    # round22 可选 envelope 模式：传 --expect-task-manifest 时，返回文件必须是
+    # {"schema_version":1,"task_manifest_sha256":...,"review":[...]}，在读 verdict
+    # 之前先核 task hash（任务包与返回双向绑定）；不传 flag 时行为与旧版完全一致。
+    if getattr(args, "expect_task_manifest", None):
+        if not isinstance(returned, dict):
+            sys.stderr.write("[delegate_review] round22 envelope 模式要求返回为对象（含 task_manifest_sha256 + review）\n")
+            return 2
+        if returned.get("task_manifest_sha256") != args.expect_task_manifest:
+            sys.stderr.write("[delegate_review] 返回的 task_manifest_sha256 与任务包不符（stale/错配返回，读 verdict 前拦下）\n")
+            return 2
+        returned = returned.get("review")
     if not isinstance(returned, list):
         # round16 T2：退出码两类语义分清——
         #   exit 2 = 结构性畸形（文件不存在 / 坏 JSON / 顶层不是数组 / --section 非法），
@@ -323,6 +342,8 @@ def main() -> int:
     p_pack.add_argument("--comments", default=None,
                         help="原始审稿信路径(.docx/.txt/.md/.html)；传入后全文嵌入任务包，供盲检子代理逐条点名核对漏回/答非所问。强烈建议传。注意 .html 会原样含标签")
     p_pack.add_argument("--workdir", default=".", help="项目工作目录,用于推导 .review_return_<gate>.json 落点(默认 cwd)")
+    p_pack.add_argument("--task-manifest", default=None,
+                        help="round22：把 task_manifest_sha256 写进任务包并要求 envelope 回传；不传则旧版行为")
     p_pack.set_defaults(func=cmd_pack)
 
     p_ver = sub.add_parser("verify", help="校验子代理返回(fail-closed)")
@@ -335,6 +356,9 @@ def main() -> int:
                        help="本次盲检对应的 section id;提供后全过会在 <root>/.review_pass/<section>.json 落盘通过标记(供下一节 prewrite_gate 硬校验)。不传则行为与旧版完全一致")
     p_ver.add_argument("--root", default=None,
                        help=".review_pass 落盘的项目根(默认推导自 --workdir/--return/--checklist)")
+    p_ver.add_argument("--expect-task-manifest", default=None,
+                       help="round22 envelope 模式：要求返回为 {schema_version, task_manifest_sha256, review}，"
+                            "读 verdict 前先核 task hash；不传则保持旧版数组返回行为")
     p_ver.set_defaults(func=cmd_verify)
 
     args = parser.parse_args()

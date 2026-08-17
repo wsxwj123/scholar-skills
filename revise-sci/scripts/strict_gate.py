@@ -8,9 +8,48 @@ try:  # Windows GBK 控制台/管道捕获下 emoji print 防 UnicodeEncodeError
 except Exception:
     pass
 import argparse
+import json as _json
 from pathlib import Path
 
-from common import ALLOWED_PROVIDER_FAMILIES, blocked_placeholder_found, hard_ai_style_markers, soft_ai_style_markers, normalize_ws, read_docx_paragraphs, read_json
+import pipeline_gate
+from common import ALLOWED_PROVIDER_FAMILIES, blocked_placeholder_found, compute_tree_signature, hard_ai_style_markers, soft_ai_style_markers, normalize_ws, read_docx_paragraphs, read_json
+
+
+def _round22_gate_errors(project_root: Path, state: dict, legacy_direct: bool) -> tuple[list[str], list[str]]:
+    """bare gate 的 round22 前置：pipeline_gate 完整性 + skill signature + closure 链。
+    返回 (errors, warnings)。缺 pipeline_gate 默认 fail-closed，不能当 legacy 身份；
+    legacy 只认 --legacy-direct + 精确 pre-round22 allowlist signature + 无迁移痕迹。"""
+    script_dir = Path(__file__).resolve().parent
+    gate = state.get("pipeline_gate")
+    if gate is None:
+        signature = str(state.get("skill_signature", ""))
+        if not legacy_direct:
+            return [_json.dumps({
+                "error_code": "pipeline_gate_missing",
+                "hint": "round22 起缺 pipeline_gate 默认拒绝；确属 pre-round22 旧项目请显式 --legacy-direct（signature 须命中 allowlist），或走 run_pipeline --resume --migrate-round22",
+            }, ensure_ascii=False)], []
+        if signature not in pipeline_gate.LEGACY_SIGNATURE_ALLOWLIST:
+            return [_json.dumps({
+                "error_code": "legacy_signature_not_allowlisted",
+                "skill_signature": signature,
+                "hint": "--legacy-direct 只接受精确 pre-round22 发布版 skill signature allowlist",
+            }, ensure_ascii=False)], []
+        if state.get("legacy_skill_signature"):
+            return [_json.dumps({
+                "error_code": "legacy_after_migration_forbidden",
+                "hint": "项目已有 round22 migration 痕迹（legacy_skill_signature），不得再降级 legacy 直跑",
+            }, ensure_ascii=False)], []
+        return [], ["LEGACY_DIRECT WARNING: 按 pre-round22 旧版合同降级运行 bare gate（无 closure 链核验），仅限确认过的 legacy 项目。"]
+    if not pipeline_gate.gate_schema_complete(gate):
+        return [_json.dumps({
+            "error_code": "pipeline_gate_schema_incomplete",
+            "hint": "pipeline_gate schema_version=1 字段不完整；删字段不能伪装 legacy 降级",
+        }, ensure_ascii=False)], []
+    current_signature = compute_tree_signature(script_dir.parent, ("*.py", "*.md", "*.json"))
+    if str(state.get("skill_signature", "")) != current_signature:
+        return ["skill signature mismatch: 技能已升级，旧 closure/receipt 不得继续使用；请回 run_pipeline 重走 DoD 收口"], []
+    checklist_path = script_dir.parent / "references" / "dod_checklist.json"
+    return pipeline_gate.verify_closure_chain(project_root, state, checklist_path), []
 
 
 REQUIRED_RESPONSE_HEADINGS = [
@@ -212,10 +251,25 @@ def approved_search_governance_failures(project_root: Path, reference_coverage: 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Hard gate for revise-sci outputs")
     parser.add_argument("--project-root", required=True)
+    parser.add_argument("--preclose", action="store_true",
+                        help="round22 DoD 预检模式：只跑不依赖 DoD closure receipt 的确定性检查，"
+                             "成功输出 STRICT_PRECLOSE: PASS，绝不输出最终 STRICT_GATE: PASS")
+    parser.add_argument("--legacy-direct", action="store_true",
+                        help="pre-round22 旧项目显式降级入口（signature 须命中 allowlist 且无迁移痕迹）")
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
     state = read_json(project_root / "project_state.json", {})
+
+    if not args.preclose:
+        gate_errors, gate_warnings = _round22_gate_errors(project_root, state, args.legacy_direct)
+        for warning in gate_warnings:
+            print(warning)
+        if gate_errors:
+            print("STRICT_GATE: FAIL (pipeline_gate)")
+            for err in gate_errors:
+                print(f"- {err}")
+            return 2
     units = [read_json(path, {}) for path in sorted((project_root / "units").glob("*.json"))]
     failures: list[str] = []
     soft_style_notes: list[str] = []  # C反AI降软：句长/破折号等只上报、不阻断
@@ -529,10 +583,14 @@ def main() -> int:
         print("=" * 60)
 
     if failures:
-        print("STRICT_GATE: FAIL")
+        print("STRICT_PRECLOSE: FAIL" if args.preclose else "STRICT_GATE: FAIL")
         for failure in failures:
             print(f"- {failure}")
         return 1
+    if args.preclose:
+        # preclose 成功不得输出最终交付成功字样（那要等独立 DoD verify + 用户 closure）
+        print("STRICT_PRECLOSE: PASS")
+        return 0
     print("STRICT_GATE: PASS")
     print(
         "注意:PASS 仅覆盖形式层(引文编号/去AI/结构/占位符/文件完整性)。"

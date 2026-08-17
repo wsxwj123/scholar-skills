@@ -37,6 +37,11 @@ def check_docx_path(p: Path, label: str, errors: list[str]) -> None:
     if not p.exists():
         errors.append(f"Missing {label}: {p}")
         return
+    if not p.is_file():
+        # round22：目录/特殊文件这类"存在但读不了"的输入在 preflight 结构化拦下，
+        # 不让下游 Document() 裸崩成 traceback。
+        errors.append(f"{label} is not a readable file: {p}")
+        return
     if p.suffix.lower() != ".docx":
         errors.append(f"{label} must be .docx: {p}")
     if p.stat().st_size == 0:

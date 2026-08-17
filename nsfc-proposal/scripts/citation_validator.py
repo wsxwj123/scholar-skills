@@ -472,21 +472,23 @@ class IndexSyntaxError(IndexCorruptError):
 
 
 class IndexUnreadableError(IndexCorruptError):
-    """索引文件读不出来：路径是目录、读权限不足等。round21 T5 新增。
+    """索引文件读不出来：路径是目录、读权限不足、字节编码非法等。round21 T5 新增，
+    round22 T5 起非法 UTF-8 也收敛到本态。
 
-    文案里刻意不写 Python 异常类名（IsADirectoryError 等不许甩给用户）。
+    文案里刻意不写 Python 异常类名（IsADirectoryError / UnicodeDecodeError 等
+    不许甩给用户）。
     """
 
     corruption = "unreadable"
 
-    def __init__(self, path: Any, exc: OSError) -> None:
+    def __init__(self, path: Any, exc: Exception) -> None:
         self.path = str(path)
         self.bad_positions: list[int] = []
         self.bad_kinds: list[str] = []
         ValueError.__init__(
             self,
-            f"文献索引损坏：{self.path} 读不出来（路径是目录或没有读权限）。"
-            f"索引文件一字未动，请修好路径/权限后重跑。")
+            f"文献索引损坏：{self.path} 读不出来（路径是目录、没有读权限或字节编码非法）。"
+            f"索引文件一字未动，请修好路径/权限/编码后重跑。")
 
 
 def _index_reject_report(exc: IndexCorruptError) -> dict[str, Any]:
@@ -524,7 +526,8 @@ def load_index(path: Path, default: Any = None) -> dict[str, Any]:
         raw = load_json(path, default if default is not None else {"metadata": {}, "entries": []})
     except json.JSONDecodeError as exc:
         raise IndexSyntaxError(path, exc) from None
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # round22 T5：非法 UTF-8 与目录/权限同归 unreadable，不新增第四错误态
         raise IndexUnreadableError(path, exc) from None
     idx = _normalize_index(raw)
     bad_positions = [i for i, e in enumerate(idx["entries"]) if not isinstance(e, dict)]

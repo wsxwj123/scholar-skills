@@ -28,4 +28,16 @@ python scripts/run_pipeline.py \
   --output-docx /abs/path/output_dir/revised_manuscript.docx
 ```
 
+Since round22 the one-shot pipeline is a resumable state machine (`pipeline_gate`
+in `project_state.json`): it pauses (exit 3, `PIPELINE_PAUSED phase=...`) at the
+comment-inventory confirmation, the four-way `revision_strategy` gate, the
+three-layer independent audit (detection → reverse verification → user
+adjudication) and the independent DoD review; each human gate is confirmed with
+a content digest (`--resume --confirm-comment-inventory / --confirm-audit-adjudication /
+--confirm-dod-closure <sha256>`). Only after the user's DoD closure does the
+pipeline run the final bare `strict_gate.py` and exit 0. Upstream content
+changes bump `epoch` and logically invalidate old confirmations/receipts.
+Pre-round22 projects: plain `--resume` pauses non-destructively and points to
+`--resume --migrate-round22`.
+
 If a reviewer asks for new references, only `paper-search` is allowed as the external provider family. Unknown material must be marked as `Not provided by user` or `需作者确认`.

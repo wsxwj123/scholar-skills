@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.35.1] - 2026-08-17
+
+第二十二轮延期项（R4·T3/T5 修正，patch）：**T3** P2 段落级大纲门项目类型判据修正——`is_managed(P2)` 不再笼统由 `v_rules_disabled`（HRCK-V-RULES 在 skipped 即算）反推：skipped 条目按 reason 分流，`dod_selection.disabled`（用户 DoD 关项）只影响 DoD、不改项目类型；`structure_profile.funding_scheme=other` 写入的条目才启用 P2 段落级大纲门。仍走 `safe_resolve_scope` 继承 round21 全部读口 fail-safe（缺失/坏 JSON/未确认/非法 UTF-8/模块坏一律收敛国自然口径、零 traceback），DoD 关项留痕（skipped_checks）不受影响。**T5** `load_index()` 精确增捕 `UnicodeDecodeError`——非法 UTF-8 索引与目录/权限问题同归既有 `IndexUnreadableError`（`corruption=unreadable`、行列位置 null、bad indexes 空，不新增第四态），四个只读子命令与 `state_manager gate-check` 结构化拒绝 rc=2、无 traceback、原文件字节不变；syntax/entries 两态零漂移。
+
 ## [2.35.0] - 2026-08-11
 
 第二十一轮欠账清理（T1-T6 里 nsfc 承担的六项落点）：**T1** 开场问基金归属——监工卡通用化+第 7 条常驻提示；全新项目（无 `project_state.json` 且无 `structure_profile.json`）问一次二选一：答国自然不落任何文件，答其他基金走既有五步结构提取链（只承诺同一会话内不再问，跨会话可能重复问，如实登记）。**T2** 文献切片节标识统一裸 `"P1"`——写入端（merge-refs/renumber）只写新值；检查链（matrix-check/find-orphans/stats/gate-check P1 计数）新旧两值都认；切片链只认新值，存量账本用新入口 `citation_validator.py normalize-sections --index <索引> [--dry-run]`（幂等、原子写、坏类型一字不动）一次性归一，check-gates 对「含旧值不含新值」条目发 WARN 附命令。**T3** 非国自然项目（四维表已关）P2 新增前置计划环节——作用域三函数落 `structure_profile.py` 唯一定义（`section_number_of`/`safe_resolve_scope`+`v_rules_disabled`/`is_managed`），`outline_manager` 扩到 P1+P2、闸口分节感知（新 reason `outline_section_not_covered`），P2 段落契约 rc_id 必填、不要求承重；国自然项目 P2 零影响；结构真源读口六种坏形态收敛「空 scope=国自然最严口径」零 traceback。**T4** 英文 AI 套话 25 条自 gsw `FORBIDDEN_EXACT` 平移（WARNING 不硬拦、小写化子串匹配、误报面有意保留）。**T5** 索引 JSON 损坏 fail-closed——语法/结构/不可读三态统一 rc=2 结构化拒绝（`corruption: syntax/entries/unreadable`），四个只读子命令逐字一致、零裸崩；mcp 缓存坏按空缓存回落全量核验（不硬拦、不回写坏文件）；语法坏索引退出码由 1（裸崩默认）收紧为 2。**T6** 重烘出厂 `templates/reference.docx`：图注/表注样式补上 10pt（模板停在 2026-07-14、烘焙脚本 07-16 改的 10pt 从未入模板）。

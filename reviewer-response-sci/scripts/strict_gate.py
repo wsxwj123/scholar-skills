@@ -5,9 +5,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 from unit_glob import load_units
+
+from build_full_package import (
+    ABSENT_SENTINEL,
+    collect_comment_pairs,
+    comment_fingerprint,
+    comments_semantic_sha256,
+    docx_semantic_sha256,
+    extract_email,
+    read_docx_text_from_bytes,
+    sha256_hex,
+)
 
 
 REQUIRED_UNIT_KEYS = ["unit_id", "order", "reviewer", "section", "comment_number", "title", "source", "links", "content", "status"]
@@ -31,6 +43,120 @@ def _is_placeholder_text(v: object) -> bool:
 
 def read_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+_FINGERPRINT_RE = re.compile(r"^sha256:v1:[0-9a-f]{64}$")
+
+
+def _verify_input_identity(state: dict, units: list[dict], errors: list[str]) -> None:
+    """round22 源绑定：读取当前三输入，核 project_state 的 raw/semantic identity、
+    重新解析出的 comment topology 与每个 unit 的 fingerprint。email unit 豁免。
+
+    input_identity 缺失的旧项目（round22 之前构建/手工装配）不做本层检查——
+    legacy 项目的收口在 build 侧（rc=2 要求新 root），gate 只对声明过身份的
+    项目 fail-closed。"""
+    identity = state.get("input_identity")
+    if identity is None:
+        return
+
+    def _bad(msg: str) -> None:
+        errors.append(f"input identity error: {msg}")
+
+    if not isinstance(identity, dict) or not isinstance(identity.get("semantic"), dict):
+        _bad("project_state.input_identity malformed/tampered (source identity unverifiable)")
+        return
+    semantic = identity["semantic"]
+
+    def _load_record(label: str, allow_absent: bool) -> bytes | None:
+        record = identity.get(label)
+        if allow_absent and record == ABSENT_SENTINEL:
+            return None
+        if not (isinstance(record, dict) and isinstance(record.get("path"), str)
+                and isinstance(record.get("raw_sha256"), str)):
+            _bad(f"{label} identity record malformed/tampered")
+            return None
+        path = Path(record["path"])
+        if not path.is_file():
+            _bad(f"{label} source file missing/unreadable: {path}")
+            return None
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            _bad(f"{label} source file unreadable: {path} ({exc.__class__.__name__})")
+            return None
+        actual = "sha256:" + sha256_hex(data)
+        if actual != record["raw_sha256"]:
+            _bad(f"{label} raw sha256 mismatch: source bytes changed since build "
+                 f"(stored {record['raw_sha256'][:23]}..., current {actual[:23]}...)")
+        return data
+
+    comments_bytes = _load_record("comments", allow_absent=False)
+    manuscript_bytes = _load_record("manuscript", allow_absent=False)
+    si_bytes = _load_record("si", allow_absent=True)
+
+    # semantic identity 重算比对（能读到的输入才比，读不到的已在上面报错）
+    rows = None
+    if comments_bytes is not None:
+        try:
+            comments_text = read_docx_text_from_bytes(comments_bytes)
+            rows = collect_comment_pairs(comments_text)
+            current = comments_semantic_sha256(rows, extract_email(comments_text))
+        except Exception as exc:
+            _bad(f"comments source unparsable: {exc.__class__.__name__}")
+        else:
+            if current != semantic.get("comments_sha256"):
+                _bad("comments semantic identity mismatch: comment topology/text/email changed")
+    if manuscript_bytes is not None:
+        try:
+            current = docx_semantic_sha256(manuscript_bytes)
+        except Exception as exc:
+            _bad(f"manuscript source unparsable: {exc.__class__.__name__}")
+        else:
+            if current != semantic.get("manuscript_sha256"):
+                _bad("manuscript semantic identity mismatch: visible text/structure changed")
+    si_declared_absent = identity.get("si") == ABSENT_SENTINEL
+    if si_declared_absent:
+        if semantic.get("si_sha256") != ABSENT_SENTINEL:
+            _bad("si semantic identity mismatch: state says absent but semantic hash present")
+    elif si_bytes is not None:
+        try:
+            current = docx_semantic_sha256(si_bytes)
+        except Exception as exc:
+            _bad(f"si source unparsable: {exc.__class__.__name__}")
+        else:
+            if current != semantic.get("si_sha256"):
+                _bad("si semantic identity mismatch: visible text/structure changed")
+
+    # unit fingerprint：自洽（unit 自身字段重算）+ 与当前 comment topology 对齐
+    comment_units = sorted(
+        (u for u in units if u.get("section") != "email"),
+        key=lambda u: (u.get("order", 0), str(u.get("unit_id", ""))),
+    )
+    stored_fingerprints: list[str] = []
+    for u in comment_units:
+        uid = u.get("unit_id", "<unknown>")
+        stored = u.get("source", {}).get("reviewer_comment_fingerprint")
+        if not (isinstance(stored, str) and _FINGERPRINT_RE.match(stored)):
+            errors.append(f"unit fingerprint error: {uid} missing/invalid reviewer_comment_fingerprint")
+            continue
+        recomputed = comment_fingerprint(
+            str(u.get("reviewer", "")), str(u.get("section", "")),
+            str(u.get("comment_number", "")),
+            str(u.get("content", {}).get("reviewer_comment_en", "")),
+        )
+        if recomputed != stored:
+            errors.append(
+                f"unit fingerprint mismatch: {uid} stored fingerprint does not match "
+                f"its own reviewer/section/number/comment payload")
+        stored_fingerprints.append(stored)
+    if rows is not None and not any(e.startswith("unit fingerprint") for e in errors):
+        expected = [
+            comment_fingerprint(row.reviewer, row.section, row.number, row.comment_en)
+            for row in rows
+        ]
+        if expected != stored_fingerprints:
+            _bad("comment topology mismatch: current comments source does not match unit fingerprints "
+                 f"(current {len(expected)} comments vs {len(stored_fingerprints)} units)")
 
 
 def main() -> int:
@@ -63,6 +189,9 @@ def main() -> int:
     index_data = read_json(index_p)
     units = load_units(units_dir)
     unit_map = {u.get("unit_id", ""): u for u in units}
+
+    # round22：先核当前源文件与身份绑定（raw/semantic/topology/fingerprint）
+    _verify_input_identity(state, units, errors)
 
     # Basic key checks
     for u in units:

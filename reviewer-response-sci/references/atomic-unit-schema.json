@@ -27,7 +27,12 @@
       "properties": {
         "comments_docx": { "type": "string" },
         "manuscript_docx": { "type": "string" },
-        "si_docx": { "type": "string" }
+        "si_docx": { "type": "string" },
+        "reviewer_comment_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:v1:[0-9a-f]{64}$",
+          "description": "round22 版本化 comment fingerprint。载荷为 canonical JSON 数组 [reviewer, section, comment_number, simplify_ws(comment_en)]；comment unit 必有，email unit 豁免（不写该字段）。"
+        }
       }
     },
     "links": {

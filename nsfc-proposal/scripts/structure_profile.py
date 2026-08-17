@@ -318,15 +318,34 @@ def v_rules_disabled(root):
     return "HRCK-V-RULES" in {e.get("id") for e in skipped}
 
 
+def _p2_outline_scope_enabled(root):
+    """P2 段落级大纲门是否启用（round22 T3 修正判据）。
+    仍走 safe_resolve_scope（继承 round21 全部 fail-safe：读口坏/坏 JSON/非法编码/
+    未确认一律收敛空 scope → False = 国自然口径，绝不 traceback），但 skipped 里
+    HRCK-V-RULES 条目按 reason 分流：
+    - reason=dod_selection.disabled（用户 DoD 关项）只影响 DoD，**不反推项目类型**；
+    - 其余 HRCK skipped（funding_scheme=other 写入的，或无 reason 的部分坏元素）
+      沿 round21 行为视为「四维表已关 = 非国自然口径」→ 启用 P2 段落级大纲门。"""
+    skipped = safe_resolve_scope(root).get("skipped") or []
+    for entry in skipped:
+        if entry.get("id") != "HRCK-V-RULES":
+            continue
+        if entry.get("reason") == "dod_selection.disabled":
+            continue
+        return True
+    return False
+
+
 def is_managed(section, root):
     """(节号, 是否受大纲闸口管)。P1 全体受管（round19 现状不变）；
-    P2 只在四维表被关掉（= 非国自然口径生效）时受管；其余节号一律不受管。
-    读口坏掉时 safe_resolve_scope 收敛成空 scope → P2 判不受管（国自然零影响）。"""
+    P2 只在非国自然口径（合法已确认 funding_scheme=other）时受管——round22 T3 起
+    用户 DoD 关项（dod_selection.disabled）不再反推项目类型；其余节号一律不受管。
+    读口坏掉时 P2 判不受管（国自然零影响）。"""
     num = section_number_of(section)
     if num == "P1":
         return num, True
     if num == "P2":
-        return num, v_rules_disabled(root)
+        return num, _p2_outline_scope_enabled(root)
     return num, False
 
 

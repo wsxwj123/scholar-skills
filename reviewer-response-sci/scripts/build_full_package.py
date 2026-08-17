@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import re
+import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import date
 from html import escape
@@ -34,13 +38,79 @@ def simplify_ws(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+# =========================================================================
+# round22 身份层：raw SHA-256 / comment fingerprint / semantic identity
+# raw 摘要只负责 resume/绑定失效；能否复用人工字段由 semantic identity 决定。
+# =========================================================================
+
+ABSENT_SENTINEL = "absent:v1"
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def canonical_json_sha256(payload: Any) -> str:
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
+def comment_fingerprint(reviewer: str, section: str, number: str, comment_en: str) -> str:
+    """版本化 comment fingerprint（INTERFACE-round22 §2.2）。
+    载荷为 canonical JSON 数组 [reviewer, section, comment_number, simplify_ws(comment_en)]；
+    不做小写化、标点删除或语义归一。"""
+    payload = [reviewer, section, number, simplify_ws(comment_en)]
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return "sha256:v1:" + hashlib.sha256(raw).hexdigest()
+
+
+def docx_from_bytes(data: bytes) -> Document:
+    return Document(io.BytesIO(data))
+
+
+def comments_semantic_sha256(rows: list["CommentPair"], email_text: str) -> str:
+    """comments semantic identity：按原信顺序的 comment topology + 规范化 email 文本。
+    reviewer/section/编号/文字任一变化、增删重排、email 可见文字变化都会改变该摘要；
+    仅空白差异与 DOCX 元数据（raw bytes）变化不会。"""
+    return canonical_json_sha256({
+        "schema_version": 1,
+        "email_text": simplify_ws(email_text),
+        "comments": [
+            [row.reviewer, row.section, row.number, simplify_ws(row.comment_en)]
+            for row in rows
+        ],
+    })
+
+
+def docx_semantic_sha256(data: bytes) -> str:
+    """manuscript/SI semantic identity：稳定可见文本 + 段落结构（样式名）。
+    只重存 ZIP、改 core properties 等 raw-only 变化不影响；heading↔正文这类
+    结构变化即使可见文字逐字相同也会改变该摘要。"""
+    doc = docx_from_bytes(data)
+    rows = []
+    for p in doc.paragraphs:
+        text = simplify_ws(p.text)
+        if not text:
+            continue
+        try:
+            style_name = simplify_ws(getattr(getattr(p, "style", None), "name", "") or "")
+        except Exception:
+            style_name = ""
+        rows.append([text, style_name])
+    return canonical_json_sha256({"schema_version": 1, "paragraphs": rows})
+
+
 def read_docx(path: Path) -> str:
     doc = Document(str(path))
     return "\n".join(p.text for p in doc.paragraphs)
 
 
-def read_docx_paragraphs(path: Path) -> list[dict[str, Any]]:
-    doc = Document(str(path))
+def read_docx_text_from_bytes(data: bytes) -> str:
+    return "\n".join(p.text for p in docx_from_bytes(data).paragraphs)
+
+
+def read_docx_paragraphs(path: Path | bytes) -> list[dict[str, Any]]:
+    doc = docx_from_bytes(path) if isinstance(path, (bytes, bytearray)) else Document(str(path))
     rows: list[dict[str, Any]] = []
     for i, p in enumerate(doc.paragraphs):
         t = p.text.strip()
@@ -176,6 +246,59 @@ def _strip_block_header(text: str) -> str:
     )
 
 
+# round22 高置信无编号拆分：只认两个确定性分支，模糊语义不猜（保持编号 "0" 交
+# 既有 Step 1.5 用户核对）。已编号意见不二次语义拆分；含统一 Reply: 的块不拆。
+_ROMAN_SEQ = ("i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x")
+_REQUEST_START_RE = re.compile(
+    r"^(?:please\b(?!\s+note\b)|could\s+the\s+authors?\b|the\s+authors?\s+should\b)",
+    re.IGNORECASE,
+)
+
+
+def _split_by_inline_markers(body: str) -> list[str] | None:
+    """同段至少两个一致 inline marker，如 (i)/(ii)/(iii)。marker 必须独立成枚举
+    （块首或空白之后），并从 (i) 起连续——Figure 2(a)/(b)、缩写、小数不触发。"""
+    matches = [
+        m for m in re.finditer(r"\(([ivx]{1,4})\)\s+", body)
+        if m.start() == 0 or body[m.start() - 1].isspace()
+    ]
+    if len(matches) < 2:
+        return None
+    labels = [m.group(1).lower() for m in matches]
+    if tuple(labels) != _ROMAN_SEQ[: len(labels)]:
+        return None
+    segments: list[str] = []
+    for idx, m in enumerate(matches):
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(body)
+        seg = simplify_ws(body[m.end():end])
+        if not seg:
+            return None
+        segments.append(seg)
+    prefix = simplify_ws(body[: matches[0].start()])
+    if prefix:
+        segments[0] = simplify_ws(prefix + " " + segments[0])
+    return segments
+
+
+def _split_by_request_sentences(body: str) -> list[str] | None:
+    """至少两个完整句分别以独立请求句式起始（Please... / Could the authors... /
+    The authors should...）。解释句附着前一请求；Please note... 视为解释；
+    单句复合请求（and 连接）不拆。"""
+    sentences = split_sentences(body)
+    if len(sentences) < 2:
+        return None
+    request_flags = [bool(_REQUEST_START_RE.match(s)) for s in sentences]
+    if sum(request_flags) < 2:
+        return None
+    first_request = request_flags.index(True)
+    boundaries = [i for i, flag in enumerate(request_flags) if flag and i > first_request]
+    points = [0] + boundaries + [len(sentences)]
+    return [
+        " ".join(sentences[points[i]:points[i + 1]])
+        for i in range(len(points) - 1)
+    ]
+
+
 def collect_comment_pairs(text: str) -> list[CommentPair]:
     out: list[CommentPair] = []
     for reviewer, rb in split_reviewer_blocks(text).items():
@@ -196,7 +319,15 @@ def collect_comment_pairs(text: str) -> list[CommentPair]:
                 if " Reply:" in body:
                     left, right = body.split(" Reply:", 1)
                     comment, reply = simplify_ws(left), simplify_ws(right)
-                if comment:
+                if not comment:
+                    continue
+                pieces = None
+                if not reply:  # 含统一 Reply: 的无编号段不自动拆
+                    pieces = _split_by_inline_markers(comment) or _split_by_request_sentences(comment)
+                if pieces:
+                    for k, piece in enumerate(pieces, 1):
+                        out.append(CommentPair(reviewer, section, f"0.{k}", piece, ""))
+                else:
                     out.append(CommentPair(reviewer, section, "0", comment, reply))
     return out
 
@@ -527,7 +658,7 @@ def unit_json_relpath(unit_id: str, kind: str) -> str:
     return f"{folder}/{suffix}.json"
 
 
-def atomize_docx_units(docx_path: Path, out_dir: Path, prefix: str) -> list[dict[str, Any]]:
+def atomize_docx_units(docx_path: Path | bytes, out_dir: Path, prefix: str) -> list[dict[str, Any]]:
     raw_rows = read_docx_paragraphs(docx_path)
     rows: list[dict[str, Any]] = []
     for r in raw_rows:
@@ -1256,6 +1387,94 @@ window.copyText = async (id, btn) => {{
 </script></body></html>'''
 
 
+_FINGERPRINT_RE = re.compile(r"^sha256:v1:[0-9a-f]{64}$")
+
+
+def _suggest_recovery_paths(project_root: Path, output_html: Path) -> tuple[Path, Path]:
+    """给出不在旧项目目录下、当前不存在的新 project root 与新 output HTML。"""
+    base = project_root.resolve()
+    out = output_html.resolve()
+    for i in range(1, 1000):
+        suffix = "_rebuild" if i == 1 else f"_rebuild{i}"
+        root_cand = base.with_name(base.name + suffix)
+        html_cand = out.with_name(out.stem + suffix + ".html")
+        if not root_cand.exists() and not html_cand.exists():
+            return root_cand, html_cand
+    return (base.with_name(base.name + "_rebuild_x"),
+            out.with_name(out.stem + "_rebuild_x.html"))
+
+
+def _reject_identity_conflict(error_code: str, detail: str, args: argparse.Namespace,
+                              old_unit_paths: list[Path]) -> int:
+    """身份冲突/legacy 拒绝：零产品写入，rc=2，给出新 root 恢复合同。"""
+    project_root = Path(args.project_root)
+    output_html = Path(args.output_html)
+    new_root, new_html = _suggest_recovery_paths(project_root, output_html)
+    payload = {
+        "error_code": error_code,
+        "detail": detail,
+        "old_project_root": str(project_root.resolve()),
+        "old_output_html": str(output_html.resolve()),
+        "new_project_root": str(new_root),
+        "new_output_html": str(new_html),
+        "old_manual_units": [str(p) for p in old_unit_paths],
+    }
+    print(f"IDENTITY_CONFLICT: {error_code}")
+    print(json.dumps(payload, ensure_ascii=False))
+    print("旧项目目录与全部旧产物保持逐字节不变（零写入）；旧人工回复仍在以下路径：")
+    for p in old_unit_paths:
+        print(f"  - {p}")
+    print("请在旧目录之外的新 project root 重建（本轮不做原位 rebind）：")
+    cmd = (f"python {Path(__file__).name} --comments {args.comments}"
+           f" --manuscript {args.manuscript}")
+    if args.si:
+        cmd += f" --si {args.si}"
+    cmd += f" --project-root {new_root} --output-html {new_html}"
+    print("  " + cmd)
+    return 2
+
+
+def _identity_wellformed(identity: Any) -> bool:
+    if not isinstance(identity, dict):
+        return False
+    semantic = identity.get("semantic")
+    if not isinstance(semantic, dict):
+        return False
+    if not all(isinstance(semantic.get(k), str)
+               for k in ("comments_sha256", "manuscript_sha256", "si_sha256")):
+        return False
+    for label in ("comments", "manuscript"):
+        record = identity.get(label)
+        if not (isinstance(record, dict) and isinstance(record.get("path"), str)
+                and isinstance(record.get("raw_sha256"), str)):
+            return False
+    si_record = identity.get("si")
+    if si_record != ABSENT_SENTINEL and not (
+            isinstance(si_record, dict) and isinstance(si_record.get("raw_sha256"), str)):
+        return False
+    return True
+
+
+def build_input_identity(args: argparse.Namespace, raw_hex: dict[str, str | None],
+                         comments_semantic: str, manuscript_semantic: str,
+                         si_semantic: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "comments": {"path": str(Path(args.comments).resolve()),
+                     "raw_sha256": "sha256:" + raw_hex["comments"]},
+        "manuscript": {"path": str(Path(args.manuscript).resolve()),
+                       "raw_sha256": "sha256:" + raw_hex["manuscript"]},
+        "si": ({"path": str(Path(args.si).resolve()),
+                "raw_sha256": "sha256:" + raw_hex["si"]}
+               if args.si else ABSENT_SENTINEL),
+        "semantic": {
+            "comments_sha256": comments_semantic,
+            "manuscript_sha256": manuscript_semantic,
+            "si_sha256": si_semantic,
+        },
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build full reviewer package: atomic json + hierarchical html")
     parser.add_argument("--comments", required=True)
@@ -1264,6 +1483,9 @@ def main() -> int:
     parser.add_argument("--project-root", required=True)
     parser.add_argument("--output-html", required=True)
     parser.add_argument("--title", default="Reviewer Response Full Package")
+    parser.add_argument("--expected-raw-sha256-json", default="",
+                        help="pipeline 在 lock 内算好的输入 raw SHA-256(hex) JSON；"
+                             "build 按实际读到的字节复核，关闭 hash→read TOCTOU")
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
@@ -1271,12 +1493,117 @@ def main() -> int:
     manuscript_units_dir = project_root / "manuscript_units"
     si_units_dir = project_root / "si_units"
 
-    comments_text = read_docx(Path(args.comments))
+    # ---- round22：一次性读入三输入字节；raw 复核先于任何解析与写盘 ----
+    input_bytes: dict[str, bytes | None] = {}
+    for label, value in (("comments", args.comments), ("manuscript", args.manuscript), ("si", args.si)):
+        if not value:
+            input_bytes[label] = None
+            continue
+        try:
+            input_bytes[label] = Path(value).read_bytes()
+        except OSError as exc:
+            print(f"BUILD INPUT ERROR: {label} 不可读: {value} ({exc.__class__.__name__})")
+            print(json.dumps({"error_code": "input_unreadable", "input": label,
+                              "path": str(value)}, ensure_ascii=False))
+            return 2
+    raw_hex: dict[str, str | None] = {
+        label: (sha256_hex(data) if data is not None else None)
+        for label, data in input_bytes.items()
+    }
+    if args.expected_raw_sha256_json:
+        try:
+            expected = json.loads(args.expected_raw_sha256_json)
+        except json.JSONDecodeError:
+            expected = None
+        if not isinstance(expected, dict):
+            print(json.dumps({"error_code": "expected_raw_sha256_json_invalid"}, ensure_ascii=False))
+            return 2
+        for label, actual in raw_hex.items():
+            exp = expected.get(label)
+            if exp and actual and exp != actual:
+                print(f"RAW INPUT IDENTITY MISMATCH: {label} raw sha256 changed "
+                      f"between pipeline hashing and build read")
+                print(json.dumps({
+                    "error_code": "raw_input_identity_mismatch",
+                    "input": label,
+                    "reason": f"{label} raw input changed at build boundary (identity mismatch)",
+                    "expected_sha256": exp,
+                    "actual_sha256": actual,
+                }, ensure_ascii=False))
+                return 2
+
+    # ---- 纯内存/staging 解析：先算 semantic identity，再决定能不能写 ----
+    comments_text = read_docx_text_from_bytes(input_bytes["comments"])
     email_text = extract_email(comments_text)
     rows = collect_comment_pairs(comments_text)
+    new_comments_semantic = comments_semantic_sha256(rows, email_text)
+    new_manuscript_semantic = docx_semantic_sha256(input_bytes["manuscript"])
+    new_si_semantic = (docx_semantic_sha256(input_bytes["si"])
+                       if input_bytes["si"] is not None else ABSENT_SENTINEL)
 
-    manuscript_units = atomize_docx_units(Path(args.manuscript), manuscript_units_dir, "m")
-    si_units = atomize_docx_units(Path(args.si), si_units_dir, "s") if args.si else []
+    with tempfile.TemporaryDirectory(prefix="rrs_staging_") as staging:
+        staging_dir = Path(staging)
+        manuscript_units = atomize_docx_units(
+            input_bytes["manuscript"], staging_dir / "manuscript_units", "m")
+        si_units = (atomize_docx_units(input_bytes["si"], staging_dir / "si_units", "s")
+                    if input_bytes["si"] is not None else [])
+
+    # ---- 写前身份冲突检查（比较通过才允许发布任何产品）----
+    state_path = project_root / "project_state.json"
+    old_unit_files = sorted(units_dir.glob("*.json")) if units_dir.exists() else []
+    reuse_by_fingerprint: dict[str, dict[str, Any]] = {}
+    if state_path.exists() or old_unit_files:
+        try:
+            old_state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+        except Exception:
+            old_state = None
+        old_units: list[tuple[Path, dict[str, Any]]] = []
+        broken_units = False
+        for p in old_unit_files:
+            try:
+                payload = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                broken_units = True
+                continue
+            if isinstance(payload, dict):
+                old_units.append((p, payload))
+        old_comment_units = [(p, u) for p, u in old_units if u.get("section") != "email"]
+        old_manual_paths = [p for p, _ in old_comment_units]
+        identity = old_state.get("input_identity") if isinstance(old_state, dict) else None
+        units_have_fingerprint = all(
+            isinstance(u.get("source", {}).get("reviewer_comment_fingerprint"), str)
+            and _FINGERPRINT_RE.match(u["source"]["reviewer_comment_fingerprint"])
+            for _, u in old_comment_units
+        )
+        if old_state is None or broken_units or not _identity_wellformed(identity) \
+                or not units_have_fingerprint:
+            return _reject_identity_conflict(
+                "legacy_project_missing_round22_identity",
+                "旧项目缺 round22 input_identity/comment fingerprint（或状态损坏），"
+                "无法证明旧人工回复与当前输入的对应关系",
+                args, old_manual_paths)
+        semantic = identity["semantic"]
+        if semantic["comments_sha256"] != new_comments_semantic:
+            return _reject_identity_conflict(
+                "comments_semantic_identity_changed",
+                "审稿意见 comment topology/文字/email 可见文本已变化",
+                args, old_manual_paths)
+        if semantic["manuscript_sha256"] != new_manuscript_semantic:
+            return _reject_identity_conflict(
+                "manuscript_semantic_identity_changed",
+                "manuscript 可见文本或段落结构已变化",
+                args, old_manual_paths)
+        if semantic["si_sha256"] != new_si_semantic:
+            return _reject_identity_conflict(
+                "si_semantic_identity_changed",
+                "SI 可见文本或段落结构已变化（或 SI 存在性变化）",
+                args, old_manual_paths)
+        # 语义一致：人工字段按 comment fingerprint 映射，不按旧文件名/order 映射。
+        for _, u in old_comment_units:
+            reuse_by_fingerprint[u["source"]["reviewer_comment_fingerprint"]] = u
+
+    input_identity = build_input_identity(
+        args, raw_hex, new_comments_semantic, new_manuscript_semantic, new_si_semantic)
 
     src = {
         "comments_docx": str(Path(args.comments).resolve()),
@@ -1284,15 +1611,14 @@ def main() -> int:
         "si_docx": str(Path(args.si).resolve()) if args.si else "",
     }
 
-    def _is_filled_unit(path: Path) -> bool:
-        """Return True if the unit JSON exists and has been filled (no AI_FILL_REQUIRED placeholders)."""
-        if not path.exists():
-            return False
-        try:
-            text = path.read_text(encoding="utf-8")
-            return "AI_FILL_REQUIRED" not in text
-        except Exception:
-            return False
+    # ---- 发布（此后才允许写项目目录）----
+    manuscript_units_dir.mkdir(parents=True, exist_ok=True)
+    for u in manuscript_units:
+        write_json(project_root / unit_json_relpath(u["unit_id"], "m"), u)
+    if args.si:
+        si_units_dir.mkdir(parents=True, exist_ok=True)
+        for u in si_units:
+            write_json(project_root / unit_json_relpath(u["unit_id"], "s"), u)
 
     units: list[dict[str, Any]] = []
     email_unit = build_email_unit(src, email_text)
@@ -1305,15 +1631,17 @@ def main() -> int:
         num = f"{int(row.number):02d}" if row.number.isdigit() else row.number
         fname = f"{order:03d}_{safe_reviewer}_{row.section}_{num}.json"
         unit_path = units_dir / fname
-        if _is_filled_unit(unit_path):
-            # Unit already filled by AI — preserve existing content, just reload for index/HTML.
-            existing = json.loads(unit_path.read_text(encoding="utf-8"))
-            units.append(existing)
-            print(f"SKIP (already filled): {unit_path.name}")
-        else:
-            unit = build_comment_unit(order, row, src, manuscript_units, si_units)
-            write_json(unit_path, unit)
-            units.append(unit)
+        fingerprint = comment_fingerprint(row.reviewer, row.section, row.number, row.comment_en)
+        unit = build_comment_unit(order, row, src, manuscript_units, si_units)
+        unit["source"] = {**src, "reviewer_comment_fingerprint": fingerprint}
+        previous = reuse_by_fingerprint.get(fingerprint)
+        if previous is not None:
+            # 保留人工字段（content/status 整体承接），provenance/顺序/编号取当前解析。
+            unit["content"] = previous.get("content", unit["content"])
+            unit["status"] = previous.get("status", unit["status"])
+            print(f"REUSE (fingerprint match): {fname}")
+        write_json(unit_path, unit)
+        units.append(unit)
         order += 1
 
     index_data = build_index(units)
@@ -1323,6 +1651,7 @@ def main() -> int:
         "skill": "reviewer-response-sci",
         "project_title": args.title,
         "generated_at": date.today().isoformat(),
+        "input_identity": input_identity,
         "counts": {
             "total_units": len(units),
             "comment_units": len(units) - 1,

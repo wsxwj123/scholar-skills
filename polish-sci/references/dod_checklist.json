@@ -10,37 +10,37 @@
           "id": "PL-G1",
           "name": "数值保留",
           "check": "每段 polished_text 的数值/统计量/p值/CI/n=N/百分比/单位集合与原文一字不差,无增删",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G2",
           "name": "无语气升级",
           "check": "不确定性动词未被升级(hedge->strong),保守证据立场不变",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G3",
           "name": "引用保留",
           "check": "引用标记 [n] 与 DOI 集合在润色前后完全一致,无丢失、无新增、无错位",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G4",
           "name": "去AI(硬拦主干)",
           "check": "散文单元 AI 套话禁词表无残留(delve into/pivotal role/值得注意的是/综上所述 等,find_ai_style_markers 的套话 marker)+ 去AI必禁三项(破折号 —/—— 、scare quotes、解释性冒号)无残留——套话禁词与这三项均硬拦、阻断交付(禁止使用)。英文单句>30词/中文>50字、-ing 拖尾从句、not only...but also、修辞问句为学术散文正当修辞,软提示(记 polish_risk_flags/报告,不阻断,由人工取舍),分级见 strict_gate.is_soft_ai_marker;非散文单元豁免",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G5",
           "name": "meaning 未变",
           "check": "每段 meaning_changed=false,只改语言表达,不改内容/数据/结论;基因/蛋白/试剂名一字未动。此项部分机器核(数值/引用),语义层须人工逐段对照原文",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G6",
           "name": "逐段全覆盖",
           "check": "每段都已被润色(无 PLACEHOLDER 残留),无遗漏段落;units_index 中每个 idx 都有对应 polished 单元",
-          "script": "python scripts/strict_gate.py --project-root ."
+          "script": "python scripts/strict_gate.py --project-root . --unit-checks-only"
         },
         {
           "id": "PL-G7",

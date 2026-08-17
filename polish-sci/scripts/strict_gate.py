@@ -143,6 +143,10 @@ def independent_meaning_verdict(project_root: Path) -> tuple[bool, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="polish-sci delivery gate (fail-closed)")
     parser.add_argument("--project-root", required=True)
+    parser.add_argument("--unit-checks-only", action="store_true",
+                        help="round22 preclose 模式：只跑逐 unit 机械检查，"
+                             "完全不读独立 PL-G11 盲检返回。供 DoD pack(PL-G1~G6)使用，"
+                             "成功输出 STRICT_UNIT_CHECKS: PASS，绝不输出最终交付 PASS。")
     args = parser.parse_args()
 
     project_root = Path(args.project_root)
@@ -150,9 +154,11 @@ def main() -> int:
     index = read_json(project_root / "units_index.json", {"units": []})
     entries = index.get("units", [])
 
+    fail_literal = "STRICT_UNIT_CHECKS: FAIL" if args.unit_checks_only else "STRICT_GATE: FAIL"
+
     if not entries:
         sys.stderr.write("[strict_gate] units_index.json 为空或缺失\n")
-        print("STRICT_GATE: FAIL")
+        print(fail_literal)
         return 1
 
     failures: list[dict] = []
@@ -179,9 +185,14 @@ def main() -> int:
         for item in nonprose:
             sys.stderr.write(f"  · unit {item['idx']} [{item['heading']}] {item['raw_preview']}\n")
     if failures:
-        print("STRICT_GATE: FAIL")
+        print(fail_literal)
         sys.stderr.write("[strict_gate] fail-closed:不得向用户声明润色完成。\n")
         return 1
+    # round22 preclose：unit 机械检查全过即返回,在读取 PL-G11 盲检返回之前就退出。
+    # 该 PASS 只表示逐 unit 机械层通过,绝不等价最终交付(STRICT_GATE: PASS)。
+    if args.unit_checks_only:
+        print("STRICT_UNIT_CHECKS: PASS")
+        return 0
     # ⑥ 语义等价只认独立 PL-G11 盲检,改写方自填 meaning_changed=false 不足信。
     mv_ok, mv_reason = independent_meaning_verdict(project_root)
     if not mv_ok:

@@ -1,5 +1,9 @@
 # Changelog - Reviewer Response SCI Skill
 
+## [2.29.0] - 2026-08-17
+
+第二十二轮 P0 流程完整性（R2）：评论身份与恢复安全。①高置信无编号拆分——只拆同段一致 `(i)/(ii)/(iii)` inline marker 或 ≥2 个独立请求句（Please/Could the authors/The authors should 起始），解释句与 `Please note` 附着前一请求，已编号/统一 Reply:/单句复合请求/Figure 面板不拆，合成编号 `0.1/0.2/...`、模糊块保持 `0`。②每个 comment unit 落版本化 `source.reviewer_comment_fingerprint`（`sha256:v1:`+canonical `[reviewer, section, comment_number, simplify_ws(comment_en)]`，email 豁免），人工字段按 fingerprint 映射。③`project_state.input_identity` 保存三输入 raw 字节 SHA-256 与 semantic 摘要（comments=topology+规范化 email；manuscript/SI=可见文本+段落结构；SI 缺失 `absent:v1`）；build 全量 staging 解析后写前比较：topology/text/email、manuscript/SI semantic 变化或 legacy 缺身份一律 rc=2 零产品写入，并给旧目录外新 root+新 HTML 恢复合同（旧人工回复原样保留）；raw 变化 semantic 相同则重跑 build 并保留人工字段。④resume signature v2：lock 内计算，绑定三输入字节 SHA-256+pipeline contract SHA-256（build/strict/render/unit schema），path-only 旧 checkpoint 一次性失效；build 读取时二次核 raw（`--expected-raw-sha256-json`，关 TOCTOU）；preflight 结构化拦目录型不可读输入。⑤strict gate 读当前三输入核 raw/semantic/topology/unit fingerprint。unit schema 增 `reviewer_comment_fingerprint` 字段说明。
+
 ## [2.28.6] - 2026-08-10
 
 第十六轮共享件同步（SPEC-round16，盲检判合格）：折叠报告写失败全量明细回退 stdout；delegate_review（rr fork 同构跟进）畸形返回 exit 2；中毒缓存结构性判别（联网轨或 provider 轨）。

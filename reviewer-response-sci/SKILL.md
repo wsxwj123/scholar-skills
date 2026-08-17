@@ -1,6 +1,6 @@
 ---
 name: reviewer-response-sci
-version: 2.28.6
+version: 2.29.0
 description: 用于SCI审稿意见逐条回复的全流程技能，适用于期刊大修/小修阶段，只出回复包（HTML），不改主稿。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：与revise-sci区分，本技能只出回复包不改主稿，需同时改主稿并出修订稿docx请用revise-sci；与reviewer-simulator区分，本技能针对已收到的意见写回复，后者是模拟生成审稿意见。
 ---
 
@@ -377,6 +377,15 @@ python3 scripts/run_pipeline.py \
   --allow-placeholder
 ```
 无 SI 时省略 `--si`。AI 填完 `units/*.json` 后，去掉 `--allow-placeholder` 重跑同一命令即为正式交付。
+
+### round22 评论身份与恢复安全（build/strict gate/resume 机器强制）
+
+- **高置信无编号拆分**：无编号块只在两个确定性分支自动拆——①同段至少两个一致 inline marker（`(i)/(ii)/(iii)`，从 (i) 起连续）；②至少两个完整句分别以独立请求句式起始（`Please.../Could the authors.../The authors should...`）。解释句与 `Please note...` 附着前一请求；已编号意见、含统一 `Reply:` 的块、单句复合请求（and 连接）、`Figure 2(a)/(b)` 一律不拆。合成编号 `0.1/0.2/...`；模糊块保持 `0` 交 Step 1.5 用户核对。
+- **comment fingerprint**：每个 comment unit 的 `source.reviewer_comment_fingerprint = sha256:v1:<hex>`，载荷为 canonical JSON 数组 `[reviewer, section, comment_number, simplify_ws(comment_en)]`（不做小写化/标点归一）；email unit 豁免。人工字段跨重建**按 fingerprint 映射**，不按旧文件名/order。
+- **raw 与 semantic 双层身份**：`project_state.input_identity` 保存三输入的绝对路径 + 字节 SHA-256（raw）与 comments/manuscript/SI 的 semantic 摘要（comments=原信顺序 comment topology+规范化 email 文本；manuscript/SI=可见文本+段落结构；SI 缺失固定 `absent:v1`）。raw 变化只使 resume 失效并触发重跑 build；**semantic 相同才保留人工字段**。
+- **写前冲突检查（零写盘）**：build 先在临时 staging 完成全部解析与身份计算，比较通过才发布产品。comment topology/文字/email 可见文本变化、manuscript/SI 可见文本或结构变化、旧项目缺 round22 fingerprint/input identity（legacy）一律 **rc=2 且旧 units/index/state/edit-plan/HTML 逐字节不变**，并给出旧目录之外的新 `--project-root` + 新 `--output-html` 恢复命令与旧人工回复所在路径（本轮不做原位 rebind，旧目录零改不删除）。
+- **resume signature v2**：checkpoint 签名在 pipeline lock 内计算，绑定 `signature_version=2` + 参数 + 三输入字节 SHA-256（缺失/不可读用稳定 sentinel，报错交 preflight）+ pipeline contract SHA-256（build/strict gate/render/unit schema）。同路径内容更新必不出现 `SKIP (resume): build`；旧 path-only checkpoint 首次在新版运行时整体失效；build 读取字节时再核 raw 摘要（关闭 hash→read TOCTOU）。
+- **strict gate 源绑定**：读取当前三输入，核 `input_identity` 的 raw/semantic、当前 comment topology 与每个 unit 的 fingerprint（email 豁免）；任一不符 FAIL。无 `input_identity` 的旧项目跳过本层（其收口在 build 侧 rc=2 要求新 root）。
 
 各 gate 由 `run_pipeline.py` 串行自动调用，正常运行无需手动单独跑。按执行顺序：
 - `strict_gate.py`：硬门禁，检查 `revised_excerpt_en` 非空/非占位符/与原文有实质差异、`needs_manual_revision` 状态

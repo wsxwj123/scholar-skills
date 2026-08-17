@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.26.0] - 2026-08-17
+
+第二十二轮 P0 流程完整性（R3）：解除 DoD 自引用。`strict_gate.py` 增 `--unit-checks-only` preclose 模式——只跑现役逐 unit 全部机械检查，任一问题 rc=1；unit 全过后在读取 `.review_return_polish-dod.json` 之前即返回 rc=0，成功唯一输出 `STRICT_UNIT_CHECKS: PASS`（绝不输出最终交付 `STRICT_GATE: PASS`）。DoD JSON 的 PL-G1~G6 六条脚本命令全部改带该 flag（盲检期机械预检不再依赖尚未产生的 PL-G11）；SKILL 最终交付命令保持无 flag 的 bare gate——缺有效 PL-G11 仍 rc=1，强度不降。
+
 ## [2.25.7] - 2026-08-10
 
 第十六轮共享件同步（SPEC-round16，盲检判合格）：delegate_review 畸形返回（顶层非数组）exit 2，与"审查发现问题"的 exit 1 语义分清（base 6 家同步）。
