@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.36.0
+version: 2.37.0
 description: Use when drafting, restructuring, or polishing Chinese NSFC proposals (2026 template), especially when strict section-by-section gating, hypothesis-objective-content-problem consistency, literature verification via paper-search MCP, and anti-AI Chinese academic writing constraints are required. 触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -92,6 +92,8 @@ Collect before execution:
 | 研究属性（分类评审） | 必选「自由探索类」或「目标导向类」二选一 |
 | 科学问题属性（独立必填，≠研究属性；**仅国自然**） | 四选一：鼓励探索·突出原创 / 聚焦前沿·独辟蹊径 / 需求牵引·突破瓶颈 / 共性导向·交叉融通；Phase 0 未选定则 gate-check 阻断（`failed_at=profile`）。结构真源声明 `funding_scheme: "other"` 后不再必填、不再阻断（进「未执行的检查」） |
 | 伦理审查（涉人类受试者/实验动物/生物安全/人类遗传资源时） | 须在可行性分析中说明伦理审查批件或送审计划 |
+
+> 字数/页数硬限以 `python scripts/word_counter.py check` 输出为准（单一真源：`scripts/word_counter.py` 顶部 `NSFC_WORD_MAX` / `NSFC_PAGE_MAX`）；非国自然模板按 `structure_profile.chapters[].word_max` 与 `proposal_profile.json` 的 `page_limit` 声明取值。
 
 ## Tooling Rules
 Academic literature retrieval follows topic-dependent routing (Mandatory):
@@ -471,7 +473,7 @@ Use atomic gate command for final checks:
 - ❌ 正文用项目符号或编号列表展开论述，而非段落式叙事（年度计划、P3_3／P3_4 清单、预算三线表是仅有的例外）。
 - ❌ 使用禁用句式与修辞：“不是…而是…”“不仅…而且…”“值得注意的是”“至关重要”“综上所述”、排比、比喻、反问、夸张。
 - ❌ 留下装饰性破折号、scare quotes、解释性冒号，或定语从句嵌套超 2 层（humanizer_zh 报 ERROR）。中文单句超 50 字为 `rhythm-check` 软提醒（机制类严密长句已豁免、不阻断），非机制类单句超 50 字须拆分。
-- ❌ 超篇幅：正文 >30 页、中文摘要 >400 字、英文摘要 >300 词、P4 或 P3_4 >500 字。
+- ❌ 超篇幅：正文 >30 页、中文摘要 >400 字、英文摘要 >300 词、P4 或 P3_4 >500 字（上限以 `word_counter.py check` 输出为准；非国自然模板按结构真源 `word_max` / `page_limit` 声明）。
 - ❌ 在任一 Phase 不跑委托盲检（或降级独立重核），主 agent 写完就自评打勾、verify 未 exit 0 就声明完成或执行 merge。
 
 Failure handling playbook:

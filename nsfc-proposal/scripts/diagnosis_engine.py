@@ -28,34 +28,16 @@ def _resolve_scope(root) -> dict[str, Any]:
     return _structure_profile.resolve_scope(root)
 
 
-def _load_structure_profile(root) -> dict[str, Any] | None:
-    """读结构真源（三态回落由 structure_profile.load 内部处理，不抛不 exit）。"""
-    if _structure_profile is None or root is None:
-        return None
-    return _structure_profile.load(root)
+def _abstract_limits(root) -> tuple[int | None, int | None, dict[str, Any] | None]:
+    """D-10 摘要字数上限（INTERFACE-round24 §6.1）。返回 (中文上限, 英文上限, skipped 条目或 None)。
 
-
-def _abstract_limits(prof: dict[str, Any] | None) -> tuple[int | None, int | None, dict[str, Any] | None]:
-    """D-10 摘要字数上限（INTERFACE §4.4）。返回 (中文上限, 英文上限, skipped 条目或 None)。
-
-    - 无真源 / chapters 键缺省（章节表不受管）: 400/300，与改造前逐字节一致
-    - 有真源、chapters 声明了对应章且带 word_max: 用声明值
-    - 有真源、chapters 受管但摘要章无 word_max 键（或未列出该章）: 上限为 None ->
-      D-10 grade 置 null、不计入 d_count/c_count、进 skipped_checks。绝不悄悄按 400 判。
+    上限一律经 word_counter.resolve_word_limit 从单一真源取（NSFC_WORD_MAX 或
+    structure_profile.chapters[].word_max），本函数不再自己遍历 chapters。
+    limit 为 None（unset：受管但缺/非法 word_max）时 D-10 grade 置 null、
+    不计入 d_count/c_count、进 skipped_checks。绝不悄悄按国自然默认判。
     """
-    chapters = (prof or {}).get("chapters") if isinstance(prof, dict) else None
-    if not isinstance(chapters, list) or not chapters:
-        return 400, 300, None
-    by_name = {c.get("filename"): c for c in chapters if isinstance(c, dict)}
-
-    def limit_of(filename: str) -> int | None:
-        ch = by_name.get(filename)
-        if isinstance(ch, dict) and isinstance(ch.get("word_max"), int):
-            return ch["word_max"]
-        return None
-
-    cn_max = limit_of("00_摘要_中文.md")
-    en_max = limit_of("00_摘要_英文.md")
+    cn_max, _src_cn = word_counter.resolve_word_limit(root, "00_摘要_中文.md")
+    en_max, _src_en = word_counter.resolve_word_limit(root, "00_摘要_英文.md")
     if cn_max is None or en_max is None:
         missing = [n for n, v in (("00_摘要_中文.md", cn_max), ("00_摘要_英文.md", en_max)) if v is None]
         skip = {
@@ -215,7 +197,10 @@ def _global_dimensions(
         d09 = "A" if budget_present and consistency.get("V-09", {}).get("pass") else ("C" if budget_present else "D")
 
     # D-10 摘要质量（上限来自结构真源，缺省 400/300；上限不可判时 grade 置 null，§4.4）
-    cn_max, en_max = abstract_limits if abstract_limits is not None else (400, 300)
+    cn_max, en_max = abstract_limits if abstract_limits is not None else (
+        word_counter.NSFC_WORD_MAX.get("00_摘要_中文.md"),
+        word_counter.NSFC_WORD_MAX.get("00_摘要_英文.md"),
+    )
     abs_cn = (sections_dir / "00_摘要_中文.md").read_text(encoding="utf-8") if (sections_dir / "00_摘要_中文.md").exists() else ""
     abs_en = (sections_dir / "00_摘要_英文.md").read_text(encoding="utf-8") if (sections_dir / "00_摘要_英文.md").exists() else ""
     abs_cn_words = word_counter.count_text(abs_cn)
@@ -247,17 +232,19 @@ def full_review(
     index_path: Path | None = None,
     p1_path: Path | None = None,
     ref_path: Path | None = None,
-    page_limit: int = 30,
+    page_limit: int | None = None,
     root=None,
 ) -> dict[str, Any]:
+    # 显式传入 > 项目声明 > 国自然默认（INTERFACE-round24 §6.1）；报告 page_limit 恒 int
+    if page_limit is None:
+        page_limit, _src = word_counter.resolve_page_limit(root)
     # 裁定只发生在这一处（INTERFACE §6.2）：出口 1-5 的 skipped_checks 都源自这一次调用
     scope = _resolve_scope(root)
     skipped_checks = list(scope.get("skipped") or [])
     skipped_ids = {e.get("id") for e in skipped_checks}
     hrck_dims_off = "HRCK-DIMS" in skipped_ids
 
-    prof = _load_structure_profile(root)
-    cn_max, en_max, d10_skip = _abstract_limits(prof)
+    cn_max, en_max, d10_skip = _abstract_limits(root)
 
     section_reports = diagnose_all(sections_dir, consistency_path)
     total_words = sum(r["word_count"] for r in section_reports)
@@ -344,7 +331,7 @@ def export_markdown(report: dict[str, Any], title: str = "NSFC申请书评审报
     lines.append(f"- 总评等级（仅形式与内部一致性）: {report.get('overall_grade', '')}")
     lines.append(f"- 通过状态（仅形式与内部一致性）: {report.get('pass_status', '')}")
     lines.append(f"- 总字数: {report.get('total_words', 0)}")
-    lines.append(f"- 页数估算: {report.get('page_estimate', 0)} / 限制 {report.get('page_limit', 30)}")
+    lines.append(f"- 页数估算: {report.get('page_estimate', 0)} / 限制 {report.get('page_limit', word_counter.NSFC_PAGE_MAX)}")
     lines.append("")
 
     lines.append("## 维度评分")
@@ -570,7 +557,8 @@ def main() -> int:
     p_full.add_argument("--p1", default="sections/P1_立项依据.md")
     p_full.add_argument("--ref", default="sections/REF_参考文献.md")
     p_full.add_argument("--output", default="data/diagnosis_report.json")
-    p_full.add_argument("--page-limit", type=int, default=30)
+    p_full.add_argument("--page-limit", type=int, default=None,
+                        help="页数上限；缺省走 word_counter.resolve_page_limit（声明 > 国自然默认 30）")
     p_full.add_argument("--root", default=None,
                         help="项目根（读 structure_profile.json / data/dod_selection.json）；缺省取 --sections-dir 的父目录")
 
@@ -588,7 +576,8 @@ def main() -> int:
     p_polish.add_argument("--ref", default="sections/REF_参考文献.md")
     p_polish.add_argument("--json-output", default="data/diagnosis_report.json")
     p_polish.add_argument("--md-output", default="data/polish_review_report.md")
-    p_polish.add_argument("--page-limit", type=int, default=30)
+    p_polish.add_argument("--page-limit", type=int, default=None,
+                          help="页数上限；缺省走 word_counter.resolve_page_limit（声明 > 国自然默认 30）")
     p_polish.add_argument("--root", default=None,
                           help="项目根（读 structure_profile.json / data/dod_selection.json）；缺省取 --sections-dir 的父目录")
 

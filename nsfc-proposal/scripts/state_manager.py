@@ -44,12 +44,13 @@ DEFAULT_PROFILE = {
     "science_problem_attribute": None,
     "duration_years": 4,
     "budget_total": 500000,
-    "page_limit": 30,
+    "page_limit": word_counter.NSFC_PAGE_MAX,
     "word_targets": {
         "p1_rationale": {"recommended_max": 8000, "user_agreed": None},
         "p2_content": {"recommended_max": 8000, "user_agreed": None},
         "p3_foundation": {"recommended_max": 6000, "user_agreed": None},
-        "p4_other": {"recommended_max": 500, "user_agreed": None},
+        "p4_other": {"recommended_max": word_counter.NSFC_WORD_MAX["P4_其他需要说明的情况.md"],
+                     "user_agreed": None},
         "total_body": {"min": 18000, "max": 25000},
     },
     "citation_targets": {"min_total": 30, "min_recent_5yr": 20, "min_cn_journals": 5},
@@ -508,7 +509,7 @@ def _gate_check_inner(
         index_path=idx_file,
         p1_path=p1_file,
         ref_path=ref_file,
-        page_limit=int(profile.get("page_limit", 30)),
+        page_limit=int(profile.get("page_limit", word_counter.NSFC_PAGE_MAX)),
         root=root,
     )
     review_ok = review.get("pass_status") == "pass" and int(review.get("d_count", 0)) == 0 and int(review.get("c_count", 0)) <= 3
@@ -998,7 +999,7 @@ def main() -> int:
             index_path=root / "data/literature_index.json",
             p1_path=root / "sections/P1_立项依据.md",
             ref_path=root / "sections/REF_参考文献.md",
-            page_limit=int(profile.get("page_limit", 30)),
+            page_limit=int(profile.get("page_limit", word_counter.NSFC_PAGE_MAX)),
             root=root,
         )
         out = root / args.output

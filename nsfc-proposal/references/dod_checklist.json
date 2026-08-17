@@ -213,8 +213,8 @@
         {
           "id": "N21",
           "name": "P3_4 字数上限",
-          "check": "P3_4 总结字数 ≤500 字",
-          "script": "python scripts/word_counter.py count sections/P3_4_完成基金项目情况.md"
+          "check": "P3_4 总结字数不超过模板上限（脚本给出上限与判定；limit_source=unset 时判 na 并上报，不得判 pass）",
+          "script": "python scripts/word_counter.py check --root . --file sections/P3_4_完成基金项目情况.md"
         },
         {
           "id": "N22",
@@ -272,8 +272,8 @@
         {
           "id": "N27",
           "name": "P4 字数上限",
-          "check": "总字数 ≤500 字",
-          "script": "python scripts/word_counter.py count sections/P4_其他需要说明的情况.md"
+          "check": "P4 总字数不超过模板上限（同上口径）",
+          "script": "python scripts/word_counter.py check --root . --file sections/P4_其他需要说明的情况.md"
         },
         {
           "id": "N28",
@@ -362,14 +362,14 @@
         {
           "id": "N37",
           "name": "中文摘要字数",
-          "check": "中文摘要 ≤400 汉字",
-          "script": "python scripts/word_counter.py count sections/00_摘要_中文.md"
+          "check": "中文摘要字数不超过模板上限（同上口径）",
+          "script": "python scripts/word_counter.py check --root . --file sections/00_摘要_中文.md"
         },
         {
           "id": "N38",
           "name": "英文摘要字数",
-          "check": "英文摘要 ≤300 英文词",
-          "script": "python scripts/word_counter.py count sections/00_摘要_英文.md"
+          "check": "英文摘要词数不超过模板上限（同上口径）",
+          "script": "python scripts/word_counter.py check --root . --file sections/00_摘要_英文.md"
         },
         {
           "id": "N39",
@@ -434,8 +434,8 @@
         {
           "id": "N46",
           "name": "页数上限",
-          "check": "页数 ≤30 页（page-estimate 核验；超出则已按报告定位修剪）",
-          "script": "python scripts/state_manager.py --root . page-estimate --sections-dir sections"
+          "check": "页数不超过模板上限（脚本给出上限与判定；超出则已按报告定位修剪）",
+          "script": "python scripts/word_counter.py check --root . --pages sections"
         },
         {
           "id": "N47",
