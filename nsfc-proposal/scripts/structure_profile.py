@@ -318,14 +318,15 @@ def v_rules_disabled(root):
     return "HRCK-V-RULES" in {e.get("id") for e in skipped}
 
 
-def _p2_outline_scope_enabled(root):
-    """P2 段落级大纲门是否启用（round22 T3 修正判据）。
+def scheme_is_other(root):
+    """全仓「这是不是非国自然项目」的唯一判据（round23 由 _p2_outline_scope_enabled
+    提成公开函数，函数体原样搬、行为零变化；round22 T3 修正判据）。
     仍走 safe_resolve_scope（继承 round21 全部 fail-safe：读口坏/坏 JSON/非法编码/
     未确认一律收敛空 scope → False = 国自然口径，绝不 traceback），但 skipped 里
     HRCK-V-RULES 条目按 reason 分流：
     - reason=dod_selection.disabled（用户 DoD 关项）只影响 DoD，**不反推项目类型**；
     - 其余 HRCK skipped（funding_scheme=other 写入的，或无 reason 的部分坏元素）
-      沿 round21 行为视为「四维表已关 = 非国自然口径」→ 启用 P2 段落级大纲门。"""
+      沿 round21 行为视为「四维表已关 = 非国自然口径」。"""
     skipped = safe_resolve_scope(root).get("skipped") or []
     for entry in skipped:
         if entry.get("id") != "HRCK-V-RULES":
@@ -334,6 +335,11 @@ def _p2_outline_scope_enabled(root):
             continue
         return True
     return False
+
+
+def _p2_outline_scope_enabled(root):
+    """P2 段落级大纲门是否启用 = 非国自然口径（round23 起纯转发 scheme_is_other）。"""
+    return scheme_is_other(root)
 
 
 def is_managed(section, root):

@@ -22,7 +22,8 @@
           "id": "N3",
           "name": "SQ/H/KSQ 主线对齐",
           "check": "论述符合 SQ/H/KSQ 主线，未出现与 consistency_map 矛盾的表述",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N4",
@@ -46,12 +47,14 @@
           "id": "N7",
           "name": "H/O/RC/KSQ 一致性",
           "check": "H/O/RC/KSQ 与 P1 中 SQ 表述一致（V-01；consistency_mapper validate --rules V-01 无 ERROR）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-01",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N8",
           "name": "科学问题属性写入",
-          "check": "科学问题属性四选一已在 project profile 中写入且与 P1 论述对应（人工确认）"
+          "check": "科学问题属性四选一已在 project profile 中写入且与 P1 论述对应（人工确认）",
+          "nsfc_bound": "SPA-REQUIRED"
         },
         {
           "id": "N9",
@@ -62,7 +65,8 @@
         {
           "id": "N52",
           "name": "结构完整性",
-          "check": "P1 立项依据包含全部要素：研究意义、国内外研究现状与分析、科学问题（SQ）表述、拟解决的关键科学问题（KSQ）"
+          "check": "P1 立项依据包含全部要素：研究意义、国内外研究现状与分析、科学问题（SQ）表述、拟解决的关键科学问题（KSQ）",
+          "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
           "id": "N-GIT",
@@ -88,7 +92,8 @@
         {
           "id": "N62",
           "name": "科学问题凝练质量",
-          "check": "盲检：科学问题（SQ）是否凝练为真正的科学问题（可证伪、有理论深度），而非工程任务或宽泛主题；KSQ 是否聚焦、属性归类是否恰当。SQ 表述为任务化/空泛/不可证伪=fail，引原文为证。"
+          "check": "盲检：科学问题（SQ）是否凝练为真正的科学问题（可证伪、有理论深度），而非工程任务或宽泛主题；KSQ 是否聚焦、属性归类是否恰当。SQ 表述为任务化/空泛/不可证伪=fail，引原文为证。",
+          "check_other": "盲检：科学问题是否凝练为真正的科学问题（可证伪、有理论深度），而非工程任务或宽泛主题。表述为任务化/空泛/不可证伪=fail，引原文为证。（本项目非国自然，不判科学问题属性归类）"
         },
         {
           "id": "N63",
@@ -111,13 +116,15 @@
           "id": "N10",
           "name": "H/O/RC/KSQ 1:1 映射",
           "check": "H/O/RC/KSQ 1:1 映射无交叉（consistency_mapper validate --phase 2 V-01~V-05 全 PASS）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N11",
           "name": "M/IN 可追溯性",
           "check": "每个 M 可追溯到具体 RC，每个 IN 可追溯到 RC 和 M（--phase 2 输出中的 V-08）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 2",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N12",
@@ -146,7 +153,8 @@
         {
           "id": "N16",
           "name": "V-06/V-07/V-09/V-11 延迟标注，V-12 归 Phase 3",
-          "check": "V-06（M→F）/V-07（F来源）/V-09（预算追溯）/V-11（代表作匹配）依赖 F/预算字段，本阶段用 validate --phase 2 即不输出其结论，强制点在 Phase 7 gate-check；V-12（备选路线）只依赖 M.alternative_plan，自 Phase 3 起进入 --phase 3 集合为 ERROR 硬门控，不属于 Phase 7 才首验之列"
+          "check": "V-06（M→F）/V-07（F来源）/V-09（预算追溯）/V-11（代表作匹配）依赖 F/预算字段，本阶段用 validate --phase 2 即不输出其结论，强制点在 Phase 7 gate-check；V-12（备选路线）只依赖 M.alternative_plan，自 Phase 3 起进入 --phase 3 集合为 ERROR 硬门控，不属于 Phase 7 才首验之列",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N17",
@@ -162,7 +170,8 @@
         {
           "id": "N53",
           "name": "结构完整性",
-          "check": "P2 研究内容包含全部要素：研究假说（H）、研究目标（O）、研究内容（RC）、H/O/RC/KSQ 1:1 映射说明、拟解决的关键科学问题（KSQ）、预期成果小节"
+          "check": "P2 研究内容包含全部要素：研究假说（H）、研究目标（O）、研究内容（RC）、H/O/RC/KSQ 1:1 映射说明、拟解决的关键科学问题（KSQ）、预期成果小节",
+          "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
           "id": "N-GIT",
@@ -173,7 +182,8 @@
         {
           "id": "N67",
           "name": "四要素一致性质量",
-          "check": "盲检（超出脚本形式映射）：H/O/RC/KSQ 四要素在语义上是否真正一致、环环相扣——目标能回答科学问题、内容能验证假说、各 RC 不重叠不遗漏。出现要素貌合神离、内容无法支撑假说、或 RC 拼凑=fail，指出不一致的具体要素对为证。"
+          "check": "盲检（超出脚本形式映射）：H/O/RC/KSQ 四要素在语义上是否真正一致、环环相扣——目标能回答科学问题、内容能验证假说、各 RC 不重叠不遗漏。出现要素貌合神离、内容无法支撑假说、或 RC 拼凑=fail，指出不一致的具体要素对为证。",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N65",
@@ -197,7 +207,8 @@
           "id": "N20",
           "name": "M 可行性覆盖",
           "check": "consistency_map 中每个 M 至少有一条 F（可行性条目）来自 P3_1 或 P3_2（V-06）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-06"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --rules V-06",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N21",
@@ -226,17 +237,20 @@
           "id": "N25",
           "name": "P3 一致性未引入新矛盾",
           "check": "H/O/RC/KSQ 与 P1/P2 一致性未因 P3 新增内容产生新矛盾，且 V-12 备选路线已就位（consistency_mapper validate --phase 3 仍 PASS）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 3"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate --phase 3",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N26",
           "name": "代表作匹配 V-11",
-          "check": "代表作与 H/RC 方向匹配（V-11 人工确认：每篇代表作能对应至少一条 H 或 RC）"
+          "check": "代表作与 H/RC 方向匹配（V-11 人工确认：每篇代表作能对应至少一条 H 或 RC）",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N54",
           "name": "结构完整性",
-          "check": "P3 包含全部要素：研究基础（P3_1）、工作条件（P3_2）、研究队伍情况、代表作列表、可行性分析（每条 M 有 ≥1 条 F）、备选路线或风险应对"
+          "check": "P3 包含全部要素：研究基础（P3_1）、工作条件（P3_2）、研究队伍情况、代表作列表、可行性分析（每条 M 有 ≥1 条 F）、备选路线或风险应对",
+          "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
           "id": "N64",
@@ -365,7 +379,8 @@
         {
           "id": "N40",
           "name": "摘要 H/O/RC/KSQ 一致",
-          "check": "摘要中的 H/O/RC/KSQ 表述与正文各 Phase 一致（V-01~V-05 范围内，人工核查）"
+          "check": "摘要中的 H/O/RC/KSQ 表述与正文各 Phase 一致（V-01~V-05 范围内，人工核查）",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N41",
@@ -382,7 +397,8 @@
         {
           "id": "N57",
           "name": "结构完整性",
-          "check": "摘要包含全部必要要素：研究背景与科学问题、研究假说（H）、研究目标（O）、研究内容（RC）简述、预期成果；中英文双语摘要均已生成；关键词列表存在"
+          "check": "摘要包含全部必要要素：研究背景与科学问题、研究假说（H）、研究目标（O）、研究内容（RC）简述、预期成果；中英文双语摘要均已生成；关键词列表存在",
+          "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
           "id": "N-GIT",
@@ -406,7 +422,8 @@
           "id": "N44",
           "name": "V-01~V-12 全量验证",
           "check": "consistency_mapper.py validate V-01~V-12 全量验证 PASS（V-06/V-07/V-09/V-11 首次强制执行；V-12 自 Phase 3 起已强制，此处复验）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N45",
@@ -443,7 +460,8 @@
           "id": "N49",
           "name": "V-11 代表作匹配",
           "check": "每篇代表作能对应 ≥1 条 H 或 RC（consistency_mapper validate + 人工确认）",
-          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate"
+          "script": "python scripts/consistency_mapper.py --path data/consistency_map.json validate",
+          "nsfc_bound": "HRCK-V-RULES"
         },
         {
           "id": "N50",
@@ -459,7 +477,8 @@
         {
           "id": "N58",
           "name": "结构完整性",
-          "check": "全文各部分齐全：00摘要（中英文）、B1-B3预算说明、P1立项依据、P2研究内容（含预期成果）、P3_1~P3_4研究基础四子文件、P4其他说明、REF参考文献；合并输出文件存在且无断节"
+          "check": "全文各部分齐全：00摘要（中英文）、B1-B3预算说明、P1立项依据、P2研究内容（含预期成果）、P3_1~P3_4研究基础四子文件、P4其他说明、REF参考文献；合并输出文件存在且无断节",
+          "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
           "id": "N-GIT",

@@ -1,5 +1,11 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.36.0] - 2026-08-17
+
+第二十三轮（非国自 DoD 按国自结构查，minor）：**DoD 层项目类型感知**。`dod_project.py` 在「全量清单 − 用户手关项」之外再减「本项目类型不适用的项」：仅当 `structure_profile.json` 合法已确认 `funding_scheme: "other"`（判据一处定义——`structure_profile.scheme_is_other()`，由 `_p2_outline_scope_enabled` 提公开、旧名转发行为零变化；用户 DoD 手关 HRCK-V-RULES 不反推项目类型）时，按 `dod_checklist.json` 声明键执行：13 项 `nsfc_bound`（取值锁死 07 §7.1 封闭集四 id，含用户裁决"免5留1"的 N11/N16/N20/N26/N49；N50/N43/N45 明确不标）移出盲检并逐条留痕，6 项 `check_other`（N52/N53/N54/N57/N58 共用逐字节同一段"按结构真源查齐"文案 + N62 专属）改判不减免。stdout 新增 `waived`/`repointed`/`funding_scheme`/`skipped_checks`/`repointed_ids` 五键，计数不变式 `active + waived + disabled == total`（重叠归 waived）；投影产物顶层带 `skipped_checks`（scheme=other 时同 stdout，nsfc 恒 `[]`）。fail-safe 恒收紧：真源缺失/坏 JSON/非法/未确认按 nsfc 全量，读口不可用打 `DOD_SCHEME: WARN`，声明键非法打 `DOD_CHECKLIST: INVALID` + rc 1 + 按「不减免、不改判」从严照写，scheme=other 而整份清单无标记打 `DOD_SCHEME: NO_MARKERS`（旧项目副本提示）；两层 fail-safe 各自独立。接线：三步模板第 0 步触发条件改为「`data/dod_selection.json` **或** `structure_profile.json` 任一存在就跑投影」（05 Step 0.4b、08 §2.9 同步，07 §7.1/§7.2/§7.3 登记 DoD 层投影与四出口）。国自项目零变化：无真源时产物除顶层多出 `skipped_checks: []` 外逐字节不变，既有 stderr/退出码/`resolve_scope` 返回全不动。
+
+同版本随行收口：`word_counter.py` 计数口径对齐 Word（用户实测对照后亲改，主会话审核提交）——剥 markdown 符号后按中文单字 + 英文 token 计数、不再计标点；消费者仅字数/页数门，计数变小方向宽松，非共享件、无测试锁定旧口径。
+
 ## [2.35.1] - 2026-08-17
 
 第二十二轮延期项（R4·T3/T5 修正，patch）：**T3** P2 段落级大纲门项目类型判据修正——`is_managed(P2)` 不再笼统由 `v_rules_disabled`（HRCK-V-RULES 在 skipped 即算）反推：skipped 条目按 reason 分流，`dod_selection.disabled`（用户 DoD 关项）只影响 DoD、不改项目类型；`structure_profile.funding_scheme=other` 写入的条目才启用 P2 段落级大纲门。仍走 `safe_resolve_scope` 继承 round21 全部读口 fail-safe（缺失/坏 JSON/未确认/非法 UTF-8/模块坏一律收敛国自然口径、零 traceback），DoD 关项留痕（skipped_checks）不受影响。**T5** `load_index()` 精确增捕 `UnicodeDecodeError`——非法 UTF-8 索引与目录/权限问题同归既有 `IndexUnreadableError`（`corruption=unreadable`、行列位置 null、bad indexes 空，不新增第四态），四个只读子命令与 `state_manager gate-check` 结构化拒绝 rc=2、无 traceback、原文件字节不变；syntax/entries 两态零漂移。

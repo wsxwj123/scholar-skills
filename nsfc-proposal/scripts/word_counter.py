@@ -11,13 +11,19 @@ from pathlib import Path
 
 HAN_RE = re.compile(r"[\u4e00-\u9fff]")
 EN_RE = re.compile(r"[A-Za-z0-9_]+")
+# Markdown formatting symbols to strip before counting (not content)
+MD_RE = re.compile(r"[*#`\[\]!>|~^{}=\-]")
 
 
 def count_text(text: str) -> int:
-    han = len(HAN_RE.findall(text))
-    en = len(EN_RE.findall(text))
-    punct = len([c for c in text if c.strip() and not HAN_RE.match(c) and not c.isalnum() and c != "_"])
-    return han + en + punct
+    # Strip markdown formatting characters, then count:
+    # - each Chinese character as 1 word (matches Word \u5b57\u6570\u7edf\u8ba1)
+    # - each continuous English/digit token as 1 word
+    # Punctuation (\uff0c\u3002\uff01\uff1fetc.) is NOT counted, matching Word behaviour
+    clean = MD_RE.sub(" ", text)
+    han = len(HAN_RE.findall(clean))
+    en = len(EN_RE.findall(clean))
+    return han + en
 
 
 def count_file(path: Path) -> int:
