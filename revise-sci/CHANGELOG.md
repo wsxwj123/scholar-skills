@@ -1,5 +1,9 @@
 # Revise-Sci Changelog
 
+## [2.30.1] - 2026-08-17
+
+第二十五轮：去 AI 套话词表收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`common.py` 的 `AI_CLICHE_TERMS_EN`(27，尾部 moreover/furthermore 两条 L_REVISE_ONLY 有意差异)/`AI_CLICHE_TERMS_ZH`(18，含 3 条「……」留白) 改为直接绑定 `EFFECTIVE_EN/ZH["revise-sci"]` tuple，字面量删除；逐条逐序不变，`AI_STYLE_BANNED_PATTERNS`/`SOFT_STYLE_MARKERS`/hard·soft markers 全不动。
+
 ## [2.30.0] - 2026-08-17
 
 第二十二轮 P0 流程完整性（R1）：一键 pipeline 接入可恢复状态机（`project_state.json.pipeline_gate` schema v1 + epoch，退出码 0=complete/1=失败/2=坏参数坏回执非法转换/3=预期暂停）。原子化后生成 `audit/comment_inventory.json` 并停点等 `--resume --confirm-comment-inventory <sha256>`（不调 revise_units）；确认后逐 unit 强制四选一 `revision_strategy`（别名归一 push_back）。final consistency 后固定顺序跑 numeric/xref/Methods 确定性锚（综述 Methods 记 na+理由），三层独立核查走 round22 envelope 双向绑定 `task_manifest_sha256`：detection 三轨返回自动校验、有真 finding 才生成 reverse 任务（pipeline 生成稳定 finding ID=`<track>-<canonical sha256 前12位>`）、极性 pass=confirmed/fail|na=refuted/problems=未核 rc=2，confirmed 须用户 `audit/adjudication.json` 逐条 fix（开新 epoch 重检）或 accept_with_rationale（manifest 未漂移）。DoD 解环：DoD JSON 七条与 pipeline 预检全用 `strict_gate --preclose`（`STRICT_PRECLOSE: PASS`，绝不冒充 final）；独立 DoD verify（delegate_review envelope 模式 `--expect-task-manifest`）+ 用户 `--confirm-dod-closure` 后才跑最终 bare gate（唯一 `STRICT_GATE: PASS`）。bare gate 自验 skill signature 与 receipt/closure 链，缺 `pipeline_gate` 默认 rc=2，legacy 仅 `--legacy-direct`+精确 allowlist signature 降级；上游内容变化 epoch+1 使旧确认/receipt 逻辑失效；旧项目 `--resume --migrate-round22` 显式迁移（保留产物、不推断确认）。skill signature 恢复 `*.py/*.md/*.json`。

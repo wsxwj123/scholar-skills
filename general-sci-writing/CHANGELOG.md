@@ -1,5 +1,9 @@
 # Changelog - General SCI Writing Skill
 
+## [2.36.10] - 2026-08-17
+
+第二十五轮：去 AI 套话词表收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`style_checker.py` 的 `FORBIDDEN_EXACT`(25 EN)/`FORBIDDEN_CN`(19 ZH) 改从 `EFFECTIVE_EN/ZH["general-sci-writing"]` 取，字面量删除；有效集逐条不变、判分逻辑零改动（`FORBIDDEN_PATTERNS` 3 条不动）。
+
 ## [2.36.9] - 2026-08-11
 
 第二十一轮 T6：重烘出厂 `templates/reference.docx`——图注（Image Caption）/表注（Table Caption）样式补上 10pt 独立层（模板停在 2026-07-14，烘焙脚本 07-16 加的 `CAPTION_SIZES` 从未烘进分发物；旧 `test_reference_docx_styles.py`「现烘现测」测的是生成器不是出厂货，属假绿，已重写为「绝对值锁+不过期锁」直接断模板本体）。zip 仅 `word/styles.xml` 变化，样式差异集⊆{Abstract, ImageCaption, TableCaption}；Body Text 12pt / Heading 1 16pt / Normal eastAsia Times New Roman 零回归。合并/导出脚本零代码改动（pandoc 本就把图注落 ImageCaption、表注落 TableCaption）。

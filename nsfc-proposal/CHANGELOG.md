@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.37.1] - 2026-08-17
+
+第二十五轮：去 AI 套话词表与共用正则收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`humanizer_zh.py` 的 `AI_CLICHE_TERMS_ZH`(11)/`AI_CLICHE_TERMS_EN`(25) 改从 `EFFECTIVE_ZH/EN["nsfc-proposal"]` 取；`BANNED_PATTERNS` 15 条改由具名常量拼装（12 条与 reviewer-simulator 共用 + NSFC_METAPHOR_VERB/NOUN12 差异层 + `_AI_CLICHE_RE` 现算条，排列顺序本家口径不变）；`VAGUE_PATTERNS = list(VAGUE_TABLE)`。判定行为零变化，`OVERUSE_PATTERNS`(≥3 逃生口)/阈值/严重度全不动；顺带修正「比喻正则对齐 sci2doc」错注释（实测不等，PLAN D13）。
+
 ## [2.37.0] - 2026-08-17
 
 第二十四轮（字数/页数上限单一真源，minor）：同一组上限（400/300/500/500/30）此前散在 13 处代码 + 6 份文档，收成 `word_counter.py` 顶部唯一真源 `NSFC_WORD_MAX`/`NSFC_PAGE_MAX` + 两个纯函数 `resolve_word_limit(root, filename)`（九行判定表：无真源/坏/未确认/无 chapters 键 → 国自然默认；chapters 受管且该章 `word_max` 合法（含 0）→ 声明值；受管但缺/非法/未列该章 → `unset` 交人工，绝不悄悄按默认判；读口不可用打 `WORD_LIMIT: WARN` 按国自然全量）与 `resolve_page_limit(root)`（读 `proposal_profile.json.page_limit`，合法非负 int（含 0）且异于国自然默认 30 → 声明值，其余回落 30；恒返回 int）。新增 `word_counter.py check --root . --file <章>|--pages <目录>` 子命令：单行 JSON 六键 `kind/target/count/limit/limit_source/ok`，超限与上限不可判都是 rc 0（退出码与判定正交），`unset` 时打 `WORD_LIMIT: UNSET`（含「不得判 pass」）+ 处置行，目标读不出 rc 1 + `WORD_LIMIT: MISSING`，用法错 rc 2；纯读不写任何文件。消费方全部改读真源：`diagnosis_engine._abstract_limits` 签名 `(prof)`→`(root)` 改调 resolver（删自有 chapters 遍历，skipped_checks 条目四字面量不变），`full-review`/`polish-review` 的 `--page-limit` 缺省 30→None（显式传值 > 项目声明 > 国自然默认，报告 `page_limit` 恒 int），markdown 兜底与 `state_manager` 四处 30/500 字面量改引常量（取值不变）。DoD 五条（N21/N27/N37/N38/N46）`check` 去数字改「脚本给出上限与判定」口径、`script` 改指 `word_counter.py check`（r23 §10.1 投影产物逐字节基线按本轮重建，`nsfc_bound`/`check_other` 两张白名单一项不增不减）。国自然默认项目零变化：四个既有子命令、`state_manager` 全部子命令、报告六项基线逐字节不变。

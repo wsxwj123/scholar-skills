@@ -8,6 +8,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from ai_cliche_terms import EFFECTIVE_EN, EFFECTIVE_ZH  # vendored 同目录（真源 _shared/）
 from docx import Document
 from docx.opc.exceptions import PackageNotFoundError
 
@@ -53,59 +54,16 @@ AI_STYLE_BANNED_PATTERNS: tuple[tuple[str, str], ...] = (
     ("acts as", r"\bacts as\b"),
 )
 
-# MID: AI cliché term list aligned with general-sci-writing/scripts/style_checker.py
-# FORBIDDEN_EXACT, extended with the Chinese academic boilerplate terms that the
-# revise-sci polish fragment must also reject. English entries are matched
-# case-insensitively as whole phrases; Chinese entries are matched as substrings.
-AI_CLICHE_TERMS_EN: tuple[str, ...] = (
-    "delve into",
-    "comprehensive landscape",
-    "pivotal role",
-    "realm",
-    "tapestry",
-    "underscore",
-    "testament",
-    "it is well known",
-    "it is worth noting",
-    "it should be noted",
-    "importantly",
-    "interestingly",
-    "remarkably",
-    "notably",
-    "in recent years",
-    "a growing body of evidence",
-    "has garnered significant attention",
-    "plays a crucial role",
-    "a plethora of",
-    "myriad of",
-    "in the context of",
-    "shed light on",
-    "pave the way",
-    "of paramount importance",
-    "a key player",
-    "moreover",
-    "furthermore",
-)
-AI_CLICHE_TERMS_ZH: tuple[str, ...] = (
-    "值得注意的是",
-    "值得一提的是",
-    "众所周知",
-    "不言而喻",
-    "综上所述",
-    "总而言之",
-    "总的来说",
-    "毋庸置疑",
-    "显而易见",
-    "至关重要",
-    "举足轻重",
-    "深入探讨",
-    "近年来",
-    "随着……的发展",
-    "在……的背景下",
-    "为……奠定了基础",
-    "发挥着重要作用",
-    "扮演着重要角色",
-)
+# MID: AI cliché term lists. round25 起从共享真源 scripts/ai_cliche_terms.py 取
+# （vendored，开发真源 _shared/，契约 .devflow/INTERFACE-round25.md）；tuple 形态
+# 保留——顺序影响 marker 输出顺序，可观测。revise-sci 的 EN 表比 polish-sci 多
+# 尾部两条 moreover/furthermore（L_REVISE_ONLY 层，PLAN D1 有意差异）。
+# English entries are matched case-insensitively as whole phrases; Chinese
+# entries are matched as substrings.
+# ZH 表含 3 条「……」留白条目（随着……的发展 等）：字面永远匹配不上，用户有意
+# 留着不生效（L_INERT 层），别改成能命中的形态。
+AI_CLICHE_TERMS_EN: tuple[str, ...] = EFFECTIVE_EN["revise-sci"]
+AI_CLICHE_TERMS_ZH: tuple[str, ...] = EFFECTIVE_ZH["revise-sci"]
 
 # Pre-compiled whole-phrase matchers for the English cliché list.
 AI_CLICHE_PATTERNS_EN: tuple[tuple[str, Any], ...] = tuple(

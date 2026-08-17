@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ai_cliche_terms import EFFECTIVE_EN, EFFECTIVE_ZH  # noqa: E402
 from ref_section import is_reference_heading  # noqa: E402
 
 
@@ -45,38 +46,23 @@ def is_merged_derivative(path: str) -> bool:
 
 
 # ── Forbidden words/phrases (AI-typical) ──────────────────────────────────────
-FORBIDDEN_EXACT = {
-    "delve into", "comprehensive landscape", "pivotal role", "realm",
-    "tapestry", "underscore", "testament", "it is well known",
-    "it is worth noting", "it should be noted", "importantly",
-    "interestingly", "remarkably", "notably", "in recent years",
-    "a growing body of evidence", "has garnered significant attention",
-    "plays a crucial role", "a plethora of", "myriad of",
-    "in the context of", "shed light on", "pave the way",
-    "of paramount importance", "a key player",
-}
+# round25 起词表收编进共享真源 scripts/ai_cliche_terms.py（vendored，开发真源
+# _shared/，契约 .devflow/INTERFACE-round25.md）。有效集与收编前逐条相同。
+FORBIDDEN_EXACT = set(EFFECTIVE_EN["review-writing"])
 # ── 中文 AI 套话（与上面英文表同级：命中即 high，计入 score）──────────────────
-# 真源口径与 polish-sci / revise-sci 的 `AI_CLICHE_TERMS_ZH` 对齐（那份表是用户人工
-# curated 的）。本表 = 那份表里**能实际生效的 15 条** ∪ 本家原有 4 条（不仅如此 /
-# 在此背景下 / 越来越多的证据表明 / 发挥关键作用），共 19 条。
+# 本家 19 条 = 五家共识条目 ∪ 本家有而 polish/revise 没有的 4 条（不仅如此 /
+# 在此背景下 / 越来越多的证据表明 / 发挥关键作用——它们在真源里分属
+# L_NO_POLISH_REVISE / L_GSW_RW_ONLY 层）。
 #
 # 🚫 刻意不收 `随着……的发展` / `在……的背景下`(带省略号那条) / `为……奠定了基础`。
-#    它们在 polish-sci 里带「……」占位符、字面永远匹配不上，这是用户**有意**留着不
-#    生效的——他判定这几种表述不算 AI 感。别把它们改成能命中的形态。
+#    它们在真源里属 L_INERT 层（只进 polish/revise 且字面永远匹配不上），这是用户
+#    **有意**留着不生效的——他判定这几种表述不算 AI 感。别把它们改成能命中的形态。
 #
-# 🔧 要加/删一条套话就改这个 set。同一份口径目前散在四处、互为分叉副本：
-#    rw / gsw 各一份 style_checker.py + polish-sci / revise-sci 各一份 common.py。
-#    抽成 _shared/ 共享件是结构性改动，合并见 PROJECT.md 待办。
+# 🔧 要加/删一条套话改共享真源的主表，不要在本文件再写字面量（round25 已把
+#    此前散在四处的分叉副本收编，「抽成 _shared/ 共享件」待办已完成）。
 #    用户可见的说明：review-writing/references/writing_guidelines.md §4「Chinese Mode」
 #    与 general-sci-writing/references/anti-ai-protocol.md。
-FORBIDDEN_CN = {
-    # ↓ 与 polish-sci / revise-sci AI_CLICHE_TERMS_ZH 逐条对齐的 15 条
-    "值得注意的是", "值得一提的是", "众所周知", "不言而喻", "综上所述",
-    "总而言之", "总的来说", "毋庸置疑", "显而易见", "至关重要",
-    "举足轻重", "深入探讨", "近年来", "发挥着重要作用", "扮演着重要角色",
-    # ↓ 本家原有、polish-sci 没有的 4 条
-    "不仅如此", "在此背景下", "越来越多的证据表明", "发挥关键作用",
-}
+FORBIDDEN_CN = set(EFFECTIVE_ZH["review-writing"])
 FORBIDDEN_PATTERNS = [
     re.compile(r"not only\b.*?\bbut also\b", re.IGNORECASE),
     re.compile(r"seamless[,\s]+intuitive[,\s]+and\s+powerful", re.IGNORECASE),

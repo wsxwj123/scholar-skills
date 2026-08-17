@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## [2.29.15] - 2026-08-17
+
+第二十五轮：与 nsfc-proposal 共用的 12 条正则 + VAGUE 6 条收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`humanizer_zh.py` 的 `BANNED_PATTERNS` 15 条改由具名常量拼装（RSIM_TEMPLATE_TRANSITION/RSIM_AI_TRANSITION/RSIM_METAPHOR_NOUN4 差异层带家名，排列顺序本家口径、与 nsfc 有意不同），`VAGUE_PATTERNS = list(VAGUE_TABLE)`。判定行为零变化，`BULLET_PATTERNS` 3 条本家独有不动。
+
 ## [2.29.14] - 2026-08-10
 
 第十六轮共享件同步（SPEC-round16，盲检判合格）：delegate_review（base 同步）畸形返回 exit 2；中毒缓存结构性判别（联网轨或 provider 轨，真实账本 271→271 回归锁）。

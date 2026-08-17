@@ -8,42 +8,39 @@ import json
 import re
 from pathlib import Path
 
+# round25 起共用正则条目收编进共享真源 scripts/ai_cliche_terms.py（vendored，开发
+# 真源 _shared/，契约 .devflow/INTERFACE-round25.md）。rsim 不消费 EFFECTIVE_* 词表
+# （本家没有套话字符串表），只取具名正则条目与 VAGUE_TABLE。
+from ai_cliche_terms import (VAGUE_TABLE,  # noqa: E402
+                             P_NOT_BUT, P_NOT_ONLY_BUT_ALSO, P_FILLER_NOTE, P_FILLER_POINT,
+                             P_OVERSTATEMENT, P_GENERIC_SIGNIFICANCE, P_NEWS_STYLE,
+                             P_HOLLOW_VERB, P_HYPERBOLE, P_PARALLELISM,
+                             P_RHETORICAL_Q, P_LEADING_Q,
+                             RSIM_TEMPLATE_TRANSITION, RSIM_AI_TRANSITION,
+                             RSIM_METAPHOR_NOUN4)
+
+# 条目改由共享真源具名常量拼装（内容逐字节同前）。🔴 排列顺序是本家口径：
+# issues 数组顺序可观测，与 nsfc-proposal 的排列**不同是有意的**，不许对齐。
+# 机械过渡两条在本家 1 次即 ERROR；nsfc 同正则走 OVERUSE ≥3 阈值（PLAN D10 有意差异）。
 BANNED_PATTERNS = [
     # 禁用句式（AI模板句）
-    (r"不是[^。]{1,30}?而是", "pattern_not_but", "改为直接陈述句，避免对比模板"),
-    (r"不仅[^。，]{1,30}?[，,][^。]{1,30}?而且", "pattern_not_only_but_also", "拆成两句事实陈述"),
-    (r"值得注意的是", "filler_phrase", "删除该提示语，直接给结论"),
-    (r"需要指出的是", "filler_phrase", "删除该提示语，直接给证据"),
+    P_NOT_BUT, P_NOT_ONLY_BUT_ALSO, P_FILLER_NOTE, P_FILLER_POINT,
     # 空洞修饰词
-    (r"至关重要|举足轻重|不可或缺", "overstatement", "用具体数据替代形容词"),
-    (r"具有重要的[^。]{0,20}意义和[^。]{0,20}价值", "generic_significance", "删除或改写为具体贡献陈述"),
-    # 新闻体/套话
-    (r"日益增长|蓬勃发展|方兴未艾", "news_style", "替换为具体数据或趋势描述"),
-    # 空洞动词
-    (r"深入探讨|系统研究|全面分析", "hollow_verb", "改为具体研究行为描述，如'比较X与Y的差异'"),
-    # 机械过渡
-    (r"综上所述|总而言之", "template_transition", "用事实句结束段落"),
-    (r"在此基础上|鉴于此", "ai_transition", "直接写因果关系"),
-    # 禁用修辞：比喻
-    (r"的桥梁|的基石|的钥匙|的引擎", "metaphor_rhetoric", "直接陈述其功能或作用"),
-    # 禁用修辞：夸张
-    (r"革命性的|颠覆性的|突破性的", "hyperbole_rhetoric", "用数据/事实说明程度"),
-    # 禁用修辞：排比（"...是A，是B，更是C"）
-    (r"是[^，。]{1,20}，是[^，。]{1,20}，更是", "parallelism_rhetoric", "用一个精准表述替代排比"),
-    # 禁用修辞：反问
-    (r"难道不是[^？]{0,30}？", "rhetorical_question", "改为陈述句"),
-    # 禁用修辞：设问
-    (r"那么，[^？]{1,30}？", "leading_question", "直接阐述，删除设问"),
+    P_OVERSTATEMENT, P_GENERIC_SIGNIFICANCE,
+    # 新闻体/套话；空洞动词
+    P_NEWS_STYLE, P_HOLLOW_VERB,
+    # 机械过渡（本家 1 次即 ERROR）
+    RSIM_TEMPLATE_TRANSITION, RSIM_AI_TRANSITION,
+    # 禁用修辞：比喻（本家只 4 词名词式；nsfc 是动词式 8 词 + 名词式 12 词，D11 未裁决）
+    RSIM_METAPHOR_NOUN4,
+    # 禁用修辞：夸张；排比（"...是A，是B，更是C"）
+    P_HYPERBOLE, P_PARALLELISM,
+    # 禁用修辞：反问；设问
+    P_RHETORICAL_Q, P_LEADING_Q,
 ]
 
-VAGUE_PATTERNS = [
-    (r"近年来", "replace_with_exact_year_range", "改为具体年份范围，如2020年以来"),
-    (r"大量研究表明", "replace_with_named_citations", "改为明确作者+文献编号"),
-    (r"取得了显著进展", "replace_with_specific_progress", "改为具体进展内容"),
-    (r"广泛应用", "replace_with_specific_scenarios", "列出应用场景"),
-    (r"越来越多的证据", "replace_with_specific_evidence", "具体引用几项关键证据"),
-    (r"已有研究发现", "replace_with_named_researcher", "指明具体研究者和发现"),
-]
+# 6 条与 nsfc-proposal 逐字节共用，改由共享真源 VAGUE_TABLE 取。
+VAGUE_PATTERNS = list(VAGUE_TABLE)
 
 BULLET_PATTERNS = [
     (r"^\s*[\-\*•]\s", "bullet_list", "改为段落叙述"),

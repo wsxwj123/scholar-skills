@@ -1,5 +1,9 @@
 # Changelog - Polish SCI Skill
 
+## [2.26.1] - 2026-08-17
+
+第二十五轮：去 AI 套话词表收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`common.py` 的 `AI_CLICHE_TERMS_EN`(25)/`AI_CLICHE_TERMS_ZH`(18，含 3 条「……」留白) 改为直接绑定 `EFFECTIVE_EN/ZH["polish-sci"]` tuple，字面量删除；逐条逐序不变，`find_ai_style_markers`/`strict_gate` 判定与 marker 顺序零变化。
+
 ## [2.26.0] - 2026-08-17
 
 第二十二轮 P0 流程完整性（R3）：解除 DoD 自引用。`strict_gate.py` 增 `--unit-checks-only` preclose 模式——只跑现役逐 unit 全部机械检查，任一问题 rc=1；unit 全过后在读取 `.review_return_polish-dod.json` 之前即返回 rc=0，成功唯一输出 `STRICT_UNIT_CHECKS: PASS`（绝不输出最终交付 `STRICT_GATE: PASS`）。DoD JSON 的 PL-G1~G6 六条脚本命令全部改带该 flag（盲检期机械预检不再依赖尚未产生的 PL-G11）；SKILL 最终交付命令保持无 flag 的 bare gate——缺有效 PL-G11 仍 rc=1，强度不降。
