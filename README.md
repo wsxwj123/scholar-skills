@@ -1,16 +1,14 @@
 # scholar-skills
 
-中文科研写作的 Claude Code 技能包。9 个技能 + 1 个流程门禁插件。
+中文科研写作的 AI 技能包：9 个写作技能 + 1 个流程门禁插件。装进 Claude Code（Codex / OpenCode 也能装技能），说人话就开工，不用记命令。
 
 ## 简介
-
-技能覆盖：写 SCI 论文、写综述、写国自然本子、SCI 转学位论文、返修改稿、写审稿回复、模拟审稿、纯润色、想课题。
 
 | 目录 | 用途 |
 |---|---|
 | `general-sci-writing` | 从零写 SCI 研究论文 |
 | `review-writing` | 写文献综述 |
-| `nsfc-proposal` | 国自然申请书（2026 模板）；也支持省基金/校级/企业课题等自定义章节结构，见下 |
+| `nsfc-proposal` | 国自然申请书（2026 模板），也支持省基金 / 校级 / 博士后等自定义章节的本子 |
 | `sci2doc` | SCI 论文转中文学位论文 |
 | `revise-sci` | 按审稿意见改稿，出回复信 + 修订稿 |
 | `reviewer-response-sci` | 只写审稿回复，不动主稿 |
@@ -19,43 +17,41 @@
 | `idea-bomb` | 课题构思与实验设计 |
 | `academic-gate` | 流程门禁插件，见下 |
 
-技能靠 frontmatter 的 description 自动触发，不用记命令。说"帮我写 SCI 论文"就进 general-sci-writing。每家可以单独装，装一家就只拿一家。
+**怎么触发**：技能靠自身描述自动匹配，直接说"帮我写 SCI 论文""改一下这份审稿意见回复"就会进对应技能。每家可以单独装，装一家就只拿一家。
 
-### 不是国自然的本子也能写
+**它和直接问 AI 的区别**：这些技能把写作拆成固定阶段，每个阶段有脚本化的检查闸口，没过就不让进下一步。查的东西包括引文真实性与撤稿状态、图表交叉引用、占位符残留、字数与页数、去 AI 腔、结构完整性等。写完一节要送独立盲检，判不过就得改。
 
-`nsfc-proposal` 原本把国自然 2026 的章节结构写死在代码里，拿它写省基金或校级课题就会按错的结构查，一堆误报。现在改成从你的模板文件里读：
+### 非国自然的本子
 
-把模板（`.docx` / `.md` / `.pdf` / `.txt`）给它 → AI 读出章节名 → **摆给你逐条核对** → 你确认后才生效。此后合并顺序、必需章节、字数上限都按你确认的那份走。没给模板文件就还是国自然默认，行为一个字不变。
+`nsfc-proposal` 默认按国自然 2026 结构走。写省基金、校级课题、博士后基金这类模板不同的本子时，把模板文件（`.docx` / `.md` / `.pdf` / `.txt`）给它：
 
-AI 认出的每个章节名都要能在原文里逐字节找到，对不上就整批拒收、不落盘——防的是它顺手编一个看着合理的结构。另外可以关掉不适用的自检项（比如"科学问题属性"只有国自然才有），**关掉的项会出现在评审报告的「未执行的检查」里，不会假装查过**。
+1. AI 读出章节名，摆给你逐条核对
+2. 你确认后才生效
+3. 此后合并顺序、必需章节、各章字数上限、自检项都按你确认的那份走
 
-⚠️ 这几道是写给 AI 的纪律，不是脚本闸门：脚本不校验"是谁写的"这份结构文件。详见 `nsfc-proposal/SKILL.md` 里标注的已知限制。
+国自然专属的检查项（比如"科学问题属性四选一"、假说与目标与研究内容与关键科学问题的四维对应表）在非国自然项目下自动免除，**免掉的项会出现在评审报告的「未执行的检查」清单里，不会假装查过**。通用检查（引文核验、撤稿检测、去 AI 腔、字数、结构完整性等）一条不少。
+
+不给模板文件就还是国自然默认，行为一个字不变。
+
+⚠️ AI 认出的每个章节名都要能在原模板里逐字找到，对不上就整批拒收、不落盘，防的是它顺手编一个看着合理的结构。但"必须由你确认"这道是写给 AI 的纪律，脚本不校验签字的是谁，详见 `nsfc-proposal/SKILL.md` 的已知限制。
 
 ### 门禁插件在干什么
 
-长文档写作里 AI 跳步有两个成因，都不是模型能力问题。一是注意力衰减，SKILL.md 动辄一两万 token，写到第 5 节时第 2 节定的规矩已经很淡。二是上下文压缩会截断文档——Claude Code 压缩时每个技能只保留 SKILL.md 的前 5000 token，写在后半篇的纪律条款压缩后物理上不存在了。
+长文档写作里 AI 会跳步，两个成因都不是模型能力问题：一是注意力衰减，技能说明动辄一两万 token，写到第 5 节时第 2 节定的规矩已经很淡；二是上下文压缩会截断文档，写在后半篇的纪律条款压缩后物理上不存在了。
 
-`academic-gate` 是个普通目录，里面有 `.claude-plugin/plugin.json`，放进 `~/.claude/skills/` 重启一次自动加载，不用手改配置。5 个 handler，3 个脚本：
+`academic-gate` 在会话开始、每次提问、每次写文件这几个时机注入当前项目的状态卡，并对未走完流程的写入动作做拦截（deny / ask / allow）。判定逻辑只有一份，几个钩子共用，避免状态卡说 A、门禁判 B。
 
-| 事件 | matcher | 行为 |
-|---|---|---|
-| SessionStart | startup\|clear\|compact\|resume\|fork | 注入全景状态卡 |
-| UserPromptSubmit | 全部 | 有待办才注入短卡，全绿静默 |
-| PostToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | 写完某节提示送检 |
-| PreToolUse | Write\|Edit\|MultiEdit\|NotebookEdit | deny / ask / allow |
-| PreToolUse | Bash | 拦 shell 绕过 |
+**这不是防绕过的锁。** 对 AI 直接写文件那条路它是完备的（大小写变体、`..`、`~`、相对路径、空字节、补丁头这类花样实测都拦得下）；但 AI 用 shell 命令写文件的形态无穷，黑名单原理上堵不完。定位是**拦得住忘，拦不住铁了心要绕**，绕过会在审计日志里留痕。想关掉或想锁更死见「卸载」末尾两节。
 
-判定逻辑只有一份（`context_guard_core.py`），三个钩子共用，避免状态卡说 A、门禁判 B。
+**Claude Code 和 Codex 上能拦，OpenCode 上只有技能。** Codex 装完必须在 Codex 里跑一次 `/hooks` 把钩子逐条信任，没信任的钩子会被直接跳过且不报错；之后改过钩子定义还要再信任一次。OpenCode 只认它自己的 JS 插件，那端门禁不存在。
 
-**这不是防绕过的锁。** 对 AI 直接写文件那条路（Write / Edit / MultiEdit / NotebookEdit / apply_patch）它是完备的：大小写变体、`..`、`~`、相对路径、空字节、补丁头这类花样实测全部拦下。但 AI 用 shell 命令写文件的形态无穷，黑名单原理上堵不完，而且技能自带的脚本 AI 本来就得能跑，那条路封不死。所以定位是**拦得住忘，拦不住铁了心要绕**，绕过会在审计日志里留痕。想关掉或想锁更死，见「卸载」末尾两节。
-
-**Claude Code 和 Codex 上都能拦，OpenCode 上只有技能。** Codex 读的是本目录的 `.codex-plugin/plugin.json`，**装完必须在 Codex 里跑一次 `/hooks` 把这几条钩子逐条信任**——没信任的钩子会被直接跳过且不报错；之后改过 `hooks/hooks.json` 还要再信任一次（Codex 按钩子定义算哈希记账）。另外 Codex 的拦截框没有"允许一次"，所以"只是撞了目录名的陌生项目"那一档在 Codex 上按放行处理、只记一条审计，免得把不相干的项目卡死。OpenCode 只认它自己的 JS 插件，从不读这套配置，那端门禁不存在。
+各技能的变更记录见各自目录下的 `CHANGELOG.md`。
 
 ## 安装
 
-必需 Claude Code、Python 3.7+、git。可选 pandoc（导出 docx）、edirect（PubMed 检索，技能会在需要时提示装法）。
+需要 Claude Code、Python 3.7+、git。可选 pandoc（导出 docx）、edirect（PubMed 检索，技能会在需要时提示装法）。
 
-### 一条命令装完（macOS / Linux / Git Bash）
+### macOS / Linux / Git Bash
 
 装 Claude Code 一端：
 
@@ -80,13 +76,9 @@ Get-ChildItem "$env:TEMP\scholar-skills" -Directory -Force |
 Remove-Item -Recurse -Force "$env:TEMP\scholar-skills"
 ```
 
-只拷子目录，不把仓库根的 README 之类扫进技能目录。
-
-Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否则钩子跑不起来（见「装不上的两个常见原因」）。
+只拷子目录，不把仓库根的 README 之类扫进技能目录。Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否则钩子跑不起来。
 
 ### 懒得敲命令：把下面这段丢给你的 AI
-
-复制整段发给 Claude Code / Codex / 任何能跑命令的 AI，让它替你装：
 
 ```
 帮我装 https://github.com/wsxwj123/scholar-skills 这个技能包。
@@ -99,7 +91,7 @@ Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否�
      Claude Code  → ~/.claude/skills/
      Codex        → ~/.codex/skills/
      OpenCode     → ~/.config/opencode/skills/
-2. 一个都别漏，尤其 academic-gate —— 它是流程门禁插件，漏了就只有技能没有拦截。
+2. 一个都别漏，尤其 academic-gate，它是流程门禁插件，漏了就只有技能没有拦截。
 3. 装完删掉临时目录，然后告诉我：
    - 要重启一次客户端才生效（钩子在启动时加载，不重启等于没装，而且不会报错）
    - 重启后怎么验证（跑 claude plugin list 看有没有 academic-gate@skills-dir）
@@ -107,35 +99,35 @@ Windows 上还得装 [Git for Windows](https://git-scm.com/downloads/win)，否�
 5. 如果我的机器上已经装过旧版，直接覆盖即可，不用备份（内容都在 GitHub 上）。
 ```
 
-更新的话，把上面那段里的"装"换成"更新到最新版"，AI 会重跑同样的流程。
+**更新到最新版**：重跑上面任一条安装命令即可，直接覆盖，不用先卸载。
 
-**装完必须重启一次客户端。** 钩子在启动时加载，不重启等于没装，且不会报错。
+### 装完必须重启一次客户端
+
+钩子在启动时加载，不重启等于没装，且不会报错。
 
 ### 验证装上了
 
 ```bash
-claude plugin list          # 应出现 academic-gate@skills-dir
+claude plugin list
 ```
 
-再在项目目录里开个会话，AI 那边会收到一张状态卡（你在对话里通常看不见，问它一句"当前项目状态卡说了什么"就知道）。状态卡开头会打出门禁版本号（形如 `academic-gate v0.9.1`），据此可判断装的是不是最新版。
+输出里应出现 `academic-gate@skills-dir`。再在项目目录里开个会话，问 AI 一句"当前项目状态卡说了什么"。状态卡开头会打出门禁版本号（形如 `academic-gate v0.9.1`），据此可判断装的是不是最新版。
 
-**钩子起不来时的表现和没装完全一样，不报错、不提示。** 唯一判别法就是上面这两条。看不到就当没保护，按流程人工盯。
+**钩子起不来时的表现和没装完全一样，不报错、不提示。** 唯一判别法就是上面这两条，看不到就当没保护。
 
-### 装不上的两个常见原因
+### 装不上的三个常见原因
 
 **没重启，或目录放错了。** 必须在 `~/.claude/skills/` 下，不是 `~/.claude/plugins/`。
 
-**Windows 上 `python3` 可能是空壳。** Windows 自带一个 0 字节的 `python3` 占位程序，装了真 Python 也可能还排在 PATH 前面。`python3 --version` 没有正常输出就去 设置 → 应用 → 应用执行别名 关掉 `python3.exe`。另外钩子命令是 POSIX 写法（`exec "$(command -v python3 || command -v python)"`），纯 cmd/PowerShell 起不来，装 Git for Windows 一般能解决。
+**Windows 上 `python3` 可能是空壳。** Windows 自带一个 0 字节的 `python3` 占位程序，装了真 Python 也可能还排在 PATH 前面。`python3 --version` 没有正常输出，就去 设置 → 应用 → 应用执行别名 关掉 `python3.exe`。另外钩子命令是 POSIX 写法，纯 cmd / PowerShell 起不来，装 Git for Windows 一般能解决。
 
-**技能脚本的解释器名也一样。** 文档里的示例命令统一写 `python3`，但 Windows 上常常只有 `python`（而干净的 macOS 只有 `python3`，写死哪个都会在另一边跑不了）。各技能的 SKILL.md 已写明：AI 执行脚本前先探测一次，`python3` 不通就换 `python`。AI 若照抄命令报 `python3: command not found`，直接告诉它"这台机器只有 python"即可。
+**解释器名不一致。** 文档示例统一写 `python3`，但 Windows 上常常只有 `python`（干净的 macOS 又只有 `python3`）。各技能已写明 AI 执行脚本前先探测一次；若 AI 照抄命令报 `python3: command not found`，告诉它"这台机器只有 python"即可。
 
 ### 它会往哪写文件
 
 技能会在**项目目录**里建稿件、状态文件、git 检查点，这是它的工作。
 
-门禁插件不写你的稿子。它在确认是学术项目的目录里写 `.academic_gate_audit.jsonl`，并在该目录已有 `.gitignore` 时追加一行。不是学术项目的目录不写。
-
-门禁插件**不碰 `~/.claude/settings.json`**（见下一节的例外）。
+门禁插件不写你的稿子。它在确认是学术项目的目录里写 `.academic_gate_audit.jsonl`，并在该目录已有 `.gitignore` 时追加一行；不是学术项目的目录不写。门禁插件不碰 `~/.claude/settings.json`（例外见卸载一节）。
 
 ## 卸载
 
@@ -152,23 +144,19 @@ cd ~/.claude/skills && rm -rf general-sci-writing review-writing nsfc-proposal s
 
 **只删门禁目录、留着技能，会让门禁改走旧路径，反而写进你的 `settings.json`。**
 
-因为每家技能开工时都会自检一次门禁：发现插件不在，就判定这台机器还没保护，于是把门禁脚本复制到 `~/.claude/academic-gate/`（这个位置在 skills 之外，故意不随技能目录增删），再往 `settings.json` 的 `PreToolUse` 追加一条。
+每家技能开工时都会自检一次门禁：发现插件不在，就判定这台机器还没保护，于是把门禁脚本复制到 skills 之外的一个固定位置（故意不随技能目录增删），再往 `settings.json` 的 `PreToolUse` 追加一条。
 
-这条自装路径只动它自己的东西——只认命令里含 `academic_gate_hook.py` 的条目，你的 `env` / `model` / `permissions` / `statusLine` / 你自己的钩子全部原样保留，改之前还会存一份 `settings.json.bak-gatehook`。但它**没有反向的卸载动作**，删技能不会把它清掉。
-
-真踩了的话手动清两处：
+这条自装路径只动它自己的东西（只认命令里含 `academic_gate_hook.py` 的条目），你的 `env` / `model` / `permissions` / `statusLine` / 你自己的钩子全部原样保留，改之前还会存一份 `settings.json.bak-gatehook`。但它没有反向的卸载动作，删技能不会把它清掉。真踩了的话手动清两处：
 
 ```bash
 rm -rf ~/.claude/academic-gate
 ```
 
-再打开 `~/.claude/settings.json`，把 `hooks.PreToolUse` 里那个命令含 `academic_gate_hook.py` 的对象删掉。
-
-残留本身无害（它只在识别出学术项目时才管事，别的目录一律放行），只是每次写文件会被白调起来一次。
+再打开 `~/.claude/settings.json`，把 `hooks.PreToolUse` 里那个命令含 `academic_gate_hook.py` 的对象删掉。残留本身无害（它只在识别出学术项目时才管事），只是每次写文件会被白调起来一次。
 
 ### 不想删，只想关拦截
 
-新建 `~/.claude/academic-gate.local.json`：
+新建 `~/.claude/academic-gate.local.json`，内容：
 
 ```json
 { "enforcement_enabled": false, "note": "我自己盯流程" }
@@ -176,19 +164,19 @@ rm -rf ~/.claude/academic-gate
 
 拦截停了，状态卡提醒和技能自己的流程脚本照常。恢复就删掉这个文件，或把值改成 `true`。
 
-只有 JSON 的 `false` 才算关。文件不存在、JSON 坏了、值写成字符串 `"false"`、读不出来——一律按"保护开着"处理，坏文件不会静默把保护关掉。当前是开是关，跑一次任一技能的开局脚本就会打印出来（关闭时它会告诉你开关在哪、什么时候改的、你写的理由）。
+只有 JSON 的 `false` 才算关。文件不存在、JSON 坏了、值写成字符串 `"false"`、读不出来，一律按"保护开着"处理，坏文件不会静默把保护关掉。当前是开是关，跑一次任一技能的开局脚本就会打印出来。
 
-这个文件在写保护清单里，AI 改不动：你关了它不会被 AI 打开，你开着它也不会被 AI 关掉。
+这个文件在写保护清单里，AI 用写文件工具改不动：你关了它不会被 AI 打开，你开着它也不会被 AI 关掉。
 
 ### 反过来：想锁得更死
 
-门禁自己的文件 AI 用写文件工具改不动，但 shell 那条路堵不完（见开头那段）。两个不依赖我们这层黑名单的办法：
+门禁自己的文件 AI 用写文件工具改不动，但 shell 那条路堵不完。两个不依赖这层黑名单的办法：
 
 ```bash
 touch ~/.claude/academic-gate.local.json && chmod 444 ~/.claude/academic-gate.local.json
 ```
 
-文件里留一个 `{}` 就行——保护照常开着，同时这个文件谁也写不进去。
+文件里留一个 `{}` 就行，保护照常开着，同时这个文件谁也写不进去。
 
 另一个是用 Claude Code 自带的 `permissions.deny`，按路径禁掉对门禁目录和这个开关文件的 `Write` / `Edit` / `Bash`。怎么配看官方文档，我们不替你改 `settings.json`。
 
@@ -206,7 +194,7 @@ cd ~/.config/opencode/skills  && rm -rf <目录>...   # opencode
 
 误拦、漏拦、状态卡内容不对、装不上，都欢迎开 issue。误拦优先修。
 
-有 1700 多条自动化测试覆盖行为契约，但测试证不了"用起来真的治忘、真的不烦"，这部分待实测。
+有 2600 多条自动化测试覆盖行为契约，但测试证不了"用起来真的治忘、真的不烦"，这部分待实测。
 
 ## 授权
 
