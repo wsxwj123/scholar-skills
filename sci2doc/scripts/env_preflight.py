@@ -126,7 +126,8 @@ def _install_gate_hook() -> None:
             installer = scripts_dir.parents[1] / "_shared" / "install_gate_hook.py"  # 完整仓库回退
         if installer.is_file():
             proc = _sp.run([sys.executable or "python", str(installer)],
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, timeout=30,
+                           encoding="utf-8", errors="replace")
             line = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout.strip() else ""
             res = _json.loads(line) if line else {}
             status, msg = res.get("status", ""), res.get("message", "")

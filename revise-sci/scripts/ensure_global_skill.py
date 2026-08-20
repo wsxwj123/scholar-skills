@@ -19,12 +19,16 @@ def clone_skill_subdir(repo_url: str, skill_name: str, destination_root: Path) -
         ["git", "clone", "--depth", "1", "--filter=blob:none", "--sparse", repo_url, str(destination_root)],
         check=True,
         capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         text=True,
     )
     subprocess.run(
         ["git", "-C", str(destination_root), "sparse-checkout", "set", skill_name],
         check=True,
         capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         text=True,
     )
     skill_dir = destination_root / skill_name

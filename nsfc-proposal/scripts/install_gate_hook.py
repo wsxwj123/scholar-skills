@@ -146,11 +146,24 @@ def _interpreter() -> str:
     PATH(极罕见,毕竟本脚本正在被某个 Python 跑)时退回 sys.executable 绝对路径
     兜底——绝对路径有 venv 删了跟着死的风险,故只作最后手段。
     每次安装/自检都重新探测:解释器环境变了(如 pyenv 卸载),_reconcile_entries
-    的精确命令比对会自动把旧 entry 迁移成新命令,自愈。"""
+    的精确命令比对会自动把旧 entry 迁移成新命令,自愈。
+    只判"在不在 PATH"不够:Windows 商店的 0 字节 python3.exe 占位程序照样能被
+    shutil.which 命中,实跑却 rc=9009 → 选中它=三个钩子静默失效(round26 外部用户
+    实测)。所以按 _hook_command_runs 的思路,选之前先试跑一次。"""
     for name in ("python3", "python"):
-        if shutil.which(name):
+        exe = shutil.which(name)
+        if exe and _runs(exe):
             return name
     return sys.executable or "python3"
+
+
+def _runs(exe: str) -> bool:
+    """空跑一段空代码,能 rc=0 才算真解释器(占位程序/损坏安装都会在此出局)。"""
+    try:
+        return subprocess.run([exe, "-c", ""], capture_output=True,
+                              timeout=15).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def _target_command() -> str:
@@ -171,7 +184,8 @@ def _hook_command_runs() -> bool:
     (探测的裸解释器名 + 本脚本拼的 hook 路径),无用户输入,无注入面。"""
     try:
         p = subprocess.run(_target_command(), shell=True, input="{}",
-                           capture_output=True, text=True, timeout=15)
+                           capture_output=True, text=True, timeout=15,
+                           encoding="utf-8", errors="replace")
         return p.returncode == 0
     except Exception:
         return False

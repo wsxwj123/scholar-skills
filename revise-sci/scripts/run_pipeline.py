@@ -221,6 +221,7 @@ def compute_affected_units(project_root: Path, args: argparse.Namespace, py: str
             subprocess.run(
                 [py, str(script_dir / "atomize_comments.py"), "--comments", args.comments, "--project-root", str(scratch_root)],
                 text=True, capture_output=True, check=True, timeout=180,
+                encoding="utf-8", errors="replace",
             )
             atomize_doc = [py, str(script_dir / "atomize_manuscript.py"), "--manuscript", args.manuscript, "--project-root", str(scratch_root)]
             if args.si:
@@ -474,7 +475,8 @@ def _opening_steps(args, script_dir: Path, project_root: Path, py: str, common_a
         try:
             subprocess.run([py, str(script_dir / helper), "--manuscript", args.manuscript,
                             "--project-root", args.project_root],
-                           text=True, capture_output=True, timeout=180)
+                           text=True, capture_output=True, timeout=180,
+                           encoding="utf-8", errors="replace")
         except Exception:
             pass
     if not has_issue_index(project_root):

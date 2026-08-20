@@ -1,5 +1,9 @@
 # Changelog - sci2doc Skill
 
+## [2.31.9] - 2026-08-20
+
+第二十六轮（中文 Windows 兼容，两条外部用户实证的上游 bug）：① `install_gate_hook.py` 选解释器由"只判在不在 PATH"改成"先实跑一次再定"——Windows 商店那个 0 字节 `python3.exe` 占位程序在 PATH 里存在、实跑 rc=9009，此前会被选中，导致门禁三个钩子静默失效且不报错；② `git_checkpoint.py` / `env_preflight.py` / `install_gate_hook.py`的 subprocess 文本调用补 `encoding="utf-8", errors="replace"`——`text=True` 缺 `encoding=` 时按 locale 解码，cp936 中文 Windows 下遇 UTF-8 输出即 `UnicodeDecodeError`。🔴 `git_checkpoint.py` 是回滚安全网，技能自己写的中文 commit message 就会触发它崩，中文 Windows 用户开始写稿后第一次调检查点即挂。判定逻辑与输出格式零改动。
+
 ## [2.31.8] - 2026-08-10
 
 第十六轮共享件同步（SPEC-round16，盲检判合格）：折叠报告写失败全量明细回退 stdout；delegate_review 畸形返回 exit 2；new_refs/new_claims 元素级校验；中毒缓存结构性判别（联网轨或 provider 轨）。

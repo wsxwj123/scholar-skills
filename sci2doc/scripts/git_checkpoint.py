@@ -50,6 +50,7 @@ def inside_other_repo(root: Path) -> bool:
     r = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         cwd=str(root), capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
     )
     if r.returncode != 0:
         return False
@@ -95,7 +96,8 @@ def cmd_status(root: Path) -> int:
         print("git_status: none (snapshot-only)")
         return 0
     r = subprocess.run(
-        ["git", "log", "--oneline"], cwd=str(root), capture_output=True, text=True
+        ["git", "log", "--oneline"], cwd=str(root), capture_output=True, text=True,
+        encoding="utf-8", errors="replace",
     )
     n = len([x for x in r.stdout.splitlines() if x.strip()])
     print(f"git_status: {n} commits")

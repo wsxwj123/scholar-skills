@@ -56,7 +56,7 @@ def main() -> int:
             [sys.executable, str(_SCRIPT_DIR / "proofread.py"),
              "--manuscript-dir", str(tmp_dir),
              "--report", report_path],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         summary = {}
         try:

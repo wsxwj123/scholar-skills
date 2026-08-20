@@ -74,7 +74,7 @@ def main() -> int:
              "--manuscript-dir", str(tmp_dir),
              "--report", str(report),
              "--fail-on", FAIL_ON],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
     sys.stdout.write(proc.stdout)
     sys.stderr.write(proc.stderr)

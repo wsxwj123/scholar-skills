@@ -1,5 +1,9 @@
 # Changelog - NSFC Proposal Skill
 
+## [2.37.2] - 2026-08-20
+
+第二十六轮（中文 Windows 兼容，两条外部用户实证的上游 bug）：① `install_gate_hook.py` 选解释器由"只判在不在 PATH"改成"先实跑一次再定"——Windows 商店那个 0 字节 `python3.exe` 占位程序在 PATH 里存在、实跑 rc=9009，此前会被选中，导致门禁三个钩子静默失效且不报错；② `git_checkpoint.py` / `env_preflight.py` / `install_gate_hook.py`的 subprocess 文本调用补 `encoding="utf-8", errors="replace"`——`text=True` 缺 `encoding=` 时按 locale 解码，cp936 中文 Windows 下遇 UTF-8 输出即 `UnicodeDecodeError`。🔴 `git_checkpoint.py` 是回滚安全网，技能自己写的中文 commit message 就会触发它崩，中文 Windows 用户开始写稿后第一次调检查点即挂。判定逻辑与输出格式零改动。
+
 ## [2.37.1] - 2026-08-17
 
 第二十五轮：去 AI 套话词表与共用正则收编共享真源 `scripts/ai_cliche_terms.py`（vendored，开发真源 `_shared/`）——`humanizer_zh.py` 的 `AI_CLICHE_TERMS_ZH`(11)/`AI_CLICHE_TERMS_EN`(25) 改从 `EFFECTIVE_ZH/EN["nsfc-proposal"]` 取；`BANNED_PATTERNS` 15 条改由具名常量拼装（12 条与 reviewer-simulator 共用 + NSFC_METAPHOR_VERB/NOUN12 差异层 + `_AI_CLICHE_RE` 现算条，排列顺序本家口径不变）；`VAGUE_PATTERNS = list(VAGUE_TABLE)`。判定行为零变化，`OVERUSE_PATTERNS`(≥3 逃生口)/阈值/严重度全不动；顺带修正「比喻正则对齐 sci2doc」错注释（实测不等，PLAN D13）。

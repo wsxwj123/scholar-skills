@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec \"$(command -v python3 || command -v python)\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
+            "command": "exec \"$(python3 -c '' >/dev/null 2>&1 && command -v python3 || { python -c '' >/dev/null 2>&1 && command -v python; })\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
             "shell": "bash",
             "timeout": 5
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec \"$(command -v python3 || command -v python)\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
+            "command": "exec \"$(python3 -c '' >/dev/null 2>&1 && command -v python3 || { python -c '' >/dev/null 2>&1 && command -v python; })\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
             "shell": "bash",
             "timeout": 5
           }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec \"$(command -v python3 || command -v python)\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
+            "command": "exec \"$(python3 -c '' >/dev/null 2>&1 && command -v python3 || { python -c '' >/dev/null 2>&1 && command -v python; })\" \"${CLAUDE_PLUGIN_ROOT}/scripts/context_feed_hook.py\"",
             "shell": "bash",
             "timeout": 5
           }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec \"$(command -v python3 || command -v python)\" \"${CLAUDE_PLUGIN_ROOT}/scripts/academic_gate_hook.py\"",
+            "command": "exec \"$(python3 -c '' >/dev/null 2>&1 && command -v python3 || { python -c '' >/dev/null 2>&1 && command -v python; })\" \"${CLAUDE_PLUGIN_ROOT}/scripts/academic_gate_hook.py\"",
             "shell": "bash",
             "timeout": 15
           }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "exec \"$(command -v python3 || command -v python)\" \"${CLAUDE_PLUGIN_ROOT}/scripts/bash_guard_hook.py\"",
+            "command": "exec \"$(python3 -c '' >/dev/null 2>&1 && command -v python3 || { python -c '' >/dev/null 2>&1 && command -v python; })\" \"${CLAUDE_PLUGIN_ROOT}/scripts/bash_guard_hook.py\"",
             "shell": "bash",
             "timeout": 15
           }

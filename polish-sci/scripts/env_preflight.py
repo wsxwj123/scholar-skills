@@ -124,7 +124,8 @@ def _install_gate_hook() -> None:
                   "修复:安装完整技能仓库(含 skills/_shared/)或手动补齐。")
         else:
             proc = _sp.run([sys.executable or "python", str(installer)],
-                           capture_output=True, text=True, timeout=30)
+                           capture_output=True, text=True, timeout=30,
+                           encoding="utf-8", errors="replace")
             line = (proc.stdout or "").strip().splitlines()[-1] if proc.stdout.strip() else ""
             res = _json.loads(line) if line else {}
             status, msg = res.get("status", ""), res.get("message", "")
