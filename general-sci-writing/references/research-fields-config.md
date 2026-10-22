@@ -1,3 +1,5 @@
+> 本文件由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
 # 研究方向配置系统
 
 > 被 SKILL.md 的 §Skill概述 与 Phase 0 (`/init`) 引用。设研究方向用 `set-field --field [id]`；查可用配置列表、自定义方法、config_manager 用法时 `Read` 本文件。
@@ -57,3 +59,13 @@ python scripts/config_manager.py create --field my_field --name "我的研究领
 python scripts/state_manager.py set-field --field drug_delivery
 ```
 设置后，系统将加载对应研究方向的审稿人质疑库、实验类型和写作规范。
+
+---
+
+## 🔧 研究方向配置系统
+
+> 原 SKILL.md 710–714，2026-10-19 拆分保留；自指句已改写为“本文档上文”。
+
+设研究方向用 `set-field --field [id]`，可用配置列表与自定义方法见本文档上文。
+
+---

@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import revise_units
+# 句法与节奏规则的唯一解析口（与 pack-write 同一函数；本副本由 _shared/sync_vendored 铺放）
+from delegate_write_core import load_prose_rules
 from common import (
     build_section_markdown,
     detect_certainty_upgrade,
@@ -125,6 +127,16 @@ def build_manifest(project_root: Path, candidates: list[dict[str, Any]]) -> dict
     return manifest
 
 
+def prose_rules_lines() -> list[str]:
+    # 规则文件缺失或畸形时降级而不退出：本步在 run_pipeline 中段，退出会中断整条改稿流水线。
+    # 降级不静默：stderr 打 WARN，prompt 放一行固定文本，且不放任何替代规则。
+    block, path, err = load_prose_rules()
+    if err:
+        print(f"WARN: {err}{': ' + path if path else ''}；润色 prompt 不含句法与节奏规则", file=sys.stderr)
+        return ["Syntax rules unavailable"]
+    return block.splitlines()
+
+
 def build_polish_prompt(project_root: Path, output_path: Path, candidates: list[dict[str, Any]]) -> str:
     lines = [
         "# Revise-Sci Revision Polishing Task",
@@ -180,6 +192,9 @@ def build_polish_prompt(project_root: Path, output_path: Path, candidates: list[
         "- vary rhythm mildly, but do not become ornamental",
         "- preserve uncertainty when present",
         "- avoid repetitive AI transitions",
+        "",
+        "Syntax and rhythm rules (Chinese original, apply to both languages):",
+        *prose_rules_lines(),
         "",
         "Silent self-check before finalizing:",
         "- Did I change meaning?",

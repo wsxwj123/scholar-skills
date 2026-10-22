@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# delegate_write_core.py —— 撰写编排共享核心（八家/四家共用，四家逐字节一致）
+# delegate_write_core.py —— 撰写编排共享核心（撰写四家共用；revise-sci 只导入 load_prose_rules；五份逐字节一致）
 #
 # 试点批 sci2doc 的 delegate_write 逻辑抽到这里，做成四家共用核心。各家账本从哪取、
 # 体裁差异（section 形态 / 本节文献切片来源 / 大纲文件）全部经 config 传入，核心不写死某家路径。
@@ -267,6 +267,46 @@ STYLE_RULES = {
     "citation": "正文引用只写 [@key]（key=literature_index 的 id 或 new:<slug>），绝不写裸数字 [5]",
     "table": "三线表用管道语法",
 }
+
+
+# 句法与节奏规则：唯一解析口（pack-write 与 revise-sci polish_revisions 共用，不得另写一份）
+PROSE_RULES_REL = os.path.join("references", "anti_ai_prose_rules.md")
+PROSE_BEGIN = "<!-- prose:begin -->"
+PROSE_END = "<!-- prose:end -->"
+PROSE_ERR_MISSING = "缺句法规则文件 references/anti_ai_prose_rules.md（重装本技能或从分发目录重新同步）"
+PROSE_ERR_MARKER = "句法规则文件缺 prose:begin/prose:end 标记（须各恰好一次且 begin 在前）"
+PROSE_ERR_EMPTY = "句法规则文件 prose 块为空"
+PROSE_ERR_READ = "句法规则文件读取失败（重装本技能或从分发目录重新同步）"
+
+
+def load_prose_rules():
+    """返回 (block, path, err)。成功 err=None；失败 block=None、err 为固定文案之一。
+    不退出进程，退不退由调用方定：pack-write fail-closed，polish 降级。
+
+    候选：<skill>/references/（技能安装位与两处分发镜像）→ _shared/references/（直接跑真源副本）。
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    for path in (os.path.join(os.path.dirname(here), PROSE_RULES_REL),
+                 os.path.join(here, PROSE_RULES_REL)):
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except (OSError, UnicodeDecodeError) as exc:
+            return None, path, "%s: %s" % (PROSE_ERR_READ, exc)
+        if text.count(PROSE_BEGIN) != 1 or text.count(PROSE_END) != 1:
+            return None, path, PROSE_ERR_MARKER
+        b, e = text.find(PROSE_BEGIN), text.find(PROSE_END)
+        if e < b:
+            return None, path, PROSE_ERR_MARKER
+        block = text[b + len(PROSE_BEGIN):e].strip()
+        if not block:
+            return None, path, PROSE_ERR_EMPTY
+        return block, path, None
+    return None, None, PROSE_ERR_MISSING
+
+
 ROLE = ("撰写工人：看不到别节写作过程，只按本任务包写本节；全局框架按需 Read refs 路径"
         "（只读，禁写任何账本文件）；承重句只准挂内嵌 certified_claims 里的 ref_key。")
 PREP_ROLE = ("备料工人：只判本节承重句 ↔ 引文支撑，产草案（.claim_evidence_draft_X.Y.json）；"
@@ -304,6 +344,12 @@ def cmd_pack_write(args, config):
     sec = _find_section(sections, section, config)
     if sec is None:
         die("outline has no section: %s" % section)
+
+    # 句法规则在读文献账本之前查：缺了就不写任务包（fail-closed，见 load_prose_rules）
+    prose_text, prose_path, prose_err = load_prose_rules()
+    if prose_err:
+        die("%s%s" % (prose_err, (": %s" % prose_path) if prose_path else ""))
+    sys.stderr.write("PROSE_RULES=%s\n" % prose_path)
 
     lit = _load_lit(root, config)
     try:
@@ -364,7 +410,7 @@ def cmd_pack_write(args, config):
         "neighbor_digest": [],
         "abbrev_table": [],
         "data_sources": [],
-        "style_rules": STYLE_RULES,
+        "style_rules": dict(STYLE_RULES, prose=prose_text),
         "return_contract": {
             "return_path": ".write_return_%s.json" % section,
             "fields": ["section_id", "markdown", "new_refs", "new_abbrev",

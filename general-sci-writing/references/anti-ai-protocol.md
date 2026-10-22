@@ -3,6 +3,7 @@
 > 被 SKILL.md 的 Role 区与 **Phase 8 (`/write`)、Phase 10 (`/check`)** 引用。
 > **每次撰写或润色英文正文段落前必须 `Read` 本文件**；`/check` 跑 `style_checker.py` 作为客观兜底。
 > 本协议自包含；`humanizer-zh` skill 若已装可作辅助参考但非强制依赖。
+> 写作前先 Read `references/anti_ai_prose_rules.md`，执行其中全部条目。
 
 ## 目标读者画像
 
@@ -55,16 +56,11 @@
 - ✗ "The model features three key parameters." → ✓ "The model has three key parameters."
 - ✗ "The approach offers unprecedented precision." → ✓ "The approach achieves high precision." （同时去掉 "unprecedented"）
 
-## 🔴 同段保持一致称谓 (Consistent Terminology Within Paragraph)
+## 🔴 术语统一与常用词
 
-同一科学概念在同一段落内只用一种称谓，不刻意换同义词（如 "nanoparticles → nanocarriers → nanoformulation"）。AI 为"避免重复"而频繁换词，反而造成概念漂移，影响精确性。
-- 例外：两个词已在领域中通用互换（如 "exosomes / extracellular vesicles"）且已在首次使用时标注关系，则允许。
-- 段间过渡、标题与正文中的术语变换同样须保持一致，除非刻意区分两个不同的概念。
-
-## 🔴 禁生僻词 (No Obscure Vocabulary)
-
-- 通用动词/形容词用平实词：用 `show / find / use / large / small`，不用 `elucidate / unveil / pronounced / substantial`；用 `cause / lead to`，不用 `precipitate / engender`。
-- 例外保留：领域专业术语（如 `apoptosis / pharmacokinetics`）不算生僻，必须用准确术语。
+术语统一与常用词按 `references/anti_ai_prose_rules.md` 第一节第 4 条、第 5 条与第四节第 3 条执行。领域专业术语（如 `apoptosis / pharmacokinetics`）不算生僻词，必须用准确术语。
+- 同一概念不要依次换成 `nanoparticles → nanocarriers → nanoformulation` 这类写法。
+- 平实词示例：用 `show / find / use / large / small`，不用 `elucidate / unveil / pronounced / substantial`；用 `cause / lead to`，不用 `precipitate / engender`。
 - 判定原则：能用一个 GRE 范围内的常见词替代且不丢精度的，就替换。
 
 ## 🔴 禁造词 (No Neologisms)
@@ -82,7 +78,7 @@
 语态是 house-style 偏好，不是去 AI 硬线。`style_checker.py` 只把语态偏差写进 warnings，不计入 score、不卡门禁。
 
 - **Nature / Science / Cell 系**：官方 author guideline 明确推荐**主动语态**（"We show that…"、"We find…"）。不设被动下限；仅当被动 > 70%（呆板）才软提示。用 `style_checker.py --journal Nature` 触发此策略。
-- **传统 SCI 刊**：实验描述仍以被动为主流，参考被动 50–70%。Methods / Results → 优先被动（"Cells were treated with..."）；Discussion 表达推断可主动。< 40% 或 > 70% 仅软提示，不扣分。
+- **传统 SCI 刊**：实验描述仍以被动为主流，参考被动 50–70%。Methods / Results → 优先被动（"Cells were treated with..."）；其余段落用主动语态，按 `references/anti_ai_prose_rules.md` 第二节第 3 条执行。< 40% 或 > 70% 仅软提示，不扣分。
 - 拿不准目标刊语言风格（被动比例/句式）→ 不在写作阶段前置学习；留到**末尾用 polish-sci 润色时**按目标刊调性对齐（`/journal-study` 已停用，见 SKILL.md Phase 8.6）。写作期照本协议通用规则即可。
 
 ## 🔴 禁装饰性破折号 (Ban Decorative Em-dashes，硬门禁，禁止使用)
@@ -139,15 +135,13 @@
 ## 句长节奏
 
 - 同段落内混合**短句（≤12 词）**与**中句（15-25 词）**，不要求 25-40 词的长句（与"禁长难句"统一）。
-- 严禁连续 3 句以上句长相近（差异 < 5 词），避免 AI 式齐整。
-- 同一概念在同段落不重复同表述，用同义替换或结构重组。
 - 改写后段落长度控制在原文 ±15% 以内。
 - 连续段落首句禁用相同句式（如连续 "This study..."、"The results..."、"We found..."）。
 
 ## 深度改写策略 (Anti-Similarity Protocol)
 
 - **词汇层 (Lexical)**：术语不动；术语周围的非术语通用词降到 PhD 平实层（如 `significant → clear/large`，不再升级为 `pronounced/marked/substantial`，那是编辑级修饰，违反目标读者画像）。禁止直接使用原始文献完整短语（≥4 连续词），必须拆解重构。
-- **句法层 (Syntactic)**：语态按目标刊（顶刊主动为主 / 传统刊被动为主，见上「语态按目标刊切换」）；将因果从句拆为独立句而非套层从句。禁止模板化过渡（"Furthermore"、"In addition"、"Moreover"），改用逻辑内嵌或自然连接（"Because..."、"This in turn..."）。
+- **句法层 (Syntactic)**：Methods/Results 的被动比例按目标刊（见上「语态按目标刊切换」），其余段落用主动语态；将因果从句拆为独立句而非套层从句。禁止模板化过渡（"Furthermore"、"In addition"、"Moreover"），改用逻辑内嵌或自然连接（"Because..."、"This in turn..."）。
 - **结构层 (Structural)**：允许调整段内论点顺序（不破逻辑链）；可适度插入作者推断句（"This likely reflects..."、"One plausible explanation is..."）模拟真人推理痕迹。
 
 ## 自我审查

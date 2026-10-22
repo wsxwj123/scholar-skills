@@ -48,3 +48,14 @@
 **HALT. 向用户展示对标库与 framing_guide 要点，确认后进 Phase 1.7（据调研建提纲）。**
 
 > **🔗 Phase 1.7 + Phase 3 挂接（强制）：** Phase 1.7 建提纲结构、Phase 3 各节搭正文框架前，都必须 `Read data/framing_guide.md`，并使结构与其提炼的可复用框架对齐（由 Phase 3 “Framing hook” 强制落实）。这是 Phase 1.6 产出的落地点，不得跳过。
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**Entry:** Read `outline.md` + `state.json`；`phase ≥ 1.7` → 已完成，skip。**Phase gate：`phase < 1.5` → HALT**，先完成 Phase 1.5。
+
+**步骤概要：** 1 检索 5–10 篇近年同领域对标综述（串行 ≥1s，每篇走 `citation_guard.py` 验证、禁编造）→ 2 建 `data/benchmark_reviews.json` → 3 提炼 `data/framing_guide.md`（可复用章节框架/论证思路/图文关系/对本综述的具体建议）→ 4 DoD 盲检 → 5 `set-phase 1.6` + Git Checkpoint → HALT。产出在 Phase 1.7 建提纲与 Phase 3 搭框架时由 Framing hook 强制复用。
+
+**HALT 点（2 个）：** ① phase gate（phase < 1.5）；② 展示对标库与 framing_guide 要点等用户确认，确认后进 Phase 1.7。
+**必跑门禁：** `citation_guard.py`（对标综述真实性）；gate `benchmark-reviews-dod` 独立subagent盲检（`delegate_review.py pack/verify`，fail-closed）。
+

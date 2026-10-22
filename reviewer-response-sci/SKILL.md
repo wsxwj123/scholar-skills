@@ -1,32 +1,32 @@
 ---
 name: reviewer-response-sci
-version: 2.29.1
-description: 用于SCI审稿意见逐条回复的全流程技能，适用于期刊大修/小修阶段，只出回复包（HTML），不改主稿。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：与revise-sci区分，本技能只出回复包不改主稿，需同时改主稿并出修订稿docx请用revise-sci；与reviewer-simulator区分，本技能针对已收到的意见写回复，后者是模拟生成审稿意见。
+version: 2.29.3
+description: 用于 SCI 审稿意见的逐条回复，适用于期刊大修或小修阶段。技能将审稿信拆解为原子化意见清单，逐条撰写回复，产出 HTML 格式回复包及一份主稿修改计划（manuscript_edit_plan.md），但不直接修改主稿正文。证据不足处统一标记待补，不予杜撰。触发词：审稿意见回复、回复审稿人、回复reviewer、response letter、回复信、rebuttal、逐条回复、Response to Reviewer、revise and resubmit、R&R、reviewer comments。路由说明：本技能仅产出回复包而不修改主稿，若需同时修改主稿并输出修订稿 docx，应使用 revise-sci；本技能针对已收到的审稿意见撰写回复，模拟生成审稿意见应使用 reviewer-simulator。
 ---
 
 # Reviewer Response SCI
 
 ## 开场监工卡（每次启动必须原样打印给用户）
-> 这份技能只出回复信、不改你的主稿，机器帮不了的活得你自己盯。启动时先把下面几条打给用户：
-> 1. **一段多诉求最容易漏回**：审稿人一段话里常藏好几个要求。拆完 AI 会给你一份意见清单。你对着审稿原信一条条数，确认每个要求都单独成条、没被合并吞掉。
-> 2. **主稿要你自己在 Word 改**：本技能不动主稿。你得照 `manuscript_edit_plan.md` 在 Word 里手动改正文，改完回头核对回复信里的**行号、引文、逐字片段**和你最终的稿子对不对得上。
-> 3. **承诺必须兑现**：AI 在回复里每写一句"已添加/已修改/已补充"，改稿清单里就得有对应落点。AI 会给你一张回复 ↔ 改稿的对照表，帮你把"嘴上说了、稿里没做"的揪出来。
-> 4. **缺数据只会标记、不会编**：证据不足处 AI 一律写 `Not provided by user`，这是等你补的坑，不是已完成。交付前逐个补齐，或确认可以留空。
+> 本技能仅产出回复信，不修改主稿正文，以下事项须用户自行把控。启动时须将下列提示原样输出给用户：
+> 1. **一段多诉求最易遗漏**：审稿人一段话中常包含多个独立要求。拆解完成后 AI 会输出意见清单，须对照审稿原信逐条核对，确认每个要求均已单独成条，未被合并或遗漏。
+> 2. **主稿须用户自行在 Word 中修改**：本技能不修改主稿。须依照 `manuscript_edit_plan.md` 在 Word 中手动修改正文，完成后回头核对回复信中的**行号、引文、逐字片段**与最终稿件是否一致。
+> 3. **承诺必须兑现**：AI 在回复中每写一句"已添加/已修改/已补充"，改稿清单中须有对应落点。AI 会生成一张回复与改稿的对照表，用于识别"回复中承诺但稿件中未落实"的条目。
+> 4. **缺失数据仅标记、不杜撰**：证据不足处 AI 一律标注 `Not provided by user`，此为待补项而非已完成项。交付前须逐个补齐，或确认可以留空。
 
-**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
-- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
-- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
-- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
-- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
-- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
+**【Python 解释器探测：启动前置，一次探测全程沿用】** 本文档中的 `python3` / `python` 仅为 macOS/Linux 的习惯写法，并非硬性要求。启动前执行一次 `python3 --version`：
+- 输出正常版本号 → 本次会话所有命令统一使用 `python3`。
+- 报 command not found、无任何输出、或弹出应用商店 → 改为执行 `python --version`，能输出版本号则将后续所有命令中的解释器统一替换为 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹出商店或无输出即表示命中该占位程序，**不视为已安装 python3**，按"未安装"处理（用户也可在 设置 → 应用 → 应用执行别名 中关闭 `python3.exe`）。
+- 反之 `python` 无法输出版本号则改用 `python3`（macOS 12.3 起系统不再预装 `python`）。
+- 两者均无法输出版本号，表明该机器未安装 Python，须停止并告知用户先行安装，不得强行执行。
+- 探测仅执行一次，后续所有命令沿用同一解释器名称，无需每条命令重复探测。
 
-## 跨会话接续（每次开局先跑）
-换会话/隔天接着写时，**先跑接续命令重建上下文，再跟用户打握手确认**，别凭记忆盲接：
+## 跨会话接续（每次开局前置）
+切换会话或隔日续写时，**须先执行接续命令重建上下文，再与用户进行接续确认**，不得凭记忆直接续写：
 ```
 python "<技能>/scripts/session_journal.py" resume --root <project_root>
 ```
-（`env_preflight` 已把绝对路径打成 `RESUME_CMD`，直接复制。）读完它打印的权威状态 + 决定日志后，按脚本末尾的握手话术对用户说「进度到 X、你之前的要求我都读了、我打算接着做 Y，对吗？有新要求先插进来」，**等用户确认再动手**。
-用户中途插新要求/改主意时，**立刻 log 一条**（否则下个会话必丢）：
+（`env_preflight` 已将绝对路径输出为 `RESUME_CMD`，可直接复制。）读取其输出的权威状态与决定日志后，按脚本末尾的确认话术向用户报告「进度至 X、此前要求已全部读取、计划继续执行 Y，是否继续？如有新要求请先提出」，**等待用户确认后方可继续**。
+用户中途提出新要求或变更决定时，**须立即记录一条日志**（否则下一会话将丢失该信息）：
 ```
 python "<技能>/scripts/session_journal.py" log --root <project_root> --note "<用户原话>"
 ```
@@ -211,7 +211,7 @@ Source atomic units (`manuscript_units` / `si_units`) must include:
    - Each entry must record `source_provider` (e.g., `pubmed-cli`, `paper-search-mcp`) for traceability
 
    **2b. 新文献验真（只要本次新增了引用就必须做，两道关）：**
-   > 反驳时甩一篇新文献最容易翻车，引了不存在、被撤、或根本不支持你论点的文章，审稿人一查就崩。所以新引比原稿引用把关更严，从 WARN 升到 fail-closed。
+   > 反驳时新增引用是最易出错的环节：引用不存在、已被撤回或实际不支持论点的文献，审稿人一经核查即暴露问题。因此新增引用的把关标准严于原稿引用，从 WARN 级升至 fail-closed。
    1. **真实性硬核验**：`python3 scripts/citation_guard.py --project-root <root> --fail-on-unverified`（DOI/PMID 核对 + 撤稿检测；撤稿一律 FAIL，任一新引验不过即非零退出）。不带 `--fail-on-unverified` 的 pipeline 内 WARN 级不够，新引这里必须带上，验不过就删/换，别硬留。
    2. **支撑度核证**（引文是否真支持它挂的那句回复论点，而非只验真实）。对每条"新引 ↔ 它在 response_en 里支撑的论点句"，用**检索到的真实 abstract**（不看可编的 key_finding）判支撑度，写 `project_root/claim_evidence.json`（每行 `{section, claim_sentence, is_load_bearing, ref_id, retrieved_abstract, verdict∈support/weak/contradict/unknown, evidence_quote, user_confirmed}`），再跑：
       ```
@@ -264,7 +264,7 @@ Source atomic units (`manuscript_units` / `si_units`) must include:
    - 每条 comment unit 需填写以下 8 组字段（参照 `references/atomic-unit-schema.json`）：
 
    **7b. 逐条填写（每条 comment unit）：**
-   0. 读取 `content.strategy` 字段（Step 1.7 已写入），据此选定回复基调：Accept→直接致谢+落实；Partial→分点肯定+部分推回；Push back→证据先行+礼貌否定；Acknowledge→解释为何未采纳。**Push back / Partial 必须动用外交措辞 craft**（`decision-rules.md` C 段）：反驳前先承认对方顾虑的合理性、用部分让步软化整体拒绝、把审稿人自己的话引回来 reframe。硬顶最招审稿人反感，先给台阶再讲道理。
+   0. 读取 `content.strategy` 字段（Step 1.7 已写入），据此选定回复基调：Accept→直接致谢+落实；Partial→分点肯定+部分推回；Push back→证据先行+礼貌否定；Acknowledge→解释为何未采纳。**Push back / Partial 必须动用外交措辞 craft**（`decision-rules.md` C 段）：反驳前先承认对方顾虑的合理性、用部分让步软化整体拒绝、把审稿人自己的话引回来 reframe。强硬直顶最易引发审稿人反感，应先表达认可再陈述理据。
    1. `content.reviewer_comment_zh`：直译审稿意见（中文，不改写不概括）
    2. `content.reviewer_intent_zh`：理解审稿人真实意图（中文摘要，≤3 句）
    3. `content.response_en`：英文回复（遵循 `references/decision-rules.md` 的基调选择、外交措辞 craft（C 段）与句式规范；短句优先见 Rules）。**跨审稿人呼应去重**：本条若与另一条已完整作答的意见问同一件事，填 `content.cross_ref`（如 `"Reviewer 2, Comment 3"`），response_en 用 "As noted in our response to Reviewer 2, Comment 3, ..." 交叉指过去、不重复展开答案（详见 `decision-rules.md` D 段）；canonical 那条把答案与落点写全。
@@ -414,8 +414,8 @@ Re-Render 单独脚本：`render_from_atomic_json.py`（重渲）、`state_manag
 - HTML filling notes: `references/html-fill-guide.md`，`html-template.html` 占位符填写注意事项（手工填单页或渲染异常时）
 - Figure prompt template: `references/figure-prompt-template.md`，图片修改/新增时的结构化提示词模板（Output Contract 第3块图片需求时）
 
-## 发现 AI 跳步/漏做了怎么办（用户自救）
-当你怀疑 AI 把审稿意见拆漏了、承诺没落地、或用摘要糊弄你时，直接复制下面的话逼它返工：
+## 流程跳步的用户干预方法
+发现 AI 遗漏审稿意见、承诺未落实或以摘要替代完整内容时，可将以下指令直接发送给 AI：
 - 「Reviewer X 那段我看像有 3 个问题，你只拆了 1 条，重新拆」
 - 「把你在回复里承诺的所有动作列出来，逐个告诉我在改稿清单哪一行落地了」
 - 「这条回复我只想看它到底答没答审稿人的问题，把 response 全文贴我，别给摘要」

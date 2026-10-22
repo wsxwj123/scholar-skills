@@ -63,14 +63,16 @@ meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | g
 
 ## 4. Anti-AI Writing Style
 
+写作前先 Read `references/anti_ai_prose_rules.md`，执行其中全部条目。
+
 ### English Mode
 - **Ban List:** Moreover, Crucial, Landscape, Tapestry, Realm, Pivot, Foster, Underscore, Delve into, Spearhead
 - **Phrases to Avoid:** It is worth noting, In conclusion, As mentioned above, Serves as, Acts as
-- **Structure Ban:** No "Not only...but also"; No "From A to B"; No metaphors/similes (e.g. "like…", "as if…", "serves as a bridge/cornerstone/springboard" — state facts directly); No trailing "-ing" clauses (e.g., ban ", reflecting a shift toward…"; ban ", ensuring that…"; ban ", highlighting the importance of…" — recast as a new finite clause or sentence).
+- **Structure Ban:** No "Not only...but also"; No "From A to B"; 比喻按 `references/anti_ai_prose_rules.md` 第一节第 6 条执行，例 "like…", "as if…", "serves as a bridge/cornerstone/springboard"; No trailing "-ing" clauses (e.g., ban ", reflecting a shift toward…"; ban ", ensuring that…"; ban ", highlighting the importance of…" — recast as a new finite clause or sentence).
 - **Sentence length — soft guide (not a hard gate):** Aim for single sentences ≤30 words; a sentence running longer is a rhythm prompt to consider splitting, not a blocker. style_checker flags this as `info` (advisory) — do not fail a section on length alone.
-- **Rhythm:** Mix short sentences (≤12 words) with mid-range (25–30 words). Avoid long runs of 3+ consecutive similar-length sentences.
+- **Rhythm:** Mix short sentences (≤12 words) with mid-range (25–30 words).
 - **Voice (review-specific) — soft guide:** For literature reviews, active voice is primary; passive around ≤30% per paragraph is a target, not a hard limit. Excess passive reads stiff, so trim where natural; style_checker reports it as `info` (advisory), not a gate failure. Reviews still avoid the 50–70% passive norm of original research articles.
-- **Synonym cycling — ban:** Within the same paragraph, use one consistent term for each concept. Do not cycle synonyms (e.g., do not alternate "tumor microenvironment / TME / cancer stroma" within one paragraph — pick one and use it). Cycle across paragraphs is acceptable for stylistic variety.
+- **Terminology:** 术语按 `references/anti_ai_prose_rules.md` 第一节第 4 条与第四节第 3 条执行，例如不在 "tumor microenvironment / TME / cancer stroma" 之间轮换。
 - **Transitions:** Ban "Furthermore / In addition / Moreover" bolted-on. Embed causality into main clause.
 
 ### Chinese Mode
@@ -81,13 +83,13 @@ meta_analysis | systematic_review | clinical_trial | preprint | book_chapter | g
   - **「此外」「然而」刻意不进机器表**：它们在真中文稿里高频且合法，机器一刀切会把正常稿判死。写作时仍按上面的 Ban List 自律避免。
   - **`随着……的发展`、`在……的背景下`、`为……奠定了基础` 不收**：这三条在 polish-sci 里带「……」占位符、字面永远匹配不上，是**有意**留着不生效的——这几种表述不算 AI 感。别把它们改成能命中的形态。
   - **扣分随命中条数升级**：命中 1–3 条扣 15 分（老口径不变），第 4 条起每条再加 5 分。一节里堆 7 条套话就是 −35 分，不会再出现"稿子越长、命中越多、分数却不动"的稀释——935 字通篇套话的中文稿此前拿 77 分放行，就是这么漏的。**正常稿实测命中 0–2 条，落在免加成区间内，分数与改动前逐分相同。**
-- **Structure Ban:** 一方面……另一方面……; 随着……的不断发展; 日益受到关注; 禁任何比喻（明喻/暗喻/借喻，如"如同/犹如/像…一样"及"…的桥梁/基石/催化剂"类比喻名词——直接陈述事实）
-- **Rhythm:** Short sentences ≤15 characters, long sentences 30–60 characters. Avoid 3+ consecutive same-pattern sentences.
+- **Structure Ban:** 一方面……另一方面……; 随着……的不断发展; 日益受到关注; 比喻按 `references/anti_ai_prose_rules.md` 第一节第 6 条执行，例"如同/犹如/像…一样"及"…的桥梁/基石/催化剂"
+- **Rhythm:** Short sentences ≤15 characters, long sentences 30–60 characters.
 - **机器检查在中文稿上同样生效**：style_checker 按「。！？」断句、按 2 字 = 1 词折算词数，句长方差/连续等长句/长句/段首重复这些检查在中文稿上真的会算（此前中文稿恒判满分）。
 
 ### Deep Rewriting (Anti-Similarity Protocol)
-- **Lexical:** Replace non-terminological generic words. Verbatim phrase ≥4 consecutive words → decompose and reconstruct.
-- **Syntactic:** Alternate active/passive. Embed causality. No templated transitions.
+- **Lexical:** Keep terminology fixed. Use common words for non-terminological wording and do not swap them for rarer synonyms. Verbatim phrase ≥4 consecutive words → decompose and reconstruct.
+- **Syntactic:** Use active voice and keep passive within the Voice target above. Embed causality. No templated transitions.
 - **Structural:** Alternate "claim-then-evidence" vs "evidence-then-claim". Insert judgment sentences ("This likely reflects…").
 
 ### Three Additional AI-Marker Bans

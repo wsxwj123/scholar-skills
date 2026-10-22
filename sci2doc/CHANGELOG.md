@@ -1,5 +1,13 @@
 # Changelog - sci2doc Skill
 
+## [2.32.1] - 2026-10-22
+
+第二十八轮（anti-ai-dedupe，去 AI 文档瘦身，版本 2.32.1）：`references/contracts-humanization.md` 删掉已由 `references/anti_ai_prose_rules.md` 接管的规则句。删无重复排比、无修辞疑问/反问两个勾选项；无比喻/排比勾选项改写为句法与节奏指针行，指向真源第一节第 2 条与第 6 条，如同、犹如、桥梁举例保留。C 降软说明与短长句交替两处的软提示强度与真源冲突，改为写作按真源第一节第 2 条执行，脚本 info 级只是阈值，不放宽写作要求。脚本不动。
+
+## [2.32.0] - 2026-10-22
+
+第二十七轮（anti-ai-prose，句法与节奏规则统一真源）：pack-write 任务包 `embed.style_rules` 新增 `prose` 键，嵌入 `references/anti_ai_prose_rules.md` 的句法与节奏规则；规则文件缺失或标记畸形时 exit 2，不写任务包。撰写 prompt 风格硬禁条与去 AI 文档加指针句。新增 `references/anti_ai_prose_rules.md` 副本；pack-write stderr 多一行 `PROSE_RULES=<路径>`。
+
 ## [2.31.9] - 2026-08-20
 
 第二十六轮（中文 Windows 兼容，两条外部用户实证的上游 bug）：① `install_gate_hook.py` 选解释器由"只判在不在 PATH"改成"先实跑一次再定"——Windows 商店那个 0 字节 `python3.exe` 占位程序在 PATH 里存在、实跑 rc=9009，此前会被选中，导致门禁三个钩子静默失效且不报错；② `git_checkpoint.py` / `env_preflight.py` / `install_gate_hook.py`的 subprocess 文本调用补 `encoding="utf-8", errors="replace"`——`text=True` 缺 `encoding=` 时按 locale 解码，cp936 中文 Windows 下遇 UTF-8 输出即 `UnicodeDecodeError`。🔴 `git_checkpoint.py` 是回滚安全网，技能自己写的中文 commit message 就会触发它崩，中文 Windows 用户开始写稿后第一次调检查点即挂。判定逻辑与输出格式零改动。

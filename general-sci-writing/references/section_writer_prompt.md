@@ -31,6 +31,7 @@
    写进 `placeholders`（`DATA_PENDING`），不要硬编。
 5. **风格硬禁**：按任务包 `style_rules` 执行（禁破折号、禁 scare quotes、禁解释性冒号、禁 AI 禁词、禁任何比喻（no metaphors/similes，如 like…/as if…/serves as a bridge/cornerstone）、禁连续≥3句相同起始词或句式框架的排比；
    缩写用 `abbrev_table` 里的裸缩写，不重复展开）。
+   并执行任务包 `style_rules.prose` 的全部条目，交稿前按其中「交稿前自检」一节逐条检查。
 6. 全篇故事线 / 全库文献只在需要跨节定位或引本节切片外文献时，按 `refs` 路径 **Read（只读）**。
 
 ## 返回文件 `.write_return_<section>.json`（只返这一个 JSON 对象）

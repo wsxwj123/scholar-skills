@@ -58,3 +58,14 @@
 9. **Git Checkpoint** (见复用块, msg: `[review] Phase 1.7: outline confirmed (post-research)`)
 
 **HALT. Wait for user to confirm outline before Phase 2.**
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**Entry:** Read `outline.md` + `state.json` + `data/research_gap.json`（selected 主线）+ `data/framing_guide.md` + `data/benchmark_reviews.json`；`phase ≥ 2` → skip。**Phase gate：`phase < 1.6` → HALT**，回去先做 Phase 1.5 / 1.6。
+
+**步骤概要：** 1 据调研建提纲（selected gap 为骨架 + framing_guide 框架，Funnel Introduction + Thematic Body ≤2 层）→ 2 显式对齐对标框架 → 3 用户确认提纲、更新 outline.md（含迭代闸：Phase 2 后可回修）→ **结构签字落锁（用户在对话里明确确认提纲后，跑 Phase 0.5 打印的 `SIGNOFF_CMD`，即 `structure_signoff_gate.py` 的 confirm 子命令；未落签字则 PreToolUse hook deny 一切 `drafts/section_*.md` 写入；⚠️ 严禁在用户未确认时自行 confirm，那等于伪造用户签字）** → 4 注册 Figure 0 概念框架图 → 6 Zotero 集合树 `--init`（幂等；`--find-root-title` exit 4 多根时停下问用户）或 7 `init-index`（None/EndNote 模式）→ 8 `set-phase 1.7` + `set-root-key` → 9 Git Checkpoint → HALT。
+
+**HALT 点（3 个）：** ① phase gate（phase < 1.6）；② 提纲确认（Confirm outline with user，确认后才许落签字）；③ 节末 HALT 等用户确认后进 Phase 2。（Zotero 多同名根集合 exit 4 时另需停下问用户。）
+**必跑门禁：** 结构签字落锁（`structure_signoff_gate.py`，签字绑定大纲指纹，节号/标题/层级/顺序变化须用户重新确认后重签）。
+

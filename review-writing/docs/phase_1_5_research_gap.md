@@ -57,3 +57,14 @@
    - 在 `research_gap.json` 被选中的 gap/candidate_topic 上加 `"selected": true` 标记；
    - 同时把"选定主线 = 选题方向 + 核心 gap 一句话"写入 `outline.md` 顶部的主线锚点区（无则在文件首行新增 `## 综述主线（锚点）` 区块）。
    - 落盘后再补一次 Git Checkpoint。
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**Entry:** Read `outline.md` + `state.json`；`phase ≥ 1.6` → 已完成，skip。**Phase gate：`state.json` 不存在 → HALT**，先完成 Phase 0。
+
+**步骤概要：** 0 定 RQ/PICO（写入 outline.md）→ 1 `state_manager.py init-index` + 探索性检索（串行 ≥1s，逐篇 `citation_guard.py`，gap 只能由 verified 文献推出、禁脑补）→ 2 识别四类信号写 `data/research_gap.json`（candidate_topics/hotspots/controversies/gaps + novelty_risk）→ 3 DoD 盲检 → 4 `set-phase 1.5` + Git Checkpoint → HALT → 5 选定主线落盘（`selected` 标记 + outline.md 主线锚点 + 再补 Checkpoint）。
+
+**HALT 点（2 个）：** ① phase gate（state.json 不存在）；② 展示 candidate_topics/gaps/novelty_risk 等用户确认选题方向，确认后必做主线落盘。
+**必跑门禁：** `citation_guard.py`（逐篇 verified）；gate `research-gap-dod` 独立subagent盲检（`delegate_review.py pack/verify --checklist "[DOD_CHECKLIST]"`，fail-closed，未过不得声明完成）。
+

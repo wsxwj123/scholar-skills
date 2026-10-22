@@ -1,3 +1,5 @@
+> 本文件由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
 # 章节写作模板库 (writing-templates)
 
 > 被 SKILL.md 各写作阶段引用。写对应章节前 `Read` 本文件相关小节。
@@ -70,3 +72,14 @@ Generation rules:
 - For data plots: specify chart type; do NOT describe actual data values — matplotlib generates the actual plot
 - For mechanistic/schematic figures: use standard scientific icons (receptor = Y-shape, nucleus = double-border oval, mitochondria = bean shape with cristae, etc.)
 - If figure revision is needed in a later phase, update the corresponding prompt block in `figures/figure_prompts.md`
+
+---
+
+## 📝 模板文件说明
+
+> 原 SKILL.md 704–708，2026-10-19 拆分保留，逐字未改。
+
+- `project_init.json`: 包含初始配置。
+- `reviewer_concerns.json`: 包含针对不同研究方向的审稿人质疑库（由 `set-field` 命令根据 configs/ 中的配置自动生成到项目根目录）。
+
+---

@@ -1,7 +1,8 @@
 # Anti-AI 规则（软提示分级与非散文豁免·细则）
 
-> 本文件是 polish-sci SKILL.md 的下沉细则，内容与拆分前逐字一致，未作任何改写。
+> 本文件是 polish-sci SKILL.md 的下沉细则，除开头新增的指针行外与拆分前逐字一致。
 > 何时读：每段改写前，与 Polish Prompt 同时；判断某个 flag 该不该改时。硬拦三项已留在 SKILL.md，此处是不阻断的软提示分级与豁免范围。
+> 写作前先 Read `references/anti_ai_prose_rules.md`，执行其中全部条目。
 
 **软提示项(记入 `polish_risk_flags` / `polish_change_report.md`,**不阻断交付**,由人工取舍),学术散文正当修辞,别硬削平**:
 - 英文单句>30词 / 中文单句>50字(科学方法学段落常含数据列表的合法长句)。

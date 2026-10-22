@@ -103,3 +103,14 @@ python3 scripts/state_manager.py set-phase --phase 2
 ```
 
 **Git Checkpoint** (见复用块, msg: `[review] Phase 2.5: dedup + global ID assigned`)
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**Entry:** Read `outline.md` + `state.json`，跳过已在 `searched_sections` 的节（检索完成标记，与写作完成的 `completed_sections` 独立）。开写前 Read `data/research_gap.json` 取 `selected` 主线。**Phase gate：`state.json` 不存在或 `phase < 1.7`（未落结构签字）→ HALT**，先完成 1.5→1.6→1.7。
+
+**步骤概要（逐节循环，工具优先级见 § Search Tool Priority，串行 ≥1s）：** 每节 ≥10 篇 → `append-search-log` 记检索日志 → 入库前相关性筛选（不得"搜到即入库"）→ 写库（Zotero `--add-batch` / None `append-literature`，字段含 `related_sections` 数组）→ matrix bootstrap（None/EndNote）→ **`citation_guard.py --write-back`（exit 非 0 不得进下一节；🔴 绝不加 `--offline`、绝不省 `--write-back`，这是 Phase 3 盲检 R2b 的唯一证据来源）** → `complete-search`（🔴 绝不能用 complete-section）→ Git Checkpoint。全局目标 ≥100 篇；密度硬地板（三级叶子 ≥6 / 四级叶子 ≥3 / 容器父节 ≥1）由 Phase 3 prewrite_gate check3 硬拦。**Phase 2.5 去重：⚠️ HALT before dedup**，用户明确 "Continue" 后 [Zotero] 跳过（写入时已去重）/ [None] `reindex`，然后 `set-phase 2` + Checkpoint。
+
+**HALT 点（2 个）：** ① phase gate（无 state.json 或 phase < 1.7）；② Phase 2.5 去重前（展示总数/预估重复/覆盖节次，等明确 "Continue"）。
+**必跑门禁：** `citation_guard.py --write-back`（逐节，fail 即停）；`state_manager.py append-search-log`（可复现性台账）。
+

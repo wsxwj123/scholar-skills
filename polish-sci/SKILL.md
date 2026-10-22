@@ -1,22 +1,22 @@
 ---
 name: polish-sci
-version: 2.26.2
-description: 纯论文润色全管道。输入一份已写完的稿子(无审稿意见),逐段提升语言表达,绝不改内容/数据/结论。触发词：润色、polish、语言润色、润色论文、polish paper、language polish、proofread manuscript、母语化、润色稿子。路由说明：与revise-sci区分,revise-sci由审稿意见驱动、只改被点名片段;polish-sci无意见、全文逐段润色覆盖每一段。与general-sci-writing区分,gsw从零写新稿,polish-sci只润色现成稿。
+version: 2.27.0
+description: 用于对已完稿论文执行纯语言润色，输入为完整稿件（Markdown 或 docx），不需审稿意见。技能逐段提升语言表达，覆盖全文每一段，产出润色稿及一份逐段改动报告。默认采用交互式逐段模式，每段先呈现原文、润色结果与逐处改动，经用户确认后写回。核心约束为仅改语言表达，绝不改动内容、数据与结论。润色后若残留 AI 套话禁词，或装饰性破折号、scare quotes、解释性冒号三项禁用标点，一律硬性拦截。触发词：润色、polish、语言润色、润色论文、polish paper、language polish、proofread manuscript、母语化、润色稿子。路由说明：本技能不需审稿意见且逐段覆盖全文，由审稿意见驱动、仅修改被点名片段的情形应使用 revise-sci；从零撰写新稿应使用 general-sci-writing。
 ---
 
 # Polish-Sci
 
-**【Python 解释器探测·开工第一件事，一次探测全程沿用】** 本文命令里写的 `python3` / `python` 只是 macOS/Linux 的习惯写法，不是硬性要求。动手前先跑一次 `python3 --version`：
-- 打印出正常版本号 → 本次会话所有命令照抄用 `python3`。
-- 报 command not found、没有任何输出、或弹出应用商店 → 改跑 `python --version`，能出版本号就把后续所有命令里的解释器统一换成 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出就是撞上了它，**不算有 python3**，按"没有"处理（用户也可在 设置 → 应用 → 应用执行别名 里关掉 `python3.exe`）。
-- 反过来 `python` 出不了版本号就换 `python3`（macOS 12.3 起系统不再自带 `python`）。
-- 两个都出不了版本号 = 这台机器没装 Python，停下来告诉用户先安装，不要硬跑。
-- 探测只做这一次，之后所有命令沿用同一个名字，不要每条命令都再试。
+**【Python 解释器探测·开工前置，一次探测全程沿用】** 本文命令中的 `python3` / `python` 仅为 macOS/Linux 的习惯写法，并非硬性要求。执行前先运行一次 `python3 --version`：
+- 输出正常版本号 → 本次会话所有命令统一使用 `python3`。
+- 报 command not found、无任何输出、或弹出应用商店 → 改为运行 `python --version`，若能输出版本号则将后续所有命令的解释器统一替换为 `python`。注意 Windows 自带一个 0 字节的 `python3` 占位程序，`python3 --version` 弹商店或无输出即为命中该占位程序，**不视为已安装 python3**，按"不可用"处理（用户亦可在 设置 → 应用 → 应用执行别名 中关闭 `python3.exe`）。
+- 反之 `python` 无法输出版本号则换用 `python3`（macOS 12.3 起系统不再内置 `python`）。
+- 两者均无法输出版本号 = 该机器未安装 Python，须停止并提示用户先行安装，不得强行执行。
+- 探测仅执行一次，此后所有命令沿用同一解释器名称，无需每条命令重复探测。
 
-> 🔁 **每次进入/续写先接续**:开工或换会话续写前,先跑 `env_preflight` 打印的 **RESUME_CMD**(`python <polish-sci>/scripts/session_journal.py resume --root <project_root>`),把接续报告贴给用户并打一次接续握手(确认进度到哪、之前的要求都读了、下一步做什么),等用户确认再动手。用户中途插入任何临时要求,立刻用 **LOG_CMD**(`session_journal.py log --root <project_root> --note "<原话>"`)记进 `decisions_log.md`,后续会话必读必守。
+> 🔁 **每次进入/续写须先接续**:开工或换会话续写前，须先执行 `env_preflight` 输出的 **RESUME_CMD**(`python <polish-sci>/scripts/session_journal.py resume --root <project_root>`)，将接续报告呈现给用户并完成一次接续确认（确认当前进度、已读取的历史要求、下一步操作），等待用户确认后方可继续。用户中途提出任何临时要求，须立即通过 **LOG_CMD**(`session_journal.py log --root <project_root> --note "<原话>"`)追加至 `decisions_log.md`，后续会话必须读取并遵守。
 
 ## Overview
-本技能只做一件事,纯语言润色一份已写完的稿子。输入是完整稿(md 或 docx),没有审稿意见。输出是逐段润色后的稿子,加一份逐段改动报告。**默认走交互式逐段润色**(每段先贴原文/润色/逐处改动给你看、你确认或要求调整后才写回,见"交互式逐段润色协议"专节),方便你边润边对照改自己的原稿。
+本技能仅执行一项任务：对已完稿论文进行纯语言润色。输入为完整稿件（md 或 docx），无需审稿意见。输出为逐段润色后的稿件及一份逐段改动报告。**默认采用交互式逐段润色模式**（每段先呈现原文、润色结果与逐处改动，经用户确认或要求调整后方写回，详见"交互式逐段润色协议"专节），便于用户边审核边对照修改原稿。
 
 核心约束,只提升语言表达,绝不改内容、数据、结论。润色覆盖全文每一段,不是只改被点名的片段。
 
@@ -25,13 +25,14 @@ not_for(以下情况不要用本技能):
 - 审稿意见驱动改稿(收到 reviewer comments / 退稿信),用 revise-sci。
 - 写综述,用 review-writing。
 
-工作流是脚本闸门式的。脚本只负责拆分、生成润色任务包、校验红线,真正的语言改写由主 agent 按本文 prompt 逐段执行。不要跳步,不要让脚本假装自己会改写。
+工作流采用脚本闸门式架构。脚本仅负责拆分、生成润色任务包与校验红线，实际的语言改写由主 agent 依据本文 prompt 逐段执行。禁止跳步，禁止令脚本承担改写职能。
 
 ## 📁 references/ 参考文件地图(按需 Read,不要靠记忆复述其内容)
 
 | 必须 Read 的时机 | 文件 |
 |---|---|
 | 每段改写前 | `references/anti-ai-protocol.md` |
+| 每段改写前 | `references/anti_ai_prose_rules.md`(句法与节奏规则,执行其中全部条目) |
 | 第 3 步逐段润色前 | `references/interaction-protocol.md` |
 | 第 5 步委托盲检前 | `references/dod-protocol.md` |
 | 第 7 步 merge/导出前 | `references/output-contract.md` |
@@ -51,14 +52,14 @@ not_for(以下情况不要用本技能):
 
 确认这四项 + 目标 project_root 后,先跑**环境预检（软门禁）**:`python scripts/env_preflight.py <project_root> --py docx`,写 `env_status.json`,末行 `PRECHECK: OK|ASK|BLOCKED`。`BLOCKED`(Python 过低)→停并引导升级;`ASK`(缺 git/python-docx 等可选工具)→逐项问用户是否安装并给指引,用户答"已装/不装"后才继续;`OK`→继续。再进 Pipeline。
 
-### 📋 开场监工卡(每次启动必须原样打印给用户)
-确认完上述四项、跑完预检后,**每次开工都要把下面这张卡贴给用户**,让用户知道该盯什么:
+### 📋 开场监工卡（每次启动须原样输出给用户）
+确认上述四项并完成预检后，**每次开工均须将以下监工卡呈现给用户**，供用户了解需监控的要点：
 
-> **这次润色你要盯的几件事:**
-> 1. 我**只动语言**,绝不改你的数据、结论、引用标记、专名/单位。你若看到某处数值、结论或引用被改了,**立刻喊停**,那是越界。
-> 2. 我默认**逐段停**:每段给你看「原文 → 润色后 → 改了哪几处」,请你每段核对**意思没被改**再放行。
-> 3. 你可以让我"连续润完不停",但那样就**失去逐段核对**,润坏了只能等最后的合并稿兜底才发现,**慎选**。
-> 4. 红线由脚本做集合比对(引用/数值/专名),但脚本只拦得住"能从文本判定"的越界;**语义有没有被悄悄改,最终要靠你逐段看**。
+> **本次润色须用户监控的事项：**
+> 1. AI **仅修改语言表达**，绝不改动数据、结论、引用标记、专名与单位。若发现数值、结论或引用被修改，**须立即叫停**，此属越界行为。
+> 2. 默认**逐段暂停**：每段呈现「原文 → 润色后 → 改动说明」，请逐段核对**语义未被改变**后方放行。
+> 3. 用户可选择"连续润色不暂停"，但此模式将**放弃逐段核对**，润色偏差只能在最终合并稿中才能发现，**请谨慎选择**。
+> 4. 红线由脚本进行集合比对（引用/数值/专名），但脚本仅能拦截"可从文本判定"的越界；**语义是否被隐性修改，最终须由用户逐段审核**。
 
 ## Red Lines(一字不改)
 以下内容润色时绝对不动,脚本会做集合比对拦截:
@@ -120,12 +121,12 @@ not_for(以下情况不要用本技能):
 通过条件,delegate_review verify 通过 + strict_gate.py exit 0 输出 `STRICT_GATE: PASS`。
 
 ## Pipeline(脚本顺序)
-**第 0 步(拆段前必做,无脚本):通读全稿一遍。** atomize 一拆段,你就只能逐段看局部,靠临场记忆润色,极易术语前后不一、指代判错。所以拆段前先把整稿从头读一遍,建立三样全局依据,写进 `decisions_log.md`(用 LOG_CMD)供逐段润色时对照:
+**第 0 步（拆段前必做，无脚本）：通读全稿一遍。** atomize 拆段后只能逐段查看局部，依赖临场记忆润色极易导致术语前后不一、指代判断失误。因此拆段前须先将全稿从头通读一遍，建立三项全局依据并写入 `decisions_log.md`（通过 LOG_CMD），供逐段润色时对照：
 - **术语一致表**:同一概念/缩写/基因蛋白名在全文的既定写法(哪个词、什么大小写、缩写首展在哪),逐段润色时照此表统一,不临场另起同义词。
 - **作者语感基线**:摸清作者的句式偏好、语气强弱、正式度,润色是向目标期刊语域靠拢而非抹平成千篇一律的 AI 腔。
 - **目标期刊语境**:结合 Intake 的目标期刊与 US/UK 拼写,定全稿统一的拼写/标点/语域基准。
 
-通读只读不改,是逐段润色的全局基准;跳过它,就只能靠局部记忆硬润,必然出术语漂移。
+通读仅阅读不修改，为逐段润色提供全局基准；跳过此步将只能依赖局部记忆进行润色，必然导致术语漂移。
 
 ```bash
 # 1. 原子化:把稿子按段落拆成 units/<idx>.json
@@ -143,6 +144,7 @@ python scripts/polish_units.py pack --project-root <root> --intensity standard
 # 3. 主 agent 逐段润色:读 polish_manifest.json 的每个 task,按下方 Polish Prompt 改写。
 #    📖 动手前必须 Read references/interaction-protocol.md + references/anti-ai-protocol.md,
 #       不许凭记忆跑。自查:我这轮真的读过这两个文件吗?没有就先读。
+#    📖 另须先 Read references/anti_ai_prose_rules.md(句法与节奏规则),执行其中全部条目。
 
 # 4. 校验红线(逐段写回 polish_risk_flags)
 python scripts/polish_units.py verify --project-root <root>
@@ -170,6 +172,8 @@ python scripts/polish_report.py --project-root <root>
 ```
 
 ## Polish Prompt(主 agent 逐段改写时遵守)
+写作前先 Read `references/anti_ai_prose_rules.md`，执行其中全部条目。
+
 对 `polish_manifest.json` 里的每个 task,产出 `polished_text`:
 1. **去AI**,清除 AI 套话与五项装饰(见 Anti-AI 规则),改写后自检不得残留。
 2. **句长**,英文单句≤30词、中文单句≤50字,长短句交替,避免连续长句。

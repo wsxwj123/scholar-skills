@@ -53,3 +53,15 @@
    ```
 
 **完成。向用户交付投稿包，列出已生成文件与询问级标 N/A 的项。**
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**Entry:** Phase 4 导出完成后（`phase=4, completed=true`）。Read `outline.md` + `state.json`；`phase=5, completed=true` → skip。**Phase gate：`phase < 4` 或 Phase 4 未 completed → HALT**，先完成 Phase 4。
+**进入本阶段必读：** `references/submission_checklist.md`、`references/cover-letter-guide.md`（写 cover letter 前必读）、`references/presubmission_checklist.md`（soft 提醒不阻断）。
+
+**步骤概要：** 1 逐项询问（通讯作者/ORCID/CRediT/COI/Funding/致谢/是否要 Highlights·Suggested Reviewers，不静默留白）→ 2 生成投稿包写入 `exports/`（cover_letter/title_page/author_contributions/coi_statement/funding/data_availability/keywords/acknowledgements 等；**🔴 cover letter 的 scope 契合段强制：用户未给目标刊 Aims & Scope 原文则停下索取、不编造**；Suggested Reviewers 严禁伪造邮箱）→ 3 合规核对（ICMJE 署名、COI 回避；narrative 综述伦理/注册号标 N/A）→ 4 DoD 盲检 → 5 `set-phase 5 --completed true` + Git Checkpoint → 交付清单。
+
+**HALT 点（2 个）：** ① phase gate（phase < 4 或未 completed）；② scope 原文缺失时停下向用户索取。
+**必跑门禁：** gate `submission-pack-dod` 独立subagent盲检（`delegate_review.py pack/verify --checklist "[DOD_CHECKLIST]"`，fail-closed，未过不得声明完成）。
+

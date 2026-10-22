@@ -391,3 +391,31 @@ Routing after Step 6:
 | `keep` | Skip entirely (already in completed_sections) |
 
 All sections complete → Phase 4 (export + compile).
+
+
+> 以下「路由摘要」（Entry / 步骤概要 / HALT 点 / 必跑门禁）由 SKILL.md 拆分而来，仅在主文件指示时读取。
+
+**前置条件：** Phase 0.1–0.5 已完成（outline.md + state.json + scripts 已就位）。
+
+**步骤概要：**
+1. **Step 0:** 验证参数（不重复收集）+ 格式依赖检测（.docx / .pdf）
+2. **Step 1:** 接收草稿 → `extract_headings.py` 一趟同产 `tmp/draft_import.md` + `tmp/heading_manifest.json`（标题真值）
+3. **Step 2:** 原子拆分（两路 + 两层反向核验必跑）：路径判定 → 有标题路 `split_headings.py` 机械切 / 无标题路 LLM 拆分子代理 → **Layer1** `split_audit.py` 逐分区比对(exit0 才进) → **Layer2** `split_boundary` gate（LLM 核验，`delegate_review.py` pack/verify，恒跑）→ **两层皆绿 + 用户确认后才写** `drafts/section_XX_XX.md`
+4. **Step 3:** 诊断报告（字数 / 引用密度 / AI 特征）→ keep / polish / rewrite / missing
+5. **Step 4:** 用户分配优先级（**Hard Block，每节必须有明确标签**）
+6. **Step 5:** 引文导入 → `data/literature_index.json`（保留原始 [N] 编号）
+7. **Step 6:** 初始化 state.json → 路由到 Phase 3
+
+**路由表：**
+| Section type | Path |
+|---|---|
+| `missing` | Phase 3 内部处理：先搜索再写（不回退 Phase 2） |
+| `rewrite` | Phase 3（可选 Round 2 搜索） |
+| `polish` | Phase 3（跳过搜索，直接修订） |
+| `keep` | 跳过（已在 completed_sections） |
+
+All sections complete → Phase 4 (export + compile).
+
+**HALT 点（4 个）：** ① Step 0 格式依赖探测失败（缺 python-docx / pdf 提取器 → 停下给用户装法，不许绕过）；② Step 1 抽取后长度体检异常（<200 字符判源文件损坏、字符数明显偏少 → 停下与用户核实是不是完整稿）；③ Step 2 两层反向核验皆绿后**仍须等用户确认**才写 `drafts/`；④ Step 4 逐节优先级分配（**Hard Block**，每节必须有 keep/polish/rewrite/missing 明确标签才能往下走）。
+**必跑门禁：** `extract_headings.py`（标题真值）→ `split_headings.py` 或 LLM 拆分 → `split_audit.py`（Layer1 逐分区比对，exit 0 才进）→ `delegate_review.py` 的 `split_boundary` gate（Layer2 LLM 核验，**恒跑，不因 Layer1 绿而跳过**）。
+

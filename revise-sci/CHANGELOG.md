@@ -1,5 +1,13 @@
 # Revise-Sci Changelog
 
+## [2.31.1] - 2026-10-22
+
+第二十八轮（anti-ai-dedupe，去 AI 文档瘦身，版本 2.31.1）：`references/rules.md` 删掉已由 `references/anti_ai_prose_rules.md` 接管的规则句。去AI第 5 条删去连续 3 句字数差异的半句；第 6 条标题改为比喻与排比在原稿已有时作软提示、新写的句子禁止，排比半条改写为原稿排比列给作者定夺、改写时新写句子禁止排比，并加指向真源第一节第 2 条与第 6 条的指针，与 polish-sci 口径一致。脚本不动。
+
+## [2.31.0] - 2026-10-22
+
+第二十七轮（anti-ai-prose，句法与节奏规则统一真源）：`polish_revisions.py` 润色 prompt 在 Style requirements 段后嵌入 `references/anti_ai_prose_rules.md` 的句法与节奏规则；规则文件不可用时 stderr 打 WARN，prompt 放一行 `Syntax rules unavailable`，exit 不变。新增 `scripts/delegate_write_core.py` 副本（只用 `load_prose_rules`）。`rules.md` 去AI五项前加指针句。
+
 ## [2.30.2] - 2026-08-20
 
 第二十六轮（中文 Windows 兼容，两条外部用户实证的上游 bug）：① `install_gate_hook.py` 选解释器由"只判在不在 PATH"改成"先实跑一次再定"——Windows 商店那个 0 字节 `python3.exe` 占位程序在 PATH 里存在、实跑 rc=9009，此前会被选中，导致门禁三个钩子静默失效且不报错；② `env_preflight.py` / `run_pipeline.py`(2 处) / `ensure_global_skill.py`(2 处) / `install_gate_hook.py`的 subprocess 文本调用补 `encoding="utf-8", errors="replace"`——`text=True` 缺 `encoding=` 时按 locale 解码，cp936 中文 Windows 下遇 UTF-8 输出即 `UnicodeDecodeError`。判定逻辑与输出格式零改动。

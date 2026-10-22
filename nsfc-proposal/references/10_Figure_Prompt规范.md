@@ -30,3 +30,12 @@ AVOID: 3D effects, excessive colors (>4 colors), clip art, stock icons, overly c
 - 预期结果示意图：用占位符 `[Preliminary Data Fig N]` 标注
 - 所有图使用统一色板（深蓝=主线索，绿色=创新点，橙色=预期产出）
 - 每张图必须能在 consistency_map.json 中映射到至少一个 RC（研究内容）
+
+
+> 以下一节由 SKILL.md 拆分而来（原 `## Figure Prompt 触发规则` 的三条规则），仅在主文件指示时读取。
+
+## Figure Prompt 触发规则（自 SKILL.md）
+
+- 技术路线图：Phase 2 必须生成；研究框架图：立项依据含多层机制链或多要素关系时 Phase 1 生成；预期结果用占位符 `[Preliminary Data Fig N]`。
+- 统一色板（深蓝=主线索，绿色=创新点，橙色=预期产出），每张图须映射到 consistency_map 中至少一个 RC。
+- 完整提示词模板与生成规则见 `references/10_Figure_Prompt规范.md`。
