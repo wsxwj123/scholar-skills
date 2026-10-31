@@ -98,10 +98,11 @@ def _section_consistency_snapshot(consistency_path: Path, section_stem: str) -> 
     return consistency_mapper.query_by_section(cm, section_stem)
 
 
-def diagnose_section(path: Path, consistency_path: Path, allow_lists: bool = False) -> dict[str, Any]:
+def diagnose_section(path: Path, consistency_path: Path, allow_lists: bool = False,
+                     allow_cn_numbered: bool = False) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
-    style = humanizer_zh.scan_text(text, allow_lists=allow_lists)
-    rhythm = humanizer_zh.rhythm_check(text)
+    style = humanizer_zh.scan_text(text, allow_lists=allow_lists, allow_cn_numbered=allow_cn_numbered)
+    rhythm = humanizer_zh.rhythm_check(text, allow_cn_numbered=allow_cn_numbered)
     words = word_counter.count_text(text)
 
     d07 = _grade_from_issue_count(style["count"] + rhythm["count"])
@@ -128,7 +129,10 @@ def diagnose_all(sections_dir: Path, consistency_path: Path) -> list[dict[str, A
     reports = []
     for p in sorted(sections_dir.glob("*.md")):
         allow_lists = p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
-        reports.append(diagnose_section(p, consistency_path, allow_lists=allow_lists))
+        # P2 的中文括号编号分项不计入写作风格评级与节奏提示；项目符号与数字点照计
+        allow_cn_numbered = p.name.startswith("P2")
+        reports.append(diagnose_section(p, consistency_path, allow_lists=allow_lists,
+                                        allow_cn_numbered=allow_cn_numbered))
     return reports
 
 
@@ -545,6 +549,7 @@ def main() -> int:
     p_sec.add_argument("--section", required=True)
     p_sec.add_argument("--consistency", default="data/consistency_map.json")
     p_sec.add_argument("--allow-lists", action="store_true")
+    p_sec.add_argument("--allow-cn-numbered", action="store_true")
 
     p_all = sub.add_parser("diagnose-all")
     p_all.add_argument("--sections-dir", default="sections")
@@ -584,7 +589,8 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.cmd == "diagnose-section":
-        report = diagnose_section(Path(args.section), Path(args.consistency), allow_lists=args.allow_lists)
+        report = diagnose_section(Path(args.section), Path(args.consistency), allow_lists=args.allow_lists,
+                                  allow_cn_numbered=args.allow_cn_numbered)
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
 

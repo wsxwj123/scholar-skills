@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.39.0
+version: 2.40.0
 description: 用于国家自然科学基金申请书（2026 版模板）的撰写、结构重组与润色。提供两种工作模式：写作模式从零分阶段构建，润色模式导入既有稿件后先行诊断再逐节修订。技能执行逐节签字门禁，强制维持科学假说、研究目标、研究内容与关键科学问题四者的一致性，通过 paper-search MCP 核验文献真实性，并施加反 AI 腔的中文学术写作约束。字数与页数上限以脚本核算结果为准。触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -42,7 +42,7 @@ Hard rules:
 > 2. **诊断引擎报告的字数、条目数与通过项仅代表"格式合规"，不代表"内容过关"**。门禁通过不等于能中标，不应将指标达标等同于写作质量。
 > 3. **引用须用户亲自抽验**：随机选取数条文献，要求 AI 报出 PMID / DOI，自行前往 PubMed / 期刊官网核对（防止杜撰文献或引用已撤稿论文）。
 > 4. **每写完一章须暂停等待用户确认**后再继续；若 AI 未停顿而连续撰写多章，应立即中断，此属流程跳步。
-> 5. **"研究假说 → 研究目标 → 研究内容 → 关键科学问题"链条须保持对齐**，AI 会以表格形式逐条呈现，用户须检查是否存在脱节或断链。
+> 5. **"研究假说（P1 末段）→ 研究目标 → 研究内容 → 关键科学问题"链条须保持对齐**，AI 会以表格形式逐条呈现，用户须检查是否存在脱节或断链。
 > 6. **科学问题与章节结构须经用户确认后方可开写正文**，此项有硬门禁强制执行（见"结构签字落锁"），非依赖 AI 自律。
 > 7. **默认按国自然 2026 模板执行**。若需撰写省基金、校基金、企业课题或其他基金/自定义模板，**请在此时说明**。AI 会先读取模板进行结构提取，将章节结构逐条呈现供核对，后续的章节顺序与字数上限均按用户模板执行。未说明则按国自然结构及「科学问题属性四选一」要求执行。
 
@@ -54,6 +54,9 @@ Hard rules:
 不问的三种情况：任一判据文件已存在（老项目续写，按已有真源走）；用户在开场消息里已明说基金类型（如「我写省自然」「国自然面上」——口径同上方 Mode 已明说就不再问）；同一会话内已经问过。
 ⚠️ 已知天花板（如实登记）：答 A 故意不落任何文件，所以只承诺**同一会话内**问过不再问；用户答完 A 就中断、没走到 `state_manager init` 的，下次新会话两个判据文件仍都不存在，会再问一次——这是接受的代价，不为它新造"AI 自己写结构真源"的落点。
 
+## 引用占位符（写作阶段只写 `[@key]`）
+P1 正文写文献引用时只写 `[@key]` 占位符，不写数字编号。合并前跑 `python scripts/citation_renumber.py renumber --root . --check`，通过后再 `--in-place`，脚本按 P1 正文首次出现顺序把 `[@key]` 翻成连续 `[N]`。插新文献时不用手工移位后续编号。P2 到 P7 正文不带任何文献标记。
+
 ## Core Terminology
 SQ is the upstream root; H/O/RC/KSQ form the 1:1 consistency backbone derived from it.
 
@@ -63,7 +66,7 @@ SQ is the upstream root; H/O/RC/KSQ form the 1:1 consistency backbone derived fr
 | H | 假说 (Hypothesis) | Causal claim derived from SQ | "A蛋白通过B通路调控C过程" |
 | O | 目标 (Objective) | What you **do** (action-oriented) | "阐明XXX的机制" |
 | RC | 研究内容 (Research Content) | Specific investigation; links to methods | "通过ChIP-seq分析A蛋白的结合位点" |
-| KSQ | 关键科学问题 (Key Scientific Question) | What you **answer** (question-oriented), distilled from SQ | "XXX如何调控YYY？" |
+| KSQ | 关键科学问题 (Key Scientific Question) | What you **answer** (question-oriented), distilled from SQ | "XXX能否通过YYY调控ZZZ，其调控规律是什么？" |
 
 Mapping constraint: H-n ↔ O-n ↔ RC-n ↔ KSQ-n (strict one-to-one, no cross-linking allowed).
 SQ vs KSQ: SQ is the broad open problem stated in P1; KSQ is the focused, answerable question distilled from SQ and bound 1:1 to its H/O/RC. One SQ may seed one or more KSQ; each SQ must trace to ≥1 H and ≥1 KSQ (rule V-01).
@@ -179,7 +182,7 @@ Any missing sync blocks phase progression.
 脚本静默必填字段（`mcp_literature_cache.json` 的 `verified_at`/`checked_at`、`literature_index.json` 的 `key_finding` 与 `search_source`）及最小合规样例：**写入或修复 `data/*.json`、跑 `citation_validator.py` 前，先 Read `references/field-contracts.md`**。
 
 ## Quality Gates
-阻断条件、`gate-check` 完整命令、反例黑名单（17 条）、`failed_at=*` 失败处置手册与已知限制均在 `references/quality-gates.md`：**跑 `gate-check` 前、任一 Phase 收口前、以及 gate-check 报 `failed_at` 时，先 Read 它**。
+阻断条件、`gate-check` 完整命令、反例黑名单（18 条）、`failed_at=*` 失败处置手册与已知限制均在 `references/quality-gates.md`：**跑 `gate-check` 前、任一 Phase 收口前、以及 gate-check 报 `failed_at` 时，先 Read 它**。
 
 ## References
 Load only what is needed:
@@ -205,7 +208,7 @@ Load only what is needed:
 ## Output Contract
 Deliverables should include:
 - section files under `sections/` (canonical filenames):
-  `P1_立项依据.md`, `P2_研究内容.md`（含独立预期成果小节：论文/专利/人才培养目标），
+  `P1_立项依据.md`（末段写科学假说）, `P2_研究内容.md`（研究目标段 + 2.1 研究内容 + 2.2 研究方案 + 2.3 技术路线 + 2.4 本项目的特色与创新之处 + 2.5 拟解决的关键科学问题 + 2.6 年度研究计划 + 2.7 预期成果），
   `P3_1_研究基础与可行性分析.md`, `P3_2_工作条件.md`, `P3_3_正在承担的相关项目.md`, `P3_4_完成基金项目情况.md`,
   `P4_其他需要说明的情况.md`,
   `B1_预算说明_直接费用.md`, `B2_预算说明_合作外拨.md`, `B3_预算说明_其他来源.md`,

@@ -63,11 +63,19 @@ OVERUSE_PATTERNS = [
 # 6 条与 reviewer-simulator 逐字节共用，改由共享真源 VAGUE_TABLE 取。
 VAGUE_PATTERNS = list(VAGUE_TABLE)
 
+# 中文括号编号行：行首（允许前导空白）是全角或半角括号包着数字或汉字数字。
+# 同一条正则既是 cn_numbered_list 的判据，也是 allow_cn_numbered 放行的判据，两处不会漂移。
+CN_NUMBERED_LINE_PATTERN = r"^\s*[（\(][一二三四五六七八九十\d]+[）\)]"
+
 BULLET_PATTERNS = [
     (r"^\s*[\-\*•]\s", "bullet_list", "改为段落叙述"),
     (r"^\s*\d+[\.)]\s", "numbered_list", "改为段落叙述"),
-    (r"^\s*[（\(][一二三四五六七八九十\d]+[）\)]", "cn_numbered_list", "改为段落叙述"),
+    (CN_NUMBERED_LINE_PATTERN, "cn_numbered_list", "改为段落叙述"),
 ]
+
+
+def _is_cn_numbered_line(line: str) -> bool:
+    return re.search(CN_NUMBERED_LINE_PATTERN, line) is not None
 
 # ── 新增三项检查 ──────────────────────────────────────────────────────────
 
@@ -275,7 +283,7 @@ def check_english_spelling(text: str) -> list[dict]:
     return out
 
 
-def scan_text(text: str, allow_lists: bool = False) -> dict:
+def scan_text(text: str, allow_lists: bool = False, allow_cn_numbered: bool = False) -> dict:
     issues = []
 
     for pattern, code, suggestion in BANNED_PATTERNS:
@@ -317,9 +325,13 @@ def scan_text(text: str, allow_lists: bool = False) -> dict:
                 }
             )
 
+    # allow_lists 关掉三类列表提示；allow_cn_numbered 只放行 cn_numbered_list（P2 的中文括号编号分项），
+    # bullet_list 与 numbered_list 照报
     if not allow_lists:
         for i, line in enumerate(text.splitlines(), 1):
             for pattern, code, suggestion in BULLET_PATTERNS:
+                if allow_cn_numbered and code == "cn_numbered_list":
+                    continue
                 if re.search(pattern, line):
                     issues.append(
                         {
@@ -396,7 +408,10 @@ def _count_cn_chars(s: str) -> int:
 MECHANISM_CONNECTORS = ("通过", "从而", "进而", "使得", "导致", "因而", "借助", "基于", "利用", "由于", "以及", "从而使")
 
 
-def rhythm_check(text: str) -> dict:
+def rhythm_check(text: str, allow_cn_numbered: bool = False) -> dict:
+    if allow_cn_numbered:
+        # 中文括号编号行在分段、分句之前整行剔除：既不算句子，也不影响分段
+        text = "\n".join(line for line in text.splitlines() if not _is_cn_numbered_line(line))
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     issues = []          # 计入 count 的节奏问题
     advisories = []      # 软提醒：超长句，不计入 count、不阻断
@@ -451,12 +466,12 @@ def fix_suggest(text: str, allow_lists: bool = False) -> dict:
     return {"count": len(suggestions), "suggestions": suggestions}
 
 
-def scan_file(path: Path, allow_lists: bool = False) -> dict:
+def scan_file(path: Path, allow_lists: bool = False, allow_cn_numbered: bool = False) -> dict:
     text = path.read_text(encoding="utf-8")
     return {
         "path": str(path),
-        "scan": scan_text(text, allow_lists=allow_lists),
-        "rhythm": rhythm_check(text),
+        "scan": scan_text(text, allow_lists=allow_lists, allow_cn_numbered=allow_cn_numbered),
+        "rhythm": rhythm_check(text, allow_cn_numbered=allow_cn_numbered),
     }
 
 
@@ -467,6 +482,7 @@ def main() -> int:
     p_scan = sub.add_parser("scan")
     p_scan.add_argument("path")
     p_scan.add_argument("--allow-lists", action="store_true")
+    p_scan.add_argument("--allow-cn-numbered", action="store_true")
 
     p_scan_all = sub.add_parser("scan-all")
     p_scan_all.add_argument("sections_dir", nargs="?", default="sections")
@@ -482,14 +498,17 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.cmd == "scan":
-        print(json.dumps(scan_file(Path(args.path), allow_lists=args.allow_lists), ensure_ascii=False, indent=2))
+        print(json.dumps(scan_file(Path(args.path), allow_lists=args.allow_lists,
+                                   allow_cn_numbered=args.allow_cn_numbered), ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "scan-all":
         out = []
         for p in sorted(Path(args.sections_dir).glob("*.md")):
             allow = args.allow_lists or p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
-            out.append(scan_file(p, allow_lists=allow))
+            # P2 的中文括号编号分项是合规写法：只放行 cn_numbered_list，项目符号与数字点照报，节奏检查也忽略这些行
+            allow_cn = p.name.startswith("P2")
+            out.append(scan_file(p, allow_lists=allow, allow_cn_numbered=allow_cn))
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
 

@@ -9,10 +9,13 @@
      - **无标题路（headless：.pdf / 无 Word 标题样式的 .docx / 纯 .txt）**：**HALT 兜底**——不派拆分、不写任何 atom，提示用户"未检出可靠标题层级，请转成带 `#`/Word 标题样式的 .md/.docx 或补标题后重传"。**绝不静默乱拆。**
    - **Layer 1（确定性）**：`python3 scripts/split_audit.py --text tmp/draft_import.md --headings tmp/heading_manifest.json --manifest tmp/split_manifest.json --atoms-glob 'sections/*.md' --split-to-level <N> --root . --report tmp/split_audit_report.json`。**exit 0** 才进 Layer 2；exit 1（漏/造/串/漂移，fail-closed）→ 回退重拆，**禁手改文件蒙混**。
    - **Layer 2（LLM 反向核验，恒跑）**：split_audit exit 0 后跑 `split_boundary` gate——`delegate_review.py` pack `tmp/split_verify_ctx.md`（标题树 + 各 atom 锚定行，不含全文正文）→ 独立子代理 → verify。verdict：`[OK]`→pass 前进 / `[WRONG]`→回退重切（先修 extract_headings 真值）/ `[UNCERTAIN]`→**交用户裁决**（不自动动）。
+   - **无编号研究目标原子的重命名**（国自然 P2 新结构专用）：原稿里研究目标段没有编号时，机械拆分出的原子名不带数字，合并排序会把它排到 2.7 之后。处置是把该原子改名为带 `2.0` 的名字（如 `section_2_2.0研究目标.md`），同时把 `tmp/split_manifest.json` 里对应条目的 `file` 与 `id` 改成新名，再重跑一次 Layer 1 的 `split_audit.py`，仍须 exit 0（实测改名加改 manifest 后 audit 仍 exit 0）。这是允许的手工改名，目的是调整合并顺序，不算上面 Layer 1 禁止的蒙混。
+   - **P2 结构参照**：国自然 P2 的子结构与三套固定格式，见 `references/workflow-p0-p2.md` 的 Phase 2 P2 子结构真源一节。旧结构的在写项目不强制迁移，迁不迁由用户定，选保留的按真源里的过渡口径关掉 N17、N52、N53。
    - **用户确认拆分表**（两层皆绿后）：展示 split map + audit 结果，等用户明确 "yes"/adjust。
    - **signoff 解锁**：用户确认后跑 `python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认要点>"` 落签字，解锁 Step 3 逐节 Write/Edit（否则 hook 拦每次改节写入）。**铁律：confirm 只能在两层绿 + 用户对拆分表说 yes 之后跑，AI 不得代用户自行 confirm。** 拆分脚本经 Bash 写 `sections/*.md` 不经 Write/Edit，故未签也能落盘拆分产物，真正被 signoff 门控的是 Step 3 逐节改写。
 2. Generate strict review report first (`polish_review_report`).
    - Fallback: if `diagnosis_engine.py` fails, output a manual checklist covering: consistency / citation / writing style / format/length dimensions.
+   - **已知限制**：写作风格评级只对文件名以 `P2` 开头的节放行中文括号编号。Polish 拆出的 `section_` 开头的 P2 原子不被识别，这些原子里括号编号的列表提示与节奏提示按例外处理，不改成段落叙述，项目符号与数字点的提示仍要改。识别 Polish 原子的做法登入下一轮。
 3. Agree priority with user (rewrite vs polish vs keep).
    - **Hard block:** do not proceed to step 4 until user explicitly confirms priority order per section or sets a global default. Accept responses like "rewrite P1, polish P2, keep P3".
 4. Revise section by section following issue order:

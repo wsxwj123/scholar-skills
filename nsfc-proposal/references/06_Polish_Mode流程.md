@@ -69,6 +69,7 @@ python3 scripts/split_headings.py --text tmp/draft_import.md --headings tmp/head
 
 - **原子落 `sections/`**（gate_registry 已登记 `sections/*.md`）；切 `text[o_i:o_{i+1}]` 逐字节，图注（is_caption）随区间内不外切。
 - **原子名反映该节实际标题文本**（如 "2 研究内容" → `section_2_研究内容.md`），适配任意基金模板/待润色材料，**不硬套国自然固定 P1-P4**；认不出编号的裸中文序号节由 index 兜底命名，仍产唯一名不崩不丢。**原子名不做 P1-P4 改名桥接——语义由结构真源接管**：需要按模板管住顺序/必需件时，把拆分产物登记进 `<项目根>/structure_profile.json`（`chapters[].filename` 就填这些原子名；须经用户逐条确认后 `confirm` 落盘，五步链见 SKILL.md Phase 0「模板结构提取」）。落盘后：合并顺序按真源 `chapters[].order`、`validate-order` 必需件按真源 `required: true` 集合、`prewrite_gate` 的写作顺序与 section→文件匹配按真源 filename（传入 section 是某个 filename 的前缀即命中）。没有真源时：merge 收 `sections/` 全部现场文件、按文件名数字键排序（`section_2 < section_2.1 < section_10`，不是 shell 字典序），被排除的（figure_prompts.md / P2 父子同在的子文件 / 空文件）逐一报进输出 JSON 的 `excluded[]`，不静默丢。
+- 国自然 P2 的新子结构与三套固定格式见 `references/workflow-p0-p2.md` 的 Phase 2 P2 子结构真源一节；无编号的研究目标原子按 `references/workflow-polish.md` 第 0 步改名带 2.0
 
 **0.3.3 无标题路（headless：.pdf / 无 Word 标题样式的 .docx / 纯 .txt）——HALT 兜底**：`trusted==false` 时**不派拆分、不派 LLM、不写任何 atom 到 `sections/`**，向用户输出明确停止信号 + 提示"未检出可靠标题层级，请将草稿转成带 `#`/Word 标题样式的 .md/.docx 重传，或补标题后再拆"。**绝不静默乱拆。**（headless 是国自然常见交付形态——.txt 粘贴 / 手打"一、立项依据"不套样式的 docx；后续若需打通 headless LLM 拆分路，再 vendored `split_subagent_prompt.md`。）
 
@@ -157,7 +158,7 @@ python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认
 
 ## 二、研究假说与研究设计
 
-[评审P2核心：假说是否可证伪？实验设计是否能验证假说？
+[假说在 P1 末段（旧结构项目的假说在 P2，按实际位置评），研究设计在 P2：假说是否可证伪？实验设计是否能验证假说？
  研究内容是否有遗漏？方法是否可行？关键科学问题是否
  真正"关键"？创新点是否有实质内容？]
 
@@ -191,7 +192,7 @@ python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认
 
 ```json
 {
-  "section": "P2_2.2.1_纳米药物的构建与表征.md",
+  "section": "P2_2.2.1_某载体的构建与表征.md",
   "issues": [
     {
       "severity": "ERROR",
@@ -296,8 +297,8 @@ python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认
 // proposal_profile.json 追加
 {
   "polish_plan": {
-    "rewrite_sections": ["P1_立项依据", "P2_2.5_特色与创新之处"],
-    "polish_sections": ["P2_2.2.1_纳米药物的构建与表征", "P2_2.2.2_..."],
+    "rewrite_sections": ["P1_立项依据", "P2_2.4_本项目的特色与创新之处"],
+    "polish_sections": ["P2_2.1.1_某载体的构建与表征", "P2_2.1.2_..."],
     "keep_sections": ["P3_3_正在承担的相关项目", "P3_4_完成基金项目情况"],
     "word_targets": {
       "P1_立项依据": { "current": 9500, "target": 7500 },

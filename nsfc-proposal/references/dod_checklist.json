@@ -65,7 +65,7 @@
         {
           "id": "N52",
           "name": "结构完整性",
-          "check": "P1 立项依据包含全部要素：研究意义、国内外研究现状与分析、科学问题（SQ）表述、拟解决的关键科学问题（KSQ）",
+          "check": "P1 立项依据包含全部要素：研究意义、国内外研究现状与分析、科学问题（SQ）表述、拟解决的关键科学问题（KSQ）、末段科学假说（H-1 到 H-n，与 P2 研究目标逐条对应）",
           "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
@@ -141,7 +141,7 @@
         {
           "id": "N14",
           "name": "去AI-P2",
-          "check": "humanizer_zh.py scan 无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断",
+          "check": "humanizer_zh.py scan 无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断；2.1/2.2/2.4/2.5/2.7 里中文括号编号的 cn_numbered_list WARNING 属例外，`-`、`*`、`1.` 的列表 WARNING 必须改",
           "script": "python scripts/humanizer_zh.py scan sections/P2_研究内容.md"
         },
         {
@@ -159,7 +159,7 @@
         {
           "id": "N17",
           "name": "预期成果小节",
-          "check": "P2 末尾含独立'预期成果'小节，论文/专利/人才培养目标三类均有明确数字目标（人工确认）"
+          "check": "国自然项目按 2.7 固定格式查，P2 末尾含独立 2.7 预期成果小节，前 n 条分项与 n 个研究目标逐条对应，末条写明论文、专利、人才培养、学术交流四类数字目标，某类不适用时写 0 并注明理由。非国自然项目只查有预期成果小节，且有可核对的数字目标，非国自然指 structure_profile.json 声明 funding_scheme 为 other 的项目（人工确认）"
         },
         {
           "id": "N18",
@@ -170,7 +170,7 @@
         {
           "id": "N53",
           "name": "结构完整性",
-          "check": "P2 研究内容包含全部要素：研究假说（H）、研究目标（O）、研究内容（RC）、H/O/RC/KSQ 1:1 映射说明、拟解决的关键科学问题（KSQ）、预期成果小节",
+          "check": "P2 研究内容包含全部要素：研究目标段、2.1 研究内容、2.2 研究方案、2.3 技术路线、2.4 本项目的特色与创新之处、2.5 拟解决的关键科学问题、2.6 年度研究计划、2.7 预期成果；2.2.x 编号与标题与 2.1.x 一一对应；2.5 每条为疑问句；2.6 每年一行、行首为形如 2028.01.01—2028.12.31 的日期区间、行数等于 proposal_profile.duration_years；用户改过 p2_sub_structure 的，按 proposal_profile.json 里的 p2_sub_structure 查齐，格式细则只查实际存在的块",
           "check_other": "按结构真源 <项目根>/structure_profile.json 中 required 不为 false 的章节逐章查齐：每章对应文件存在、非空、内容与该章标题相符；不按国自然要素表判。本项目章节表跑 python3 scripts/structure_profile.py show --root . 拿。"
         },
         {
@@ -182,7 +182,7 @@
         {
           "id": "N67",
           "name": "四要素一致性质量",
-          "check": "盲检（超出脚本形式映射）：H/O/RC/KSQ 四要素在语义上是否真正一致、环环相扣——目标能回答科学问题、内容能验证假说、各 RC 不重叠不遗漏。出现要素貌合神离、内容无法支撑假说、或 RC 拼凑=fail，指出不一致的具体要素对为证。",
+          "check": "盲检（超出脚本形式映射）：H/O/RC/KSQ 四要素在语义上是否真正一致、环环相扣——目标能回答科学问题、内容能验证假说、各 RC 不重叠不遗漏。出现要素貌合神离、内容无法支撑假说、或 RC 拼凑=fail，指出不一致的具体要素对为证。假说以 P1 立项依据末段为准，任务包里的 P1 只作假说对照、不判它的内容；旧结构项目以 P2 的研究假说节为准。",
           "nsfc_bound": "HRCK-V-RULES"
         },
         {

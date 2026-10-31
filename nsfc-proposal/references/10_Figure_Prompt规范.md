@@ -25,7 +25,7 @@ AVOID: 3D effects, excessive colors (>4 colors), clip art, stock icons, overly c
 
 ## 生成规则
 
-- 技术路线图（技术路线 / 研究方案）：Phase 2 必须生成（技术路线属于 P2_研究内容的 M 子节）
+- 技术路线图（技术路线 / 研究方案）：Phase 2 必须生成（技术路线是 P2 的独立小节 2.3，图号按全文图序编号）
 - 研究框架图（总体框架）：Phase 1 推荐生成（研究逻辑适合可视化时）
 - 预期结果示意图：用占位符 `[Preliminary Data Fig N]` 标注
 - 所有图使用统一色板（深蓝=主线索，绿色=创新点，橙色=预期产出）
