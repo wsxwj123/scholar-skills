@@ -77,6 +77,31 @@ BULLET_PATTERNS = [
 def _is_cn_numbered_line(line: str) -> bool:
     return re.search(CN_NUMBERED_LINE_PATTERN, line) is not None
 
+
+# P2 冒号放行（allow_cn_numbered 打开时生效）。编号判据比 CN_NUMBERED_LINE_PATTERN 窄，偏差只往多报的
+# 方向走；CN_NUMBERED_LINE_PATTERN 本身不动，它继续管 cn_numbered_list 与节奏剔除。
+# 分项行的行首编号只认全角或半角括号里 1 到 2 个半角阿拉伯数字或一到十的汉字数字，左右括号可以混用；
+# 年份括号 (2023)、三位以上编号、全角数字都不认。
+P2_COLON_ITEM_NUMBER_PATTERN = r"^[（(][0-9一二三四五六七八九十]{1,2}[）)]"
+# 年度计划行的行首日期区间只认 references/workflow-p0-p2.md 年度计划固定格式第 1 条的写法
+# YYYY.MM.DD—YYYY.MM.DD（半角数字，中间一个 U+2014），后接一个以上的半角空格、全角空格或制表符。
+# 封闭集合，`-`、`~`、`至`、汉字年月、全角数字、破折号两侧带空格、月日不补零、加粗都不认，认不出的行
+# 照常检查、照报 ERROR，不静默放行。不用 \s，也不用全局 re.ASCII（它会让全角空格失效）。
+P2_PLAN_DATE_RANGE_PATTERN = r"^[0-9]{4}\.[0-9]{2}\.[0-9]{2}—[0-9]{4}\.[0-9]{2}\.[0-9]{2}[ \u3000\t]+"
+# 编号或日期区间之后，到第一个全角冒号之前，是 1 到 30 个字符的主题词或小标题（空格与拉丁字母都计数），
+# 其中不许有逗号、句号、分号、问号、叹号（全角半角都算）和任何冒号。匹配末尾就是第一个全角冒号之后的
+# 位置，解释性冒号从这里接着查，同一行里其后的冒号照报。
+_P2_COLON_EXEMPT_HEAD_RE = re.compile(
+    r"(?:" + P2_COLON_ITEM_NUMBER_PATTERN + r"|" + P2_PLAN_DATE_RANGE_PATTERN + r")"
+    r"[^，,。．.；;？?！!：:\n]{1,30}："
+)
+
+
+def _p2_colon_scan_start(stripped: str) -> int:
+    """放行行返回第一个全角冒号之后的下标，其余行返回 0（从行首查）。"""
+    m = _P2_COLON_EXEMPT_HEAD_RE.match(stripped)
+    return m.end() if m else 0
+
 # ── 新增三项检查 ──────────────────────────────────────────────────────────
 
 # B1：装饰性破折号（硬禁一个都不许有；数字区间与无空格复合词豁免）
@@ -120,6 +145,7 @@ EXPLANATORY_COLON_PATTERN = (
     "explanatory_colon",
     "将'概念：解释'改为'概念是指X'或融入句子，冒号仅用于列表引导/标题/比例",
 )
+_EXPLANATORY_COLON_RE = re.compile(EXPLANATORY_COLON_PATTERN[0])
 
 
 # ── 字符级检查（移植自 general-sci proofread.py）：D1半角标点/F2英文拼写=ERROR硬拦，D2上下标/F1错别字=WARN ──
@@ -325,8 +351,8 @@ def scan_text(text: str, allow_lists: bool = False, allow_cn_numbered: bool = Fa
                 }
             )
 
-    # allow_lists 关掉三类列表提示；allow_cn_numbered 只放行 cn_numbered_list（P2 的中文括号编号分项），
-    # bullet_list 与 numbered_list 照报
+    # allow_lists 关掉三类列表提示；allow_cn_numbered 在列表提示里只放行 cn_numbered_list（P2 的中文括号编号分项），
+    # bullet_list 与 numbered_list 照报；它对解释性冒号的放行见下方 B3
     if not allow_lists:
         for i, line in enumerate(text.splitlines(), 1):
             for pattern, code, suggestion in BULLET_PATTERNS:
@@ -373,7 +399,9 @@ def scan_text(text: str, allow_lists: bool = False, allow_cn_numbered: bool = Fa
         # 排除：标题行（以#开头）、纯列表/表格行、行尾冒号（列表引导）
         if stripped.startswith("#") or stripped.endswith("：") or stripped.endswith(":"):
             continue
-        for m in re.finditer(EXPLANATORY_COLON_PATTERN[0], stripped):
+        # allow_cn_numbered 打开时，P2 分项行与年度计划行的第一个冒号放行，从它之后接着查，同一行里其后的冒号照报
+        scan_from = _p2_colon_scan_start(stripped) if allow_cn_numbered else 0
+        for m in _EXPLANATORY_COLON_RE.finditer(stripped, scan_from):
             # 排除数字比例（如 3：1）和时间格式
             before_colon = stripped[: m.start() + m.group(0).index("：")]
             if re.search(r"\d$", before_colon):
@@ -506,7 +534,8 @@ def main() -> int:
         out = []
         for p in sorted(Path(args.sections_dir).glob("*.md")):
             allow = args.allow_lists or p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
-            # P2 的中文括号编号分项是合规写法：只放行 cn_numbered_list，项目符号与数字点照报，节奏检查也忽略这些行
+            # P2 的中文括号编号分项是合规写法：只放行 cn_numbered_list，项目符号与数字点照报，节奏检查也忽略这些行；
+            # 分项行与年度计划行的第一个冒号也随这个开关放行（见 scan_text 的 B3）
             allow_cn = p.name.startswith("P2")
             out.append(scan_file(p, allow_lists=allow, allow_cn_numbered=allow_cn))
         print(json.dumps(out, ensure_ascii=False, indent=2))

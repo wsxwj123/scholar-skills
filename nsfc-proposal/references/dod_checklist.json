@@ -141,8 +141,8 @@
         {
           "id": "N14",
           "name": "去AI-P2",
-          "check": "humanizer_zh.py scan 无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断；2.1/2.2/2.4/2.5/2.7 里中文括号编号的 cn_numbered_list WARNING 属例外，`-`、`*`、`1.` 的列表 WARNING 必须改",
-          "script": "python scripts/humanizer_zh.py scan sections/P2_研究内容.md"
+          "check": "humanizer_zh.py scan 带 --allow-cn-numbered 开关运行后无 ERROR，rhythm-check 的 cn_sentence_too_long 为软提醒(机制类长句已豁免、非机制类过长酌情拆分)、不阻断；2.1/2.2/2.4/2.5/2.7 里中文括号编号的 cn_numbered_list WARNING 属例外，带开关后不再报出；分项行与年度计划行的第一个冒号带开关后不报，同一行里其后的冒号与其它行的解释性冒号照报 ERROR，必须改（放行范围见 references/workflow-p0-p2.md 的分项与年度计划的冒号放行一条）；被放行的冒号前必须是主题词或小标题，不是完整句，也不是换句话说这类套话，不符合的按解释性冒号处理，必须改；`-`、`*`、`1.` 的列表 WARNING 必须改",
+          "script": "python scripts/humanizer_zh.py scan sections/P2_研究内容.md --allow-cn-numbered"
         },
         {
           "id": "N15",

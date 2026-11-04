@@ -30,7 +30,7 @@ Use atomic gate command for final checks:
 - ❌ 关键科学问题、2.6 年度研究计划、2.7 预期成果不按 `references/workflow-p0-p2.md` 的 Phase 2 P2 子结构真源一节的写法与格式写。
 - ❌ 国自然项目的研究假说没写在 P1 末段，或 P2 里仍单设研究假说节（选保留旧结构的项目除外）。
 - ❌ 使用禁用句式与修辞：“不是…而是…”“不仅…而且…”“值得注意的是”“至关重要”“综上所述”、排比、比喻、反问、夸张。
-- ❌ 留下装饰性破折号、scare quotes、解释性冒号，或定语从句嵌套超 2 层（humanizer_zh 报 ERROR）。中文单句超 50 字为 `rhythm-check` 软提醒（机制类严密长句已豁免、不阻断），非机制类单句超 50 字须拆分。
+- ❌ 留下装饰性破折号、scare quotes、解释性冒号，或定语从句嵌套超 2 层（humanizer_zh 报 ERROR；P2 分项行与年度计划行按 `references/workflow-p0-p2.md` 冒号放行一条写的第一个冒号不算）。中文单句超 50 字为 `rhythm-check` 软提醒（机制类严密长句已豁免、不阻断），非机制类单句超 50 字须拆分。
 - ❌ 超篇幅：正文 >30 页、中文摘要 >400 字、英文摘要 >300 词、P4 或 P3_4 >500 字（上限以 `word_counter.py check` 输出为准；非国自然模板按结构真源 `word_max` / `page_limit` 声明）。
 - ❌ 在任一 Phase 不跑委托盲检（或降级独立重核），主 agent 写完就自评打勾、verify 未 exit 0 就声明完成或执行 merge。
 

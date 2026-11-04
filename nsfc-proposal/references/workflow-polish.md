@@ -15,7 +15,7 @@
    - **signoff 解锁**：用户确认后跑 `python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认要点>"` 落签字，解锁 Step 3 逐节 Write/Edit（否则 hook 拦每次改节写入）。**铁律：confirm 只能在两层绿 + 用户对拆分表说 yes 之后跑，AI 不得代用户自行 confirm。** 拆分脚本经 Bash 写 `sections/*.md` 不经 Write/Edit，故未签也能落盘拆分产物，真正被 signoff 门控的是 Step 3 逐节改写。
 2. Generate strict review report first (`polish_review_report`).
    - Fallback: if `diagnosis_engine.py` fails, output a manual checklist covering: consistency / citation / writing style / format/length dimensions.
-   - **已知限制**：写作风格评级只对文件名以 `P2` 开头的节放行中文括号编号。Polish 拆出的 `section_` 开头的 P2 原子不被识别，这些原子里括号编号的列表提示与节奏提示按例外处理，不改成段落叙述，项目符号与数字点的提示仍要改。识别 Polish 原子的做法登入下一轮。
+   - **已知限制**：写作风格评级只对文件名以 `P2` 开头的节放行中文括号编号，以及分项行与年度计划行的第一个冒号。Polish 拆出的 `section_` 开头的 P2 原子不被识别，这些原子里括号编号的列表提示与节奏提示按例外处理，不改成段落叙述，项目符号与数字点的提示仍要改。这些原子里分项行与年度计划行的冒号会报 ERROR 级 `explanatory_colon`，计入终检的写作风格评级，要通过终检就把这些冒号改成逗号或句号，等 Polish 原子能被识别之后再恢复冒号。识别 Polish 原子的做法登入下一轮。
 3. Agree priority with user (rewrite vs polish vs keep).
    - **Hard block:** do not proceed to step 4 until user explicitly confirms priority order per section or sets a global default. Accept responses like "rewrite P1, polish P2, keep P3".
 4. Revise section by section following issue order:
