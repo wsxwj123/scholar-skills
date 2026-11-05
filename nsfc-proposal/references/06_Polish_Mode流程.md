@@ -57,9 +57,13 @@ python3 scripts/extract_headings.py --source '<整稿路径>' \
 
 > **⚠️ 两层机器核验皆绿 且 用户明确确认结构前，不得声明拆分完成、不得进入 Step 1。**
 
-**0.3.1 路径判定**（读 `tmp/heading_manifest.json`，纯机械无 AI 裁量）：`trusted = headings 非空 且 无任何 low-confidence 项`。
+#### 0.3.1 路径判定
 
-**0.3.2 有标题路（trusted）——机械字节切**（主会话 Bash，零上下文，草稿内容不进上下文）：
+读 `tmp/heading_manifest.json`，纯机械无 AI 裁量：`trusted = headings 非空 且 无任何 low-confidence 项`。trusted 走 0.3.2，否则走 0.3.3。两路的产物形态相同，之后都走 0.3.4 到 0.3.7。
+
+#### 0.3.2 有标题路（trusted）
+
+机械字节切，主会话 Bash 零上下文，草稿内容不进上下文：
 
 ```bash
 python3 scripts/split_headings.py --text tmp/draft_import.md --headings tmp/heading_manifest.json \
@@ -68,12 +72,49 @@ python3 scripts/split_headings.py --text tmp/draft_import.md --headings tmp/head
 ```
 
 - **原子落 `sections/`**（gate_registry 已登记 `sections/*.md`）；切 `text[o_i:o_{i+1}]` 逐字节，图注（is_caption）随区间内不外切。
-- **原子名反映该节实际标题文本**（如 "2 研究内容" → `section_2_研究内容.md`），适配任意基金模板/待润色材料，**不硬套国自然固定 P1-P4**；认不出编号的裸中文序号节由 index 兜底命名，仍产唯一名不崩不丢。**原子名不做 P1-P4 改名桥接——语义由结构真源接管**：需要按模板管住顺序/必需件时，把拆分产物登记进 `<项目根>/structure_profile.json`（`chapters[].filename` 就填这些原子名；须经用户逐条确认后 `confirm` 落盘，五步链见 SKILL.md Phase 0「模板结构提取」）。落盘后：合并顺序按真源 `chapters[].order`、`validate-order` 必需件按真源 `required: true` 集合、`prewrite_gate` 的写作顺序与 section→文件匹配按真源 filename（传入 section 是某个 filename 的前缀即命中）。没有真源时：merge 收 `sections/` 全部现场文件、按文件名数字键排序（`section_2 < section_2.1 < section_10`，不是 shell 字典序），被排除的（figure_prompts.md / P2 父子同在的子文件 / 空文件）逐一报进输出 JSON 的 `excluded[]`，不静默丢。
-- 国自然 P2 的新子结构与三套固定格式见 `references/workflow-p0-p2.md` 的 Phase 2 P2 子结构真源一节；无编号的研究目标原子按 `references/workflow-polish.md` 第 0 步改名带 2.0
+- **原子名反映该节实际标题文本**（如 "2 研究内容" → `section_2_2研究内容.md`，标题简称含编号），适配任意基金模板/待润色材料，**不硬套国自然固定 P1-P4**；认不出编号的裸中文序号节由 index 兜底命名，仍产唯一名不崩不丢。**原子名不做 P1-P4 改名桥接。** 每个小文件属于哪个大节由 `section_parts.json` 记录（0.3.6），结构真源只管模板章节的顺序与必需件。需要按模板管住顺序/必需件时，把拆分产物登记进 `<项目根>/structure_profile.json`（`chapters[].filename` 就填这些原子名；须经用户逐条确认后 `confirm` 落盘，五步链见 SKILL.md Phase 0「模板结构提取」）。落盘后：合并顺序按真源 `chapters[].order`、`validate-order` 必需件按真源 `required: true` 集合、`prewrite_gate` 的写作顺序与 section→文件匹配按真源 filename（传入 section 是某个 filename 的前缀即命中）。没有真源时：merge 收 `sections/` 全部现场文件、按文件名数字键排序（`section_2 < section_2.1 < section_10`，不是 shell 字典序），被排除的（figure_prompts.md / P2 父子同在的子文件 / 空文件）逐一报进输出 JSON 的 `excluded[]`，不静默丢。
+- 国自然 P2 的新子结构与三套固定格式见 `references/workflow-p0-p2.md` 的 Phase 2 P2 子结构真源一节；无编号的研究目标原子按 `references/workflow-polish.md` 第 0 步改名带 2.0，改名必须在 0.3.6 的归属确认之前做。
 
-**0.3.3 无标题路（headless：.pdf / 无 Word 标题样式的 .docx / 纯 .txt）——HALT 兜底**：`trusted==false` 时**不派拆分、不派 LLM、不写任何 atom 到 `sections/`**，向用户输出明确停止信号 + 提示"未检出可靠标题层级，请将草稿转成带 `#`/Word 标题样式的 .md/.docx 重传，或补标题后再拆"。**绝不静默乱拆。**（headless 是国自然常见交付形态——.txt 粘贴 / 手打"一、立项依据"不套样式的 docx；后续若需打通 headless LLM 拆分路，再 vendored `split_subagent_prompt.md`。）
+#### 0.3.3 无标题路（headless，.pdf / 无 Word 标题样式的 .docx / 纯 .txt）
 
-**0.3.4 Layer 1（确定性 split_audit，两路后恒跑）**：
+`trusted==false` 时走这条路。抽取后只剩文字，原件里的表格文字、自动编号、加粗都不在 `tmp/draft_import.md` 里，所以由一个子代理按行号认标题，再由脚本按行号定位、核对原句、机械切分。子代理只交一份标题清单，不抄正文。与 review-writing 的无标题路不同，那家让子代理逐字节抄正文写小文件，本家无标题路用行号定位，产物格式与有标题路相同，两家不共用提示词。
+
+步骤如下，命令在项目根运行。
+
+1. 给整稿编行号，供子代理引用：
+
+```bash
+python3 scripts/heading_locate.py lines --text tmp/draft_import.md --out tmp/draft_lines.txt
+```
+
+2. 派认标题子代理。角色 prompt 用 `references/headless_heading_prompt.md`，它只读 `tmp/draft_lines.txt`，只写 `tmp/llm_headings.json`（每项三键，行号、原句、层级）。没有子代理能力的平台由主会话照同一段要求自己做。
+
+3. 按行号定位并核对原句，写出与有标题路同格式的标题真值：
+
+```bash
+python3 scripts/heading_locate.py locate --text tmp/draft_import.md \
+        --headings-in tmp/llm_headings.json --out tmp/heading_manifest.json
+```
+
+退出码 0 时 stdout 给出 `split_to_level`（各项层级的最大值），`advisory` 里的 `DUPLICATE_TEXT` 只做提示。退出码 1 是清单内容错（`ITEM_INVALID`、`LINE_OUT_OF_RANGE`、`TEXT_MISMATCH`、`ORDER`、`LEVEL_JUMP`、`NO_HEADINGS`），一次报全，`tmp/heading_manifest.json` 不动；把 stdout 的 `errors` 原样交回子代理重做，最多重试 2 次，第 3 次仍失败停下，把错误清单给用户。退出码 2 是输入文件缺失、不是 UTF-8 或清单形状不对，先修输入再跑。
+
+4. 机械切分，命名用文档顺序号。国自然无样式稿的编号在每个大节内重新从 1 起，沿用 `{major}` 会把后面大节的 1 排到前面，所以这条路用 `{n:02d}`，小文件名的数字就是文档顺序，`section_merger.py` 按它排出的就是原稿顺序，无标题路不需要研究目标改名：
+
+```bash
+python3 scripts/split_headings.py --text tmp/draft_import.md --headings tmp/heading_manifest.json \
+        --atoms-dir sections --naming 'section_{n:02d}_{标题简称}.md' \
+        --split-to-level <locate 输出的 split_to_level> --manifest-out tmp/split_manifest.json
+```
+
+首个标题之前有非空文字时生成 `section_00_frontmatter.md`，这时第一个标题的小文件从 `02` 起，没有 `01` 不是漏文件，因为编号是共享拆分脚本的区间序号加 1，首段占了区间 0。标题里的 `\/:*?"<>|` 与空白会从文件名里去掉，标题简称取前 20 个字符。
+
+5. 之后与有标题路相同，走 0.3.4 的两道核验、0.3.5 的盲检、0.3.6 的拆分表与归属确认、0.3.7 的签字。
+
+已知限制。子代理可能把正文短句当标题，或漏认大节标题；机械核对只能保证原句与行号对得上，认得对不对靠 0.3.5 的盲检、0.3.6 拆分表的提示列和用户确认。
+
+#### 0.3.4 Layer 1（确定性核验，两路后恒跑）
+
+先跑 `split_audit.py`：
 
 ```bash
 python3 scripts/split_audit.py --text tmp/draft_import.md --headings tmp/heading_manifest.json \
@@ -81,26 +122,90 @@ python3 scripts/split_audit.py --text tmp/draft_import.md --headings tmp/heading
         --split-to-level <N> --root . --report tmp/split_audit_report.json
 ```
 
-逐区 offset 比对（slice_i vs atom_i）抓漏/造/串/边界漂移/乱序五类，无假绿。**exit 0** → 进 Layer 2；**exit 1**（region mismatch / preamble_dropped，fail-closed）→ 回退重拆，**禁手改文件蒙混**；**exit 2**（headings 空/畸形/glob 命中 0）→ 回 0.3.1。exit 1/2 = 不得声明拆分完成。
+逐区 offset 比对（slice_i vs atom_i）抓漏/造/串/边界漂移/乱序五类，无假绿。**exit 0** → 接着跑拼接核对；**exit 1**（region mismatch / preamble_dropped，fail-closed）→ 回退重拆，**禁手改文件蒙混**；**exit 2**（headings 空/畸形/glob 命中 0）→ 回 0.3.1。exit 1/2 = 不得声明拆分完成。
 
-**0.3.5 Layer 2（LLM 边界反向核验，split_audit exit 0 后恒跑）**：跑 `split_boundary` gate（`references/dod_checklist.json`）via `delegate_review.py`——组 `tmp/split_verify_ctx.md`（标题树 + 各 atom 锚定行，**不含全文正文**）→ pack → 独立子代理 → verify。此层与 Layer 1 不冗余：split_audit *信任*标题真值，若 extract 层把正文误当标题/漏认真标题，Layer 1 比错真值仍报绿；Layer 2 读内容到最细标题级，抓"真值本身错"。verdict 映射（evidence 须以标签开头）：`[OK]`→pass 前进 / `[WRONG]`→fail 回退重切（有标题路先修 extract_headings 真值）/ `[UNCERTAIN]`→**fail 交用户裁决**（不自动动，展示上下文）。uncertain 映射 fail 非 na（na 会被放过）。
+再跑拼接核对，两条拆分路都跑。`split_audit.py` 会归一空白，把一个换行改成空格、删掉末尾换行它查不出；拼接核对按清单顺序把小文件的原始字节拼起来，与 `tmp/draft_import.md` 逐字节比较，另查 `sections/` 里不在清单里的 `.md` 文件：
 
-**0.3.6 用户确认拆分表**（两层皆绿后）：展示 split map + audit 结果，等用户明确 "yes"/adjust。
-
-```
-section_2_研究内容.md   ←  2 研究内容 (1200 字)
-section_3_研究方案.md   ←  3 研究方案 (900 字)
-[machine-verified: split_audit exit 0, split_boundary gate pass]
-确认此拆分？(yes / adjust)
+```bash
+python3 scripts/split_concat_check.py --text tmp/draft_import.md --manifest tmp/split_manifest.json --root .
 ```
 
-**0.3.7 结构签字解锁 Step 3**：用户确认后落签字，解锁后续逐节 Write/Edit：
+退出码 0 才进 0.3.5。`draft_import.md` 由 `extract_headings.py` 产出，抽取时换行已统一成 LF；自行放进来的回车加换行稿，先把换行转成 LF 再拆，否则小文件按 LF 写出而拼接核对比较原始字节，会报 `BYTES_DIFFER`。退出码 1 报 `BYTES_DIFFER`、`LENGTH_DIFFER`、`ATOM_MISSING` 或 `STRAY_FILE`，定位成功后不该出现，出现了停下说明，不重试、不手改；`STRAY_FILE` 多半是上次拆分的残留，处置见 0.3.6。退出码 2 是文件缺失或清单畸形。
+
+#### 0.3.5 Layer 2（LLM 边界反向核验，Layer 1 两道都过后恒跑）
+
+跑 `split_boundary` gate（`references/dod_checklist.json`）via `delegate_review.py`——组 `tmp/split_verify_ctx.md`（标题树 + 各 atom 锚定行，**不含全文正文**）→ pack → 独立子代理 → verify。此层与 Layer 1 不冗余：split_audit *信任*标题真值，若 extract 层把正文误当标题/漏认真标题，Layer 1 比错真值仍报绿；Layer 2 读内容到最细标题级，抓"真值本身错"。verdict 映射（evidence 须以标签开头）：`[OK]`→pass 前进 / `[WRONG]`→fail 回退重切（有标题路先修 extract_headings 真值，无标题路让子代理改清单）/ `[UNCERTAIN]`→**fail 交用户裁决**（不自动动，展示上下文）。uncertain 映射 fail 非 na（na 会被放过）。
+
+#### 0.3.6 用户确认拆分表与归属（两层皆绿后）
+
+拆出的小文件名不以 P1 到 P4 开头，终检对 P2 的放行（中文括号编号的列表提示与节奏剔除，分项行与年度计划行的第一个冒号）靠归属文件 `section_parts.json` 认出它们。归属由用户确认，确认前不生效。
+
+**第一步，主会话写归属草稿 `tmp/parts_draft.json`。** 键只写小文件名，不带 `sections/` 目录（清单里的 `file` 字段带目录，照抄会被 `table` 以 `MISSING_PART` 与 `UNKNOWN_FILE` 打回）；值取 `P1`、`P2`、`P3`、`P4`、`其他` 五个之一：
+
+```json
+{"parts": {"section_00_frontmatter.md": "其他", "section_02_（一）立项依据.md": "P1", "section_05_2.1研究内容.md": "P2"}}
+```
+
+默认值按下面的对应表给。标题命中唯一一类模板措辞就用该归属；命中两类以上的是跨部分的容器标题，标 `其他`；都不命中就沿用最近的上级行；首段标 `其他`。
+
+| 归属 | 模板措辞 |
+|---|---|
+| P1 | 立项依据、研究意义、国内外研究现状、研究假说 |
+| P2 | 研究内容、研究目标、研究方案、技术路线、特色与创新、拟解决的关键科学问题、年度研究计划、预期成果 |
+| P3 | 研究基础、工作条件、正在承担、已完成的项目 |
+| P4 | 其他需要说明的情况、申请人同年申请、与本项目相关的其他项目 |
+| 其他 | 首段、参考文献、同时含两类措辞的容器标题 |
+
+**第二步，出拆分表：**
+
+```bash
+python3 scripts/section_parts.py table --manifest tmp/split_manifest.json \
+        --draft tmp/parts_draft.json --out tmp/split_table.md --root .
+```
+
+退出码 1 是草稿与清单对不上（`MISSING_PART`、`UNKNOWN_FILE`、`BAD_PART`、`ATOM_MISSING`），改草稿再跑；退出码 2 是文件缺失或越根。拆分表一行一个小文件，按原稿顺序，连续且归属相同的行合成一组，列出序号、文件名、级别、标题、字数、归属、提示。第三行固定写明比较基准：
+
+比较基准是抽取后的 draft_import.md，原件里的表格文字、自动编号、加粗不在其中。
+
+把 `tmp/split_table.md` 展示给用户，提示列要逐条解释。容器表示只有标题没有正文；前后同属他组表示这一行夹在两个同归属的组之间，多半要改；疑似正文句、疑似表格行、首段较长提示这一行可能切错了。用户要改的行，改 `tmp/parts_draft.json` 后重跑 table，也可以留到第三步在终端里改。
+
+**第三步，用户在自己的终端运行 `section_parts.py confirm` 确认。** 这条命令只能由用户本人运行，AI 不得代跑，不是终端时它会退出码 3 拒绝。它拦得住无意的忘记，在不分配终端的工具环境里，AI 顺手代跑会被退出码 3 拦下。故意的绕过它拦不住。归属文件是普通文件，AI 技术上能用写文件工具直接写它，也能用伪终端驱动 `confirm`，脚本分辨不出；`confirmed_via` 是脚本自己写的，不能当证据。所以 AI 不得代跑是纪律约束，没有机制在执行它，真正的把关是用户本人看拆分表。AI 把技能脚本和项目根的绝对路径填好，整条命令给用户：
+
+```bash
+python3 "<技能目录绝对路径>/scripts/section_parts.py" confirm \
+        --manifest "<项目根绝对路径>/tmp/split_manifest.json" \
+        --draft "<项目根绝对路径>/tmp/parts_draft.json" --root "<项目根绝对路径>"
+```
+
+给用户的操作说明，照下面写：
+
+1. 打开终端。Mac 用 终端 或本 App 的终端面板，Windows 用 PowerShell 或 cmd（Git Bash 里要写成 `winpty python`）。
+2. 粘贴上面整条命令，按回车。
+3. 屏幕会一组一组列出小文件，每行有序号、文件名、级别、标题、当前归属和提示。这一组没问题就直接按回车；某一行要改，就写序号、空格、归属再按回车，例如 `7 P2`，全角数字也认，大小写都认。改完这一组会重新列出来，再按回车。
+4. 最后是汇总，列出改动了几行和归属 P2 的文件。还要改就写序号、空格、归属；没问题就输入 确认 两个字，按回车。
+5. 看到 已写入归属文件 就完成了，回到聊天窗口告诉 AI。
+6. 中途按 Ctrl+C、输入别的内容或关掉终端都不会保存，重新运行这条命令就能再来一次。
+
+想一行一行看，命令末尾加 `--each-row`，每行按一次回车，要改就只写归属。命令末尾加 `--note "<一句话>"` 可以记下确认要点。
+
+命令以退出码 1、2、3 结束时，把以上文字整段复制回聊天窗口。退出码 1 是草稿与清单对不上或用户没有确认；退出码 2 是文件缺失、越根或小文件目录的父目录不是项目根；退出码 3 是不在终端里运行。
+
+确认后归属文件落在 `<项目根>/section_parts.json`，`humanizer_zh.py scan-all` 与 `diagnosis_engine.py` 的 diagnose-all、full-review、polish-review 读它放行归属 P2 的小文件，stderr 会打一行 `按 section_parts.json 放行 N 个文件`，让用户看见放行来源。归属文件只记小文件名、标题、级别、归属、确认时间和小文件目录名，有效性只看它自己和 `sections/` 里现有的文件名，不读 `tmp/`。状态可用 `python3 scripts/section_parts.py show --sections-dir sections` 查看。
+
+**会写 `tmp/split_manifest.json` 的步骤**，只有两处：0.3.2 或 0.3.3 的 `split_headings.py --manifest-out`，以及有标题路的研究目标改名（改小文件名后同步改清单里的 `file` 与 `id`，再重跑 0.3.4）。研究目标改名必须在第三步确认之前做，确认后再改名会让归属文件里的文件名对不上。
+
+**重拆或回滚后必须重新确认归属。** 归属文件绑的是小文件名，重拆后文件名相同而边界变了它检测不到；`state_manager.py` 回滚会整个替换 `sections/`，不碰 `section_parts.json`。两种情况都要把 `tmp/parts_draft.json` 重新对一遍，再让用户跑一次第三步。重拆前先列出旧清单里的文件，经用户同意再删 `sections/` 里的残留，否则拼接核对会报 `STRAY_FILE`，合并时也会混入。
+
+#### 0.3.7 结构签字解锁 Step 3
+
+用户确认归属后落签字，解锁后续逐节 Write/Edit。签字命令也由用户在自己的终端运行：
 
 ```bash
 python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认拆分表的要点/原话>"
 ```
 
-**铁律**：confirm 只能在"两层核验皆绿 + 用户在对话中明确对拆分表说 yes"之后跑，**AI 不得代替用户自行 confirm**。拆分脚本经 Bash 写 `sections/*.md` **不经 Write/Edit 工具**，故未签也能落盘拆分产物（与 Write Mode 同机理，hook 只 PreToolUse 拦 Write/Edit）；真正被 signoff 门控的是 Step 3 逐节改写——未签时对 `sections/*.md` 的每次 Write/Edit 被 hook deny。
+**铁律**：confirm 只能在"两层核验皆绿 + 用户在对话中明确对拆分表说 yes + 0.3.6 的归属确认完成"之后跑，**AI 不得代替用户自行 confirm**。拆分脚本经 Bash 写 `sections/*.md` **不经 Write/Edit 工具**，故未签也能落盘拆分产物（与 Write Mode 同机理，hook 只 PreToolUse 拦 Write/Edit）；真正被 signoff 门控的是 Step 3 逐节改写——未签时对 `sections/*.md` 的每次 Write/Edit 被 hook deny。签字指纹不含 `sections/`，也不含 `section_parts.json`，归属文件不在门禁写保护里。
+
 
 ### 0.4 拆分后初始化
 

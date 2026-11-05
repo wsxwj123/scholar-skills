@@ -12,6 +12,7 @@
 
 Phase 7 引用的 `consistency_mapper.py validate` 完整形式：`python scripts/consistency_mapper.py --path data/consistency_map.json validate`。
 其余脚本（write-cycle 逐节预算、citation_validator verify-all/verify-entry/matrix-check、humanizer_zh scan-all、load 变体、word_counter summary）的完整 flag 见 references/08。
+Polish 无标题路与归属的三个脚本 `heading_locate.py`（编行号、按行号定位标题）、`split_concat_check.py`（逐字节拼接核对）、`section_parts.py`（拆分表、用户在终端 confirm 归属、show 状态）见 references/08 §2.11，流程见 references/06 的 0.3.3 到 0.3.6。
 
 
 ## Regression Tests

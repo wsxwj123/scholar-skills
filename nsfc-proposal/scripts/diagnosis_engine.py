@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -127,10 +128,15 @@ def diagnose_section(path: Path, consistency_path: Path, allow_lists: bool = Fal
 
 def diagnose_all(sections_dir: Path, consistency_path: Path) -> list[dict[str, Any]]:
     reports = []
+    # 归属文件 section_parts.json 读一次；absent 时零输出。full-review、polish-review、gate-check 经本函数自动生效。
+    released_by_parts, parts_lines = humanizer_zh.section_parts_release(sections_dir)
+    if parts_lines:
+        sys.stderr.write("\n".join(parts_lines) + "\n")
     for p in sorted(sections_dir.glob("*.md")):
         allow_lists = p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
-        # P2 的中文括号编号分项不计入写作风格评级与节奏提示；项目符号与数字点照计
-        allow_cn_numbered = p.name.startswith("P2")
+        # P2 的中文括号编号分项不计入写作风格评级与节奏提示；项目符号与数字点照计。
+        # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件把它确认为 P2。
+        allow_cn_numbered = p.name.startswith("P2") or released_by_parts(p.name)
         reports.append(diagnose_section(p, consistency_path, allow_lists=allow_lists,
                                         allow_cn_numbered=allow_cn_numbered))
     return reports

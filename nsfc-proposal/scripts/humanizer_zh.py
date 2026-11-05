@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import sys
 from pathlib import Path
 
 # round25 起词表与共用正则条目收编进共享真源 scripts/ai_cliche_terms.py（vendored，
@@ -64,7 +66,9 @@ OVERUSE_PATTERNS = [
 VAGUE_PATTERNS = list(VAGUE_TABLE)
 
 # 中文括号编号行：行首（允许前导空白）是全角或半角括号包着数字或汉字数字。
-# 同一条正则既是 cn_numbered_list 的判据，也是 allow_cn_numbered 放行的判据，两处不会漂移。
+# 这条正则管 cn_numbered_list 的列表提示与节奏剔除；冒号放行用下面另一条更窄的正则
+# _P2_COLON_EXEMPT_HEAD_RE。两处都由 allow_cn_numbered 这一个开关控制，开关由文件名 P2 前缀、
+# --allow-cn-numbered，或读到的归属文件 section_parts.json 打开，归属文件可以让更多文件打开同一个开关。
 CN_NUMBERED_LINE_PATTERN = r"^\s*[（\(][一二三四五六七八九十\d]+[）\)]"
 
 BULLET_PATTERNS = [
@@ -503,6 +507,30 @@ def scan_file(path: Path, allow_lists: bool = False, allow_cn_numbered: bool = F
     }
 
 
+def section_parts_release(sections_dir) -> tuple:
+    """读一次归属文件 section_parts.json，返回 (放行判断函数, 要打到 stderr 的行)。
+
+    放行判断函数：传小文件名，返回归属文件是否放行它（即是否打开 allow_cn_numbered）。
+    scan-all 与 diagnosis_engine.diagnose_all 各在一开始调一次；scan、fix-suggest、rhythm-check、
+    diagnose-section 不调。section_parts 在这里才导入：导入失败（含 SyntaxError、RuntimeError）时
+    按同一位置规则自己判断归属文件在不在，在才打 READER_UNAVAILABLE 且不放行，不在就零输出，
+    这样 section_parts.py 损坏也不影响其它命令。归属文件不存在时零输出，行为与没有归属文件时相同。
+    """
+    sections_dir = str(sections_dir)
+    try:
+        import section_parts
+    except Exception as exc:  # 读取模块坏了也要接住，不能让检查本身崩
+        parts_file = os.path.join(os.path.dirname(os.path.abspath(sections_dir)), "section_parts.json")
+        lines = []
+        if os.path.exists(parts_file):
+            lines.append("SECTION_PARTS: READER_UNAVAILABLE " + type(exc).__name__)
+            lines.append("SECTION_PARTS: 读取模块不可用，归属文件没有生效。先检查 scripts/section_parts.py 是否完整"
+                         "（同步镜像时可能漏了这个文件），补齐后重跑；确认归属的命令是 section_parts.py confirm。")
+        return (lambda name: False), lines
+    result = section_parts.read_parts(sections_dir)
+    return (lambda name: section_parts.should_release(result, name)), list(result.get("stderr") or [])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -532,11 +560,15 @@ def main() -> int:
 
     if args.cmd == "scan-all":
         out = []
+        released_by_parts, parts_lines = section_parts_release(args.sections_dir)
+        if parts_lines:
+            sys.stderr.write("\n".join(parts_lines) + "\n")
         for p in sorted(Path(args.sections_dir).glob("*.md")):
             allow = args.allow_lists or p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
             # P2 的中文括号编号分项是合规写法：只放行 cn_numbered_list，项目符号与数字点照报，节奏检查也忽略这些行；
-            # 分项行与年度计划行的第一个冒号也随这个开关放行（见 scan_text 的 B3）
-            allow_cn = p.name.startswith("P2")
+            # 分项行与年度计划行的第一个冒号也随这个开关放行（见 scan_text 的 B3）。
+            # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件 section_parts.json 把它确认为 P2。
+            allow_cn = p.name.startswith("P2") or released_by_parts(p.name)
             out.append(scan_file(p, allow_lists=allow, allow_cn_numbered=allow_cn))
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0
