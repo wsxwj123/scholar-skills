@@ -16,7 +16,7 @@
    - **signoff 解锁**：用户确认归属后跑 `python3 scripts/structure_signoff_gate.py confirm --root . --note "<用户确认要点>"` 落签字，解锁 Step 3 逐节 Write/Edit（否则 hook 拦每次改节写入）。**铁律：confirm 只能在两层绿 + 用户对拆分表说 yes 之后跑，AI 不得代用户自行 confirm。** 拆分脚本经 Bash 写 `sections/*.md` 不经 Write/Edit，故未签也能落盘拆分产物，真正被 signoff 门控的是 Step 3 逐节改写。
 2. Generate strict review report first (`polish_review_report`).
    - Fallback: if `diagnosis_engine.py` fails, output a manual checklist covering: consistency / citation / writing style / format/length dimensions.
-   - **已知限制**：写作风格评级对两类文件放行中文括号编号，以及分项行与年度计划行的第一个冒号，一类是文件名以 `P2` 开头的节，另一类是 `section_parts.json` 里经用户确认归属为 P2 的小文件；两类取并集，只加放行不撤销。没有经 confirm 确认归属的 `section_` 开头的原子仍不放行，其中分项行与年度计划行的冒号会报 ERROR 级 `explanatory_colon`，计入终检的写作风格评级，要通过终检先让用户确认归属，或把这些冒号改成逗号或句号。项目符号与数字点的提示在任何文件里都要改。
+   - **已知限制**：写作风格评级对两类文件放行中文括号编号，以及分项行与年度计划行的第一个冒号，一类是文件名以 `P2` 开头的节，另一类是 `section_parts.json` 里经用户确认归属为 P2 或 P3 的小文件；两类取并集，只加放行不撤销。没有经 confirm 确认归属的 `section_` 开头的原子仍不放行，其中分项行与年度计划行的冒号会报 ERROR 级 `explanatory_colon`，计入终检的写作风格评级，要通过终检先让用户确认归属，或把这些冒号改成逗号或句号。项目符号与数字点的提示在任何文件里都要改。
 3. Agree priority with user (rewrite vs polish vs keep).
    - **Hard block:** do not proceed to step 4 until user explicitly confirms priority order per section or sets a global default. Accept responses like "rewrite P1, polish P2, keep P3".
 4. Revise section by section following issue order:

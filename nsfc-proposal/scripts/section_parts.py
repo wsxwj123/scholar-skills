@@ -33,7 +33,7 @@
   checks = releases(result, filename)
       返回该文件按归属文件应放行的检查名集合（frozenset），本轮只有 "cn_numbered"
       （即 --allow-cn-numbered 的口径）。不生效的行、不认识的归属、不存在的文件返回空集。
-      放行小表 RELEASE_BY_PART 在本模块里，将来扩到 P3、P4 只改这张表。
+      放行哪些部分见 RELEASE_BY_PART（在本模块里），增减部分只改这张表。
 
   should_release(result, filename, check="cn_numbered") -> bool
       两个检查脚本只调用这个函数，不自己判断归属取值。三种放行来源取并集、只加不撤，
@@ -60,8 +60,9 @@ SCHEMA_VERSION = "1.0"
 PARTS = ("P1", "P2", "P3", "P4", "其他")
 DEFAULT_CONFIRM_MODE = "by-group"       # 确认粒度缺省值，换缺省只改这里（by-group / each-row）
 CHECK_CN_NUMBERED = "cn_numbered"       # 即 --allow-cn-numbered 的口径
-RELEASE_BY_PART = {                      # 归属对应放行哪些检查；本轮只有 P2
+RELEASE_BY_PART = {                      # 归属对应放行哪些检查；放行哪些部分见本表
     "P2": frozenset({CHECK_CN_NUMBERED}),
+    "P3": frozenset({CHECK_CN_NUMBERED}),
 }
 BASIS_LINE = "比较基准是抽取后的 draft_import.md，原件里的表格文字、自动编号、加粗不在其中。"
 COPY_HINT = "把以上文字整段复制回聊天窗口。"

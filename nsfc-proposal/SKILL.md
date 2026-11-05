@@ -1,6 +1,6 @@
 ---
 name: nsfc-proposal
-version: 2.42.0
+version: 2.43.0
 description: 用于国家自然科学基金申请书（2026 版模板）的撰写、结构重组与润色。提供两种工作模式：写作模式从零分阶段构建，润色模式导入既有稿件后先行诊断再逐节修订。技能执行逐节签字门禁，强制维持科学假说、研究目标、研究内容与关键科学问题四者的一致性，通过 paper-search MCP 核验文献真实性，并施加反 AI 腔的中文学术写作约束。字数与页数上限以脚本核算结果为准。触发词：国自然、国家自然科学基金、基金申请书、科研申请、NSFC、标书、本子、面上项目、青年基金。
 ---
 
@@ -163,7 +163,7 @@ Apply these resolutions when references conflict:
 每个 Phase：snapshot → sync 状态文件 → **🔴 DoD 停**：盲检 `delegate_review verify` exit 0 后不得径直进下一 Phase，先把逐项结论（含 soft_flags）摆给用户、HALT 等用户确认；修复 3 次仍不过提示回滚到上一检查点。
 
 ### Polish Mode
-六步执行清单与各命令见 `references/workflow-polish.md`，设计层完整流程见 `references/06_Polish_Mode流程.md`：**导入整稿前先 Read 前者**。骨架：0) 导入 → `extract_headings.py` 抽标题真值 → 有标题路 `split_headings.py` 机械切 / 无标题路由子代理按行号认标题、`heading_locate.py locate` 定位核对后再 `split_headings.py` 机械切 → Layer 1 `split_audit.py` 加 `split_concat_check.py` 逐字节拼接核对（两路都跑，exit 0 才进下一层）→ Layer 2 `split_boundary` 盲检 → 用户确认拆分表 → 用户在自己的终端跑 `section_parts.py confirm` 确认每个小文件的归属（终检据此放行 P2）→ 用户授意跑 `structure_signoff_gate.py confirm` 解锁逐节改写；2) 先出严格评审报告；3) 与用户议定逐节优先级（硬阻断，未确认不进第 4 步）；4) 按问题顺序逐节修改；5) 全局一致性修复与全文复审；6) merge。
+六步执行清单与各命令见 `references/workflow-polish.md`，设计层完整流程见 `references/06_Polish_Mode流程.md`：**导入整稿前先 Read 前者**。骨架：0) 导入 → `extract_headings.py` 抽标题真值 → 有标题路 `split_headings.py` 机械切 / 无标题路由子代理按行号认标题、`heading_locate.py locate` 定位核对后再 `split_headings.py` 机械切 → Layer 1 `split_audit.py` 加 `split_concat_check.py` 逐字节拼接核对（两路都跑，exit 0 才进下一层）→ Layer 2 `split_boundary` 盲检 → 用户确认拆分表 → 用户在自己的终端跑 `section_parts.py confirm` 确认每个小文件的归属（终检据此放行 P2 与 P3）→ 用户授意跑 `structure_signoff_gate.py confirm` 解锁逐节改写；2) 先出严格评审报告；3) 与用户议定逐节优先级（硬阻断，未确认不进第 4 步）；4) 按问题顺序逐节修改；5) 全局一致性修复与全文复审；6) merge。
 
 ## State and Artifacts
 Maintain and sync after each section edit:

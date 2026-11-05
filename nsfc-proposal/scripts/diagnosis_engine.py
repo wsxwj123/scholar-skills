@@ -135,7 +135,7 @@ def diagnose_all(sections_dir: Path, consistency_path: Path) -> list[dict[str, A
     for p in sorted(sections_dir.glob("*.md")):
         allow_lists = p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
         # P2 的中文括号编号分项不计入写作风格评级与节奏提示；项目符号与数字点照计。
-        # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件把它确认为 P2。
+        # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件把它确认为放行部分。
         allow_cn_numbered = p.name.startswith("P2") or released_by_parts(p.name)
         reports.append(diagnose_section(p, consistency_path, allow_lists=allow_lists,
                                         allow_cn_numbered=allow_cn_numbered))

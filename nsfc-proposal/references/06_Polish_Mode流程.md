@@ -40,6 +40,13 @@ Step 5  全文自审 → 终稿
 
 支持格式：`.md` / `.docx` / `.txt` / 直接粘贴文本
 
+旧版 `.doc` 不能直接导入，先转成 `.docx`。不要用 macOS 自带的 `textutil`，它对旧 Mac 编码的 `.doc` 会转出乱码。改用 LibreOffice，需要先安装，终端找不到 `soffice` 时用它的完整安装路径，或者在 Word 里另存为 `.docx`。命令如下，`--outdir` 用新建的空目录，避免覆盖同名的 `.docx`，`<文件.doc>` 是原件。
+```bash
+soffice --headless --convert-to docx --outdir <目录> <文件.doc>
+```
+
+转完抽样看开头几行是不是正常中文，乱码就停下说明。
+
 ### 0.2 抽取标题真值（extract_headings）
 
 **唯一判断项"什么是标题"由脚本一次性拥有**，后续拆分/审计纯机械，不再靠主会话肉眼认标题。所有格式同一条命令：
@@ -124,6 +131,8 @@ python3 scripts/split_audit.py --text tmp/draft_import.md --headings tmp/heading
 
 逐区 offset 比对（slice_i vs atom_i）抓漏/造/串/边界漂移/乱序五类，无假绿。**exit 0** → 接着跑拼接核对；**exit 1**（region mismatch / preamble_dropped，fail-closed）→ 回退重拆，**禁手改文件蒙混**；**exit 2**（headings 空/畸形/glob 命中 0）→ 回 0.3.1。exit 1/2 = 不得声明拆分完成。
 
+无标题路的清单里没有图注项，稿子里有形如图 1-1 的图注，`split_audit.py` 就会输出 `figure_parity` 提示。这个提示在此路径下说明不了图注有没有丢，不必为它停下，退出码不受影响。
+
 再跑拼接核对，两条拆分路都跑。`split_audit.py` 会归一空白，把一个换行改成空格、删掉末尾换行它查不出；拼接核对按清单顺序把小文件的原始字节拼起来，与 `tmp/draft_import.md` 逐字节比较，另查 `sections/` 里不在清单里的 `.md` 文件：
 
 ```bash
@@ -138,7 +147,7 @@ python3 scripts/split_concat_check.py --text tmp/draft_import.md --manifest tmp/
 
 #### 0.3.6 用户确认拆分表与归属（两层皆绿后）
 
-拆出的小文件名不以 P1 到 P4 开头，终检对 P2 的放行（中文括号编号的列表提示与节奏剔除，分项行与年度计划行的第一个冒号）靠归属文件 `section_parts.json` 认出它们。归属由用户确认，确认前不生效。
+拆出的小文件名不以 P1 到 P4 开头，终检对 P2 与 P3 的放行（中文括号编号的列表提示与节奏剔除，分项行与年度计划行的第一个冒号）靠归属文件 `section_parts.json` 认出它们。归属由用户确认，确认前不生效。
 
 **第一步，主会话写归属草稿 `tmp/parts_draft.json`。** 键只写小文件名，不带 `sections/` 目录（清单里的 `file` 字段带目录，照抄会被 `table` 以 `MISSING_PART` 与 `UNKNOWN_FILE` 打回）；值取 `P1`、`P2`、`P3`、`P4`、`其他` 五个之一：
 
@@ -190,7 +199,7 @@ python3 "<技能目录绝对路径>/scripts/section_parts.py" confirm \
 
 命令以退出码 1、2、3 结束时，把以上文字整段复制回聊天窗口。退出码 1 是草稿与清单对不上或用户没有确认；退出码 2 是文件缺失、越根或小文件目录的父目录不是项目根；退出码 3 是不在终端里运行。
 
-确认后归属文件落在 `<项目根>/section_parts.json`，`humanizer_zh.py scan-all` 与 `diagnosis_engine.py` 的 diagnose-all、full-review、polish-review 读它放行归属 P2 的小文件，stderr 会打一行 `按 section_parts.json 放行 N 个文件`，让用户看见放行来源。归属文件只记小文件名、标题、级别、归属、确认时间和小文件目录名，有效性只看它自己和 `sections/` 里现有的文件名，不读 `tmp/`。状态可用 `python3 scripts/section_parts.py show --sections-dir sections` 查看。
+确认后归属文件落在 `<项目根>/section_parts.json`，`humanizer_zh.py scan-all` 与 `diagnosis_engine.py` 的 diagnose-all、full-review、polish-review 读它放行归属 P2 或 P3 的小文件，stderr 会打一行 `按 section_parts.json 放行 N 个文件`，让用户看见放行来源。归属文件只记小文件名、标题、级别、归属、确认时间和小文件目录名，有效性只看它自己和 `sections/` 里现有的文件名，不读 `tmp/`。状态可用 `python3 scripts/section_parts.py show --sections-dir sections` 查看。
 
 **会写 `tmp/split_manifest.json` 的步骤**，只有两处：0.3.2 或 0.3.3 的 `split_headings.py --manifest-out`，以及有标题路的研究目标改名（改小文件名后同步改清单里的 `file` 与 `id`，再重跑 0.3.4）。研究目标改名必须在第三步确认之前做，确认后再改名会让归属文件里的文件名对不上。
 

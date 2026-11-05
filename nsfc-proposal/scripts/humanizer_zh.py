@@ -82,11 +82,17 @@ def _is_cn_numbered_line(line: str) -> bool:
     return re.search(CN_NUMBERED_LINE_PATTERN, line) is not None
 
 
-# P2 冒号放行（allow_cn_numbered 打开时生效）。编号判据比 CN_NUMBERED_LINE_PATTERN 窄，偏差只往多报的
-# 方向走；CN_NUMBERED_LINE_PATTERN 本身不动，它继续管 cn_numbered_list 与节奏剔除。
-# 分项行的行首编号只认全角或半角括号里 1 到 2 个半角阿拉伯数字或一到十的汉字数字，左右括号可以混用；
-# 年份括号 (2023)、三位以上编号、全角数字都不认。
-P2_COLON_ITEM_NUMBER_PATTERN = r"^[（(][0-9一二三四五六七八九十]{1,2}[）)]"
+# 冒号放行（allow_cn_numbered 打开时生效，常量名里的 P2 是历史名字）。这条判据只管冒号，认不出的行照报。
+# 圈数字与阿拉伯数字多级编号不进 cn_numbered_list 与节奏剔除，那两处仍由 CN_NUMBERED_LINE_PATTERN 管，它本身不动。
+# 分项行的行首编号认三种。一是全角或半角括号里 1 到 2 个半角阿拉伯数字或一到十的汉字数字，左右括号可以混用；
+# 二是圈数字 ① 到 ⑩（U+2460 到 U+2469，⑪ 起不认）；三是半角阿拉伯数字的两级或三级编号如 1.3、2.3.1，
+# 每段 1 到 2 位，末段后面不许紧跟数字或半角点，所以四级编号、末尾带点、整数部分三位（123.4）、小数 3.14159 都不认。
+# 编号后的空格可有可无；年份括号 (2023)、三位以上的括号编号、全角数字都不认。
+P2_COLON_ITEM_NUMBER_PATTERN = (
+    r"^(?:[（(][0-9一二三四五六七八九十]{1,2}[）)]"
+    r"|[①-⑩]"
+    r"|[0-9]{1,2}(?:\.[0-9]{1,2}){1,2}(?![0-9.]))"
+)
 # 年度计划行的行首日期区间只认 references/workflow-p0-p2.md 年度计划固定格式第 1 条的写法
 # YYYY.MM.DD—YYYY.MM.DD（半角数字，中间一个 U+2014），后接一个以上的半角空格、全角空格或制表符。
 # 封闭集合，`-`、`~`、`至`、汉字年月、全角数字、破折号两侧带空格、月日不补零、加粗都不认，认不出的行
@@ -403,7 +409,7 @@ def scan_text(text: str, allow_lists: bool = False, allow_cn_numbered: bool = Fa
         # 排除：标题行（以#开头）、纯列表/表格行、行尾冒号（列表引导）
         if stripped.startswith("#") or stripped.endswith("：") or stripped.endswith(":"):
             continue
-        # allow_cn_numbered 打开时，P2 分项行与年度计划行的第一个冒号放行，从它之后接着查，同一行里其后的冒号照报
+        # allow_cn_numbered 打开时，分项行与年度计划行的第一个冒号放行，从它之后接着查，同一行里其后的冒号照报
         scan_from = _p2_colon_scan_start(stripped) if allow_cn_numbered else 0
         for m in _EXPLANATORY_COLON_RE.finditer(stripped, scan_from):
             # 排除数字比例（如 3：1）和时间格式
@@ -567,7 +573,7 @@ def main() -> int:
             allow = args.allow_lists or p.name.startswith("P3_3") or p.name.startswith("P3_4") or p.name.startswith("P4_")
             # P2 的中文括号编号分项是合规写法：只放行 cn_numbered_list，项目符号与数字点照报，节奏检查也忽略这些行；
             # 分项行与年度计划行的第一个冒号也随这个开关放行（见 scan_text 的 B3）。
-            # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件 section_parts.json 把它确认为 P2。
+            # 开关来源取并集、只加不撤：文件名以 P2 开头，或归属文件 section_parts.json 把它确认为放行部分。
             allow_cn = p.name.startswith("P2") or released_by_parts(p.name)
             out.append(scan_file(p, allow_lists=allow, allow_cn_numbered=allow_cn))
         print(json.dumps(out, ensure_ascii=False, indent=2))
